@@ -1,64 +1,56 @@
 import { Request, Response, NextFunction } from "express";
+import { transactionService } from "../services/transaction.service";
 import { catchAsync } from "../utils/catchAsync";
-import { providerService } from "../services/provider.service";
-import { swapService } from "../services/swap.service";
 import { ErrorHandler } from "../utils/errorHandler";
 
 export const transactionController = {
-  /**
-   * POST /api/transaction/simulate
-   * Body: { from, to, amount }
-   */
-  simulateSend: catchAsync(
+  transfer: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
-      const { from, to, amount } = req.body;
+      const { receiverHandle, amount, assetSymbol, category, userNote } =
+        req.body;
+      const senderId = req.user.id;
 
-      if (!from || !to || !amount) {
-        return next(
-          new ErrorHandler("Missing required fields: from, to, amount", 400)
+      if (!receiverHandle || !amount || !assetSymbol) {
+        throw new ErrorHandler(
+          "Please provide receiverHandle, amount, and assetSymbol",
+          400
         );
       }
 
-      const simulationResult = await providerService.simulateTransaction(
-        from,
-        to,
-        amount
+      const transaction = await transactionService.transferFunds(
+        senderId,
+        receiverHandle,
+        Number(amount),
+        assetSymbol,
+        category,
+        userNote
       );
 
       res.status(200).json({
-        status: "success",
-        data: simulationResult,
+        success: true,
+        message: "Transfer successful",
+        transaction,
       });
     }
   ),
 
-  /**
-   * GET /api/transaction/swap-quote
-   * Query: ?sellToken=ETH&buyToken=DAI&sellAmount=100000...
-   */
-  getSwapQuote: catchAsync(
+  updateTransaction: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
-      const { sellToken, buyToken, sellAmount, taker } = req.query;
+      const { id } = req.params;
+      const { category, userNote } = req.body;
+      const userId = req.user.id;
 
-      if (!sellToken || !buyToken || !sellAmount || !taker) {
-        return next(
-          new ErrorHandler(
-            "Missing params: sellToken, buyToken, sellAmount, taker",
-            400
-          )
-        );
-      }
-
-      const quote = await swapService.getQuote(
-        sellToken as string,
-        buyToken as string,
-        sellAmount as string,
-        taker as string
+      const transaction = await transactionService.updateTransaction(
+        userId,
+        id,
+        category,
+        userNote
       );
 
       res.status(200).json({
-        status: "success",
-        data: quote,
+        success: true,
+        message: "Transaction updated successfully",
+        transaction,
       });
     }
   ),
