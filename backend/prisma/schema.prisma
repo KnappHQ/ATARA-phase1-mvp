@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id             String   @id @default(uuid())
+  handle         String   @unique
+  email          String   @unique 
+  passwordHash   String
+  profilePicUrl  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  wallets        Wallet[]
+  sentTx         Transaction[] @relation("Sender")
+  receivedTx     Transaction[] @relation("Receiver")
+}
+
+model Wallet {
+  id          String   @id @default(uuid())
+  userId      String
+  assetSymbol String   // e.g., "BTC", "ETH", "SOL"
+  balance     Decimal  @default(0.0) @db.Decimal(24, 8) 
+  
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, assetSymbol]) // One wallet per asset per user
+}
+
+model Transaction {
+  id          String   @id @default(uuid())
+  senderId    String
+  receiverId  String
+  assetSymbol String
+  amount      Decimal  @db.Decimal(24, 8)
+  
+  
+  category    String?  
+  userNote    String?  
+  
+  status      TxStatus @default(COMPLETED) 
+  createdAt   DateTime @default(now())
+
+  sender      User     @relation("Sender", fields: [senderId], references: [id])
+  receiver    User     @relation("Receiver", fields: [receiverId], references: [id])
+}
+
+enum TxStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}

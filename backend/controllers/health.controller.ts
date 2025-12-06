@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { catchAsync } from "../utils/catchAsync";
-import { query } from "../config/db";
+import prisma from "../config/prisma";
 
 export const healthController = {
   backendHealth: catchAsync(
@@ -15,12 +15,15 @@ export const healthController = {
   dbHealth: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
       try {
-        await query("SELECT NOW()");
+        // The first query triggers a real DB connection
+        await prisma.$queryRaw`SELECT NOW()`;
+
         return res.json({
           db_status: "connected",
         });
       } catch (error) {
         console.error("DB Health Error:", error);
+
         return res.status(500).json({
           db_status: "disconnected",
           error: "Database connection failed",
