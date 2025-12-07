@@ -6,22 +6,21 @@ import { ErrorHandler } from "../utils/errorHandler";
 export const transactionController = {
   transfer: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
-      const { receiverHandle, amount, assetSymbol, category, userNote } =
-        req.body;
+      const { receiver, amount, asset, category, userNote } = req.body;
       const senderId = req.user.id;
 
-      if (!receiverHandle || !amount || !assetSymbol) {
+      if (!receiver || !amount || !asset) {
         throw new ErrorHandler(
-          "Please provide receiverHandle, amount, and assetSymbol",
+          "Please provide receiver, amount, and asset",
           400
         );
       }
 
       const transaction = await transactionService.transferFunds(
         senderId,
-        receiverHandle,
+        receiver,
         Number(amount),
-        assetSymbol,
+        asset,
         category,
         userNote
       );
@@ -52,11 +51,11 @@ export const transactionController = {
 
   getById: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
-      const { id } = req.params;
+      const { transactionId } = req.params;
       const userId = req.user.id;
 
       const transaction = await transactionService.getTransactionById(
-        id,
+        transactionId,
         userId
       );
 
