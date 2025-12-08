@@ -4,7 +4,12 @@ import { authentication } from "../middleware/auth.middleware";
 
 const router = Router();
 
-router.post("/send", authentication, transactionController.transfer);
+router.get(
+  "/resolve/:handle",
+  authentication,
+  transactionController.resolveHandle
+);
+router.post("/sync", authentication, transactionController.syncTransaction);
 router.get("/history", authentication, transactionController.getHistory);
 router.get("/:transactionId", authentication, transactionController.getById);
 router.patch(

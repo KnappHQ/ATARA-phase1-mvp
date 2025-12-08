@@ -2,32 +2,63 @@ import { Request, Response, NextFunction } from "express";
 import { transactionService } from "../services/transaction.service";
 import { catchAsync } from "../utils/catchAsync";
 import { ErrorHandler } from "../utils/errorHandler";
+import { TxStatus } from "../generated/prisma";
 
 export const transactionController = {
-  transfer: catchAsync(
+  resolveHandle: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
-      const { receiver, amount, asset, category, userNote } = req.body;
-      const senderId = req.user.id;
+      const { handle } = req.params;
 
-      if (!receiver || !amount || !asset) {
-        throw new ErrorHandler(
-          "Please provide receiver, amount, and asset",
-          400
-        );
+      if (!handle) {
+        throw new ErrorHandler("Handle is required", 400);
       }
 
-      const transaction = await transactionService.transferFunds(
-        senderId,
-        receiver,
-        Number(amount),
-        asset,
-        category,
-        userNote
-      );
+      const user = await transactionService.resolveHandle(handle);
 
       res.status(200).json({
         success: true,
-        message: "Transfer successful",
+        user,
+      });
+    }
+  ),
+
+  syncTransaction: catchAsync(
+    async (req: Request, res: Response, next: NextFunction) => {
+      const senderId = req.user.id;
+      const {
+        receiverAddress,
+        txHash,
+        amount,
+        rawAmountWei,
+        assetSymbol,
+        category,
+        userNote,
+      } = req.body;
+
+      if (
+        !receiverAddress ||
+        !txHash ||
+        !amount ||
+        !rawAmountWei ||
+        !assetSymbol
+      ) {
+        throw new ErrorHandler("Missing required transaction data", 400);
+      }
+
+      const transaction = await transactionService.syncTransaction({
+        senderId,
+        receiverAddress,
+        txHash,
+        amount,
+        rawAmountWei,
+        assetSymbol,
+        category,
+        userNote,
+      });
+
+      res.status(201).json({
+        success: true,
+        message: "Transaction synced successfully",
         transaction,
       });
     }
@@ -37,14 +68,12 @@ export const transactionController = {
     async (req: Request, res: Response, next: NextFunction) => {
       const userId = req.user.id;
 
-      const transactions = await transactionService.getTransactionsByUser(
-        userId
-      );
+      const history = await transactionService.getHistory(userId);
 
       res.status(200).json({
         success: true,
-        count: transactions.length,
-        transactions,
+        count: history.length,
+        history,
       });
     }
   ),
@@ -69,19 +98,25 @@ export const transactionController = {
   updateTransaction: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
       const { transactionId } = req.params;
-      const { category, userNote } = req.body;
+      const { category, userNote, status } = req.body;
 
-      if (!category && !userNote) {
+      if (!category && !userNote && !status) {
         throw new ErrorHandler(
-          "Please provide category or userNote to update",
+          "Please provide category, userNote, or status to update",
           400
         );
       }
+
+      if (status && !["PENDING", "COMPLETED", "FAILED"].includes(status)) {
+        throw new ErrorHandler("Invalid status value", 400);
+      }
+
       const userId = req.user.id;
 
       const transaction = await transactionService.updateTransaction(
         userId,
         transactionId,
+        status as TxStatus,
         category,
         userNote
       );

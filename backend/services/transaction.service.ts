@@ -1,104 +1,78 @@
 import prisma from "../config/prisma";
+import { TxStatus } from "../generated/prisma";
 import { ErrorHandler } from "../utils/errorHandler";
 
 class TransactionService {
-  public async transferFunds(
-    senderId: string,
-    receiverHandle: string,
-    amount: number,
-    assetSymbol: string,
-    category?: string,
-    userNote?: string
-  ) {
-    if (amount <= 0) {
-      throw new ErrorHandler("Transfer amount must be greater than zero", 400);
+  public async resolveHandle(handle: string) {
+    const user = await prisma.user.findUnique({
+      where: { handle },
+      select: {
+        id: true,
+        handle: true,
+        publicAddress: true,
+        displayName: true,
+        profilePicUrl: true,
+      },
+    });
+
+    if (!user) {
+      throw new ErrorHandler(`User @${handle} not found`, 404);
+    }
+
+    return user;
+  }
+
+  public async syncTransaction(data: {
+    senderId: string;
+    receiverAddress: string;
+    txHash: string;
+    amount: number | string;
+    rawAmountWei: string;
+    assetSymbol: string;
+    category?: string;
+    userNote?: string;
+  }) {
+    const existingTx = await prisma.transaction.findUnique({
+      where: { txHash: data.txHash },
+    });
+
+    if (existingTx) {
+      return existingTx;
     }
 
     const receiver = await prisma.user.findUnique({
-      where: { handle: receiverHandle },
+      where: { publicAddress: data.receiverAddress },
     });
 
     if (!receiver) {
-      throw new ErrorHandler(
-        `User with handle @${receiverHandle} not found`,
-        404
-      );
+      // If the receiver isn't in our app, we can't link them in the relational DB easily.
+      // For Phase 1, we assume all transfers are between app users.
+      // If we want to support sending to external wallets, we'd need to make receiverId nullable in schema.
+      throw new ErrorHandler("Receiver is not a registered user", 404);
     }
 
-    if (receiver.id === senderId) {
-      throw new ErrorHandler("Cannot send money to yourself", 400);
-    }
-
-    const transaction = await prisma.$transaction(async (tx) => {
-      // Check Sender Balance
-      const senderWallet = await tx.wallet.findUnique({
-        where: {
-          userId_assetSymbol: {
-            userId: senderId,
-            assetSymbol: assetSymbol,
-          },
-        },
-      });
-
-      if (!senderWallet || senderWallet.balance.toNumber() < amount) {
-        throw new ErrorHandler(`Insufficient ${assetSymbol} balance`, 400);
-      }
-
-      // Deduct from Sender
-      await tx.wallet.update({
-        where: {
-          userId_assetSymbol: {
-            userId: senderId,
-            assetSymbol: assetSymbol,
-          },
-        },
-        data: {
-          balance: {
-            decrement: amount,
-          },
-        },
-      });
-
-      // Add to Receiver (Upsert handles if they don't have this asset wallet yet)
-      await tx.wallet.upsert({
-        where: {
-          userId_assetSymbol: {
-            userId: receiver.id,
-            assetSymbol: assetSymbol,
-          },
-        },
-        update: {
-          balance: {
-            increment: amount,
-          },
-        },
-        create: {
-          userId: receiver.id,
-          assetSymbol: assetSymbol,
-          balance: amount,
-        },
-      });
-
-      // Create Ledger Record
-      const newTx = await tx.transaction.create({
-        data: {
-          senderId,
-          receiverId: receiver.id,
-          assetSymbol,
-          amount,
-          category,
-          userNote,
-          status: "COMPLETED",
-        },
-      });
-
-      return newTx;
+    const transaction = await prisma.transaction.create({
+      data: {
+        senderId: data.senderId,
+        receiverId: receiver.id,
+        txHash: data.txHash,
+        assetSymbol: data.assetSymbol,
+        amount: data.amount,
+        rawAmountWei: data.rawAmountWei,
+        category: data.category,
+        userNote: data.userNote,
+        status: "PENDING", // Default to PENDING until confirmed on-chain
+      },
+      include: {
+        sender: { select: { handle: true } },
+        receiver: { select: { handle: true } },
+      },
     });
 
     return transaction;
   }
 
-  public async getTransactionsByUser(userId: string) {
+  public async getHistory(userId: string) {
     const transactions = await prisma.transaction.findMany({
       where: {
         OR: [{ senderId: userId }, { receiverId: userId }],
@@ -108,14 +82,13 @@ class TransactionService {
       },
       include: {
         sender: {
-          select: { handle: true, profilePicUrl: true },
+          select: { handle: true, profilePicUrl: true, publicAddress: true },
         },
         receiver: {
-          select: { handle: true, profilePicUrl: true },
+          select: { handle: true, profilePicUrl: true, publicAddress: true },
         },
       },
     });
-
     return transactions;
   }
 
@@ -142,6 +115,7 @@ class TransactionService {
   public async updateTransaction(
     userId: string,
     transactionId: string,
+    status?: TxStatus,
     category?: string,
     userNote?: string
   ) {
@@ -160,6 +134,7 @@ class TransactionService {
     const updatedTx = await prisma.transaction.update({
       where: { id: transactionId },
       data: {
+        status,
         category,
         userNote,
       },
