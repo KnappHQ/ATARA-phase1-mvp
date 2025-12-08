@@ -6,13 +6,20 @@ import { ErrorHandler } from "../utils/errorHandler";
 export const authController = {
   register: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
-      const { handle, password } = req.body;
+      const { handle, password, publicAddress } = req.body;
 
-      if (!handle || !password) {
-        throw new ErrorHandler("Please provide handle and password", 400);
+      if (!handle || !password || !publicAddress) {
+        throw new ErrorHandler(
+          "Please provide handle, password, and publicAddress",
+          400
+        );
       }
 
-      const { user, token } = await authService.register(handle, password);
+      const { user, token } = await authService.register(
+        handle,
+        password,
+        publicAddress
+      );
 
       const { passwordHash, ...safeUser } = user;
 

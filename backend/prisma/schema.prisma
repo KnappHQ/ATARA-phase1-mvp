@@ -11,6 +11,7 @@ model User {
   id             String   @id @default(uuid())
   handle         String   @unique
   email          String?  @unique
+  publicAddress  String   @unique
   passwordHash   String
   profilePicUrl  String?
   displayName    String?
@@ -18,34 +19,26 @@ model User {
   updatedAt      DateTime @updatedAt
 
   // Relations
-  wallets        Wallet[]
   sentTx         Transaction[] @relation("Sender")
   receivedTx     Transaction[] @relation("Receiver")
-}
-
-model Wallet {
-  id          String   @id @default(uuid())
-  userId      String
-  assetSymbol String   // e.g., "BTC", "ETH", "SOL"
-  balance     Decimal  @default(0.0) @db.Decimal(24, 8) 
-  
-  user        User     @relation(fields: [userId], references: [id])
-
-  @@unique([userId, assetSymbol]) // One wallet per asset per user
 }
 
 model Transaction {
   id          String   @id @default(uuid())
   senderId    String
   receiverId  String
+
+  txHash      String   @unique
   assetSymbol String
   amount      Decimal  @db.Decimal(24, 8)
+  rawAmountWei String?
+
   
   
   category    String?  
   userNote    String?  
   
-  status      TxStatus @default(COMPLETED) 
+  status      TxStatus @default(PENDING) 
   createdAt   DateTime @default(now())
 
   sender      User     @relation("Sender", fields: [senderId], references: [id])

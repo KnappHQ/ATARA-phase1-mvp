@@ -5,39 +5,32 @@ import { ErrorHandler } from "../utils/errorHandler";
 import { JWT_EXPIRES_IN, JWT_SECRET, SALT_ROUNDS } from "../utils/constants";
 
 class AuthService {
-  public async register(handle: string, password: string) {
+  public async register(
+    handle: string,
+    password: string,
+    publicAddress: string
+  ) {
     const existingUser = await prisma.user.findFirst({
       where: {
-        handle,
+        OR: [{ handle }, { publicAddress }],
       },
     });
 
     if (existingUser) {
-      throw new ErrorHandler("Handle already taken", 409);
+      if (existingUser.handle === handle)
+        throw new ErrorHandler("Handle already taken", 409);
+      if (existingUser.publicAddress === publicAddress)
+        throw new ErrorHandler("Wallet address already registered", 409);
     }
 
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
-    const newUser = await prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          handle,
-          passwordHash,
-          wallets: {
-            create: [
-              { assetSymbol: "BTC", balance: 10000.0 },
-              { assetSymbol: "ETH", balance: 10000.0 },
-              { assetSymbol: "SOL", balance: 10000.0 },
-            ],
-          },
-        },
-
-        include: {
-          wallets: true,
-        },
-      });
-
-      return user;
+    const newUser = await prisma.user.create({
+      data: {
+        handle,
+        passwordHash,
+        publicAddress,
+      },
     });
 
     const token = jwt.sign(
