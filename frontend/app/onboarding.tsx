@@ -7,16 +7,10 @@ import { IdentityScreen } from "../components/onboarding/IdentityScreen";
 import { RestoreScreen } from "../components/onboarding/RestoreScreen";
 import { SecurityScreen } from "../components/onboarding/SecurityScreen";
 import { VaultOpeningAnimation } from "../components/onboarding/VaultOpeningAnimation";
-import { WelcomeBackScreen } from "../components/onboarding/WelcomeBackScreen";
 import { generateSeedPhrase } from "../utils/seedPhrase";
 import { StorageService } from "../utils/storage";
 
-type OnboardingStep =
-  | "gate"
-  | "identity"
-  | "security"
-  | "restore"
-  | "welcome-back";
+type OnboardingStep = "gate" | "identity" | "security" | "restore";
 
 export default function Onboarding() {
   const router = useRouter();
@@ -31,21 +25,6 @@ export default function Onboarding() {
     checkExistingUser();
   }, []);
 
-  // Prevent access to onboarding if already completed (unless in welcome-back flow)
-  useEffect(() => {
-    const checkOnboardingStatus = async () => {
-      const isComplete = await StorageService.isOnboardingComplete();
-      const hasUser = await StorageService.hasExistingUser();
-
-      // If onboarding is complete and user exists, redirect to home
-      // unless we're in the welcome-back flow
-      if (isComplete && hasUser && step !== "welcome-back") {
-        router.replace("/");
-      }
-    };
-    checkOnboardingStatus();
-  }, [router, step]);
-
   const checkExistingUser = async () => {
     try {
       const hasUser = await StorageService.hasExistingUser();
@@ -53,7 +32,7 @@ export default function Onboarding() {
         const savedHandle = await StorageService.getHandle();
         if (savedHandle) {
           setExistingUser(savedHandle);
-          setStep("welcome-back");
+          router.replace("/");
         }
       }
     } catch (error) {
@@ -121,25 +100,6 @@ export default function Onboarding() {
     }
   };
 
-  const handleBioUnlock = () => {
-    setIsVaultOpening(true);
-    setTimeout(() => router.replace("/"), 1200);
-  };
-
-  const handleNewAccount = async () => {
-    try {
-      const success = await StorageService.clearUserData();
-      if (success) {
-        setExistingUser(null);
-        setStep("gate");
-      } else {
-        console.error("Error clearing user data");
-      }
-    } catch (error) {
-      console.error("Error clearing user data:", error);
-    }
-  };
-
   return (
     <View className="flex-1 bg-background">
       {isVaultOpening && <VaultOpeningAnimation />}
@@ -172,14 +132,6 @@ export default function Onboarding() {
         <RestoreScreen
           onRestore={handleRestore}
           onBack={() => setStep("gate")}
-        />
-      )}
-
-      {step === "welcome-back" && !isVaultOpening && existingUser && (
-        <WelcomeBackScreen
-          handle={existingUser}
-          onUnlock={handleBioUnlock}
-          onNewAccount={handleNewAccount}
         />
       )}
     </View>
