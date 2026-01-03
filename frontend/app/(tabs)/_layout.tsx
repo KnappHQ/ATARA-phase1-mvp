@@ -10,7 +10,7 @@ export default function TabsLayout() {
     <View className="flex-1">
       <LivingBackground />
       <SafeAreaView
-        className="flex-1 max-w-md mx-auto w-full"
+        className="flex-1 mx-auto w-full"
         edges={["top"]}
         style={{ backgroundColor: "transparent" }}
       >

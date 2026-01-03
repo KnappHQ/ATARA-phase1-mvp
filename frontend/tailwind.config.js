@@ -11,7 +11,7 @@ module.exports = {
         popover: "#0D080F",
         "popover-foreground": "#F2EDE3",
         primary: {
-          DEFAULT: "#E5D2A6",
+          DEFAULT: "#dfcfaa",
           foreground: "#0D080F",
         },
         secondary: {
@@ -30,7 +30,7 @@ module.exports = {
           DEFAULT: "#DC2626",
           foreground: "#FFFFFF",
         },
-        border: "#221E2B",
+        border: "#241f2e",
         input: "#1A1622",
         ring: "#E5D2A6",
         ceramic: "#14111C",

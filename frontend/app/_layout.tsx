@@ -86,24 +86,40 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#070609" }}>
       <StatusBar style="light" translucent backgroundColor="transparent" />
       <NavigationGuard />
       <Stack
         screenOptions={{
           headerShown: false,
           animation: "fade",
+          contentStyle: { backgroundColor: "#070609" },
         }}
       >
         <Stack.Screen
           name="(tabs)"
           options={{
             headerShown: false,
-            contentStyle: { backgroundColor: "transparent" },
+            contentStyle: { backgroundColor: "#070609" },
           }}
         />
         <Stack.Screen name="onboarding" />
-        <Stack.Screen name="send" />
+        <Stack.Screen
+          name="send"
+          options={{
+            presentation: "transparentModal",
+            animation: "slide_from_bottom",
+            contentStyle: { backgroundColor: "#070609" },
+          }}
+        />{" "}
+        <Stack.Screen
+          name="transaction-success"
+          options={{
+            presentation: "card",
+            animation: "fade",
+            contentStyle: { backgroundColor: "#070609" },
+          }}
+        />{" "}
       </Stack>
     </GestureHandlerRootView>
   );
