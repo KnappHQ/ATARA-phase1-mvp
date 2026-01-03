@@ -4,7 +4,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        background: "#08050D",
+        background: "#070609",
         foreground: "#EAE0CA",
         card: "#0F0A14",
         "card-foreground": "#F2EDE3",
@@ -37,7 +37,7 @@ module.exports = {
         "ceramic-hover": "#1C1826",
         void: "#06040A",
         champagne: {
-          DEFAULT: "#F5D580",
+          DEFAULT: "hsl(48, 100%, 70%)",
           light: "#FFEFC2",
           glow: "#F0CC5F",
           neon: "#F7DC8F",
@@ -58,7 +58,14 @@ module.exports = {
         orbitron: ["Orbitron_400Regular"],
         rajdhani: ["Rajdhani_400Regular"],
         data: ["Rajdhani_400Regular"],
+        "orbitron-medium": ["Orbitron_500Medium"],
+        "orbitron-semibold": ["Orbitron_600SemiBold"],
+        "orbitron-bold": ["Orbitron_700Bold"],
+        "rajdhani-medium": ["Rajdhani_500Medium"],
+        "rajdhani-semibold": ["Rajdhani_600SemiBold"],
+        "rajdhani-bold": ["Rajdhani_700Bold"],
       },
+
       letterSpacing: {
         hud: "0.15em",
         "hud-wide": "0.25em",

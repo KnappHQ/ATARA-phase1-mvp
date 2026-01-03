@@ -1,103 +1,138 @@
-import { View, Text, Pressable } from "react-native";
-import { ArrowDownLeft } from "lucide-react-native";
-import Animated, {
-  useAnimatedStyle,
-  withRepeat,
-  withSequence,
-  withTiming,
-  Easing,
-} from "react-native-reanimated";
-import { useEffect } from "react";
-import { useSharedValue } from "react-native-reanimated";
-import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
+import { ArrowDownLeft } from "lucide-react-native";
+import { useEffect, useRef } from "react";
+import { Animated, Easing, Pressable, Text, View } from "react-native";
+import Reanimated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
+
+const AnimatedPressable = Reanimated.createAnimatedComponent(Pressable);
 
 interface EmptyVaultCardProps {
   onDeposit: () => void;
 }
 
 export const EmptyVaultCard = ({ onDeposit }: EmptyVaultCardProps) => {
-  const scale = useSharedValue(0.95);
-  const opacity = useSharedValue(0.2);
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+  const scale = useSharedValue(1);
 
   useEffect(() => {
-    scale.value = withRepeat(
-      withSequence(
-        withTiming(0.95, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-        withTiming(1.08, { duration: 1500, easing: Easing.inOut(Easing.ease) })
-      ),
-      -1,
-      true
+    const shimmer = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shimmerAnim, {
+          toValue: 1,
+          duration: 1800,
+          easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+          useNativeDriver: true,
+        }),
+        Animated.delay(800),
+      ])
     );
-    opacity.value = withRepeat(
-      withSequence(
-        withTiming(0.2, { duration: 1500, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.6, { duration: 1500, easing: Easing.inOut(Easing.ease) })
-      ),
-      -1,
-      true
-    );
+    shimmer.start();
+    return () => shimmer.stop();
   }, []);
 
-  const animatedAuraStyle = useAnimatedStyle(() => ({
+  const translateX = shimmerAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-500, 500],
+  });
+
+  const buttonStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
-    opacity: opacity.value,
   }));
 
+  const onPressIn = () => {
+    scale.value = withSpring(0.96, { damping: 18, stiffness: 420 });
+  };
+
+  const onPressOut = () => {
+    scale.value = withSpring(1, { damping: 18, stiffness: 420 });
+  };
+
   return (
-    <View className="relative overflow-hidden rounded-xl">
-      <Animated.View
-        style={[animatedAuraStyle]}
-        className="absolute -inset-5 rounded-full"
-      >
-        <LinearGradient
-          colors={[
-            "rgba(229, 210, 166, 0.15)",
-            "rgba(229, 210, 166, 0.08)",
-            "transparent",
-          ]}
-          style={{
-            width: "100%",
-            height: "100%",
-            borderRadius: 9999,
-          }}
-          start={{ x: 0.5, y: 0.5 }}
-          end={{ x: 1, y: 1 }}
-        />
-      </Animated.View>
+    <View className="relative overflow-hidden rounded-xl border border-champagne/20 bg-[rgba(255,255,255,0.03)] shadow-lg">
+      <View className="absolute inset-0"></View>
 
-      <View className="overflow-hidden rounded-xl border border-champagne/20">
-        <BlurView intensity={80} tint="dark" className="p-6">
-          <View className="items-center">
-            <Text className="font-display text-xl font-bold text-champagne mb-2 tracking-wide">
-              Wallet empty
-            </Text>
-            <Text className="font-sans text-sm text-muted-foreground mb-6 text-center">
-              Secure your first assets to start tracking your wealth
-            </Text>
+      <View className="relative z-10 p-6 items-center">
+        <Text className="font-orbitron-semibold text-2xl text-champagne mb-2 tracking-wide">
+          Wallet empty
+        </Text>
 
-            <Pressable
-              onPress={onDeposit}
-              className="active:scale-95 transition-all"
+        <Text className="font-sans text-base text-muted-foreground mb-6 text-center">
+          Secure your first assets to start tracking your wealth
+        </Text>
+
+        <Reanimated.View style={buttonStyle}>
+          <View
+            className="rounded-xl overflow-hidden"
+            style={{
+              boxShadow:
+                "0 0 20px rgba(245, 215, 101, 0.4), 0 0 40px rgba(245, 215, 101, 0.2)",
+            }}
+          >
+            <LinearGradient
+              colors={[
+                "hsl(48, 80%, 55%)",
+                "hsl(48, 80%, 55%)",
+                "hsl(48, 80%, 55%)",
+                "hsl(48, 80%, 55%)",
+                "hsl(48, 80%, 55%)",
+              ]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              locations={[0, 0.4, 0.48, 0.5, 0.52, 0.6, 1]}
+              className="rounded-xl"
+              style={{ position: "relative" }}
             >
-              <LinearGradient
-                colors={[
-                  "hsl(48, 80%, 55%)",
-                  "hsl(48, 80%, 55%)",
-                  "hsl(50, 100%, 75%)",
-                ]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                className="px-8 py-3 rounded-xl flex-row items-center justify-center gap-2"
+              <Animated.View
+                style={{
+                  position: "absolute",
+                  top: -50,
+                  left: -100,
+                  right: -100,
+                  bottom: -50,
+                  transform: [{ translateX }, { rotate: "-25deg" }],
+                }}
+                pointerEvents="none"
               >
-                <ArrowDownLeft size={16} color="hsl(260, 20%, 5%)" />
-                <Text className="font-hud text-sm font-semibold tracking-hud-wide uppercase text-primary-foreground">
+                <LinearGradient
+                  colors={[
+                    "rgba(255, 255, 255, 0)",
+                    "rgba(255, 255, 255, 0)",
+                    "rgba(255, 255, 255, 0.15)",
+                    "rgba(255, 255, 255, 0.4)",
+                    "rgba(255, 255, 255, 0.6)",
+                    "rgba(255, 255, 255, 0.4)",
+                    "rgba(255, 255, 255, 0.15)",
+                    "rgba(255, 255, 255, 0)",
+                    "rgba(255, 255, 255, 0)",
+                  ]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  locations={[0, 0.3, 0.4, 0.45, 0.5, 0.55, 0.6, 0.7, 1]}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                  }}
+                />
+              </Animated.View>
+
+              <AnimatedPressable
+                onPress={onDeposit}
+                onPressIn={onPressIn}
+                onPressOut={onPressOut}
+                className="px-12 py-4 rounded-xl flex-row items-center justify-center gap-2"
+              >
+                <ArrowDownLeft size={18} color="#0D080F" />
+                <Text className="font-orbitron-bold text-[14px] tracking-hud uppercase text-[#0D080F]">
                   Deposit Now
                 </Text>
-              </LinearGradient>
-            </Pressable>
+              </AnimatedPressable>
+            </LinearGradient>
           </View>
-        </BlurView>
+        </Reanimated.View>
       </View>
     </View>
   );

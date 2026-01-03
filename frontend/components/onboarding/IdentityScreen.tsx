@@ -1,6 +1,6 @@
-import { View, Text, TextInput, Pressable } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Check } from "lucide-react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface IdentityScreenProps {
   handle: string;

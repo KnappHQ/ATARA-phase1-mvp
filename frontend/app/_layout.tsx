@@ -1,4 +1,9 @@
-import { Orbitron_400Regular } from "@expo-google-fonts/orbitron";
+import {
+  Orbitron_400Regular,
+  Orbitron_500Medium,
+  Orbitron_600SemiBold,
+  Orbitron_700Bold,
+} from "@expo-google-fonts/orbitron";
 import {
   Rajdhani_400Regular,
   Rajdhani_500Medium,
@@ -61,6 +66,9 @@ function NavigationGuard() {
 export default function RootLayout() {
   const [loaded, error] = useFonts({
     Orbitron_400Regular,
+    Orbitron_500Medium,
+    Orbitron_600SemiBold,
+    Orbitron_700Bold,
     Rajdhani_400Regular,
     Rajdhani_500Medium,
     Rajdhani_600SemiBold,
@@ -84,11 +92,16 @@ export default function RootLayout() {
       <Stack
         screenOptions={{
           headerShown: false,
-          contentStyle: { backgroundColor: "hsl(260, 20%, 3%)" },
           animation: "fade",
         }}
       >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="(tabs)"
+          options={{
+            headerShown: false,
+            contentStyle: { backgroundColor: "transparent" },
+          }}
+        />
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="send" />
       </Stack>

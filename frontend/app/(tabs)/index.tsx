@@ -1,27 +1,72 @@
 import { useRouter } from "expo-router";
-import { Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { HomeScreen } from "../../components/HomeScreen";
-import { LivingBackground } from "../../components/LivingBackground";
+import { ArrowDownLeft, ArrowUpRight } from "lucide-react-native";
+import React from "react";
+import { ScrollView, Text, View } from "react-native";
+import ActionButton from "../../components/ActionButton";
+import { BalanceReveal } from "../../components/BalanceReveal";
+import { EmptyVaultCard } from "../../components/EmptyVaultCard";
+import { RecentActivity } from "../../components/RecentActivity";
+import { ScreenWrapper } from "../../components/ScreenWrapper";
 
 export default function HomeTab() {
   const router = useRouter();
-
-  const handleReceive = () => {
-    console.log("Receive pressed");
-  };
+  const [isBalanceRevealed, setIsBalanceRevealed] = React.useState(false);
+  const isVaultEmpty = true;
 
   const handleSend = () => {
     router.push("/send");
   };
 
+  const handleReceive = () => {
+    console.log("Receive pressed");
+  };
+
   return (
-    <View className="flex-1 bg-transparent">
-      <SafeAreaView className="flex-1 max-w-md mx-auto w-full" edges={["top"]}>
-        <View className="flex-1">
-          <HomeScreen onSend={handleSend} onReceive={handleReceive} />
-        </View>
-      </SafeAreaView>
-    </View>
+    <ScreenWrapper>
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: isBalanceRevealed ? 180 : 100 }}
+      >
+        <BalanceReveal
+          balance={24500}
+          changeAmount="+$1,240.50"
+          changePercentage="5.3%"
+          onRevealChange={setIsBalanceRevealed}
+        >
+          <View className="flex-row gap-4 mb-10">
+            <ActionButton
+              icon={<ArrowDownLeft size={20} color="#ffe066" />}
+              label="RECEIVE"
+              onPress={handleReceive}
+            />
+            <ActionButton
+              icon={<ArrowUpRight size={20} color="#ffe066" />}
+              label="SEND"
+              onPress={handleSend}
+            />
+          </View>
+
+          {isVaultEmpty ? (
+            <View className="mb-6">
+              <EmptyVaultCard onDeposit={handleReceive} />
+            </View>
+          ) : (
+            <View className="mb-6">
+              <View className="bg-ceramic border border-champagne/20 rounded-xl p-4">
+                <Text className="font-orbitron text-sm font-semibold text-champagne mb-2">
+                  Weekly Insights
+                </Text>
+                <Text className="font-rajdhani text-xs text-muted-foreground">
+                  Your portfolio is up 12.5% this week
+                </Text>
+              </View>
+            </View>
+          )}
+
+          <RecentActivity />
+        </BalanceReveal>
+      </ScrollView>
+    </ScreenWrapper>
   );
 }

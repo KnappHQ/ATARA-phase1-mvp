@@ -1,56 +1,82 @@
-import { Text } from "react-native";
-import { useEffect } from "react";
-import Animated, {
-  useSharedValue,
-  useAnimatedProps,
-  withTiming,
-  Easing,
-} from "react-native-reanimated";
+import { useEffect, useState } from "react";
+import { Text, TextStyle } from "react-native";
 
 interface AnimatedCounterProps {
   value: number;
-  duration?: number;
   prefix?: string;
   suffix?: string;
   decimals?: number;
+  duration?: number;
   className?: string;
+  style?: TextStyle;
+  glowing?: boolean;
 }
-
-const AnimatedText = Animated.createAnimatedComponent(Text);
 
 export const AnimatedCounter = ({
   value,
-  duration = 1500,
   prefix = "",
   suffix = "",
   decimals = 0,
+  duration = 1500,
   className = "",
+  style,
+  glowing = false,
 }: AnimatedCounterProps) => {
-  const animatedValue = useSharedValue(0);
+  const [displayValue, setDisplayValue] = useState(0);
 
   useEffect(() => {
-    animatedValue.value = withTiming(value, {
-      duration,
-      easing: Easing.out(Easing.cubic),
-    });
+    let startTime: number;
+    let animationFrame: number;
+
+    const animate = (currentTime: number) => {
+      if (!startTime) startTime = currentTime;
+      const progress = Math.min((currentTime - startTime) / duration, 1);
+
+      const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+      setDisplayValue(value * easeOutQuart);
+
+      if (progress < 1) {
+        animationFrame = requestAnimationFrame(animate);
+      }
+    };
+
+    animationFrame = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame);
+      }
+    };
   }, [value, duration]);
 
-  const animatedProps = useAnimatedProps(() => {
-    const currentValue = animatedValue.value;
-    const formatted = currentValue.toLocaleString("en-US", {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    });
+  const formattedValue = displayValue
+    .toFixed(decimals)
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 
-    return {
-      text: `${prefix}${formatted}${suffix}`,
-    } as any;
-  });
+  const textContent = `${prefix}${formattedValue}${suffix}`;
+
+  if (glowing) {
+    return (
+      <Text
+        className={className}
+        style={[
+          style,
+          {
+            color: "#FCD34D",
+            textShadowColor: "rgba(252, 211, 77, 0.6)",
+            textShadowOffset: { width: 0, height: 0 },
+            textShadowRadius: 30,
+          },
+        ]}
+      >
+        {textContent}
+      </Text>
+    );
+  }
 
   return (
-    <AnimatedText
-      animatedProps={animatedProps}
-      className={`font-hud ${className}`}
-    />
+    <Text className={className} style={style}>
+      {textContent}
+    </Text>
   );
 };

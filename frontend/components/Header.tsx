@@ -1,7 +1,7 @@
-import { View, Text, Pressable } from "react-native";
-import { ArrowDownLeft, ArrowUpRight } from "lucide-react-native";
 import { BlurView } from "expo-blur";
 import { usePathname, useRouter } from "expo-router";
+import { ArrowDownLeft, ArrowUpRight } from "lucide-react-native";
+import { Pressable, Text, View } from "react-native";
 
 export const Header = () => {
   const pathname = usePathname();
@@ -17,7 +17,7 @@ export const Header = () => {
   };
 
   return (
-    <View className="pt-6 pb-2 px-6 flex-row items-center justify-between">
+    <View className="pt-6 pb-2 px-6 flex-row items-center justify-between bg-transparent">
       <Text className="text-xl font-semibold tracking-wide text-foreground">
         Astr<Text className="text-primary">â</Text>
       </Text>
