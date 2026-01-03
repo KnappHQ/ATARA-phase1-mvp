@@ -10,7 +10,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { AnimatedCounter } from "./homeScreen/AnimatedCounter";
+import { AnimatedCounter } from "./AnimatedCounter";
 
 interface BalanceRevealProps {
   balance: number;

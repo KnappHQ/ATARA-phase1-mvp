@@ -2,10 +2,10 @@ import { useRouter } from "expo-router";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react-native";
 import React from "react";
 import { ScrollView, Text, View } from "react-native";
-import ActionButton from "../../components/ActionButton";
-import { BalanceReveal } from "../../components/BalanceReveal";
-import { EmptyVaultCard } from "../../components/EmptyVaultCard";
-import { RecentActivity } from "../../components/RecentActivity";
+import ActionButton from "../../components/homeScreen/ActionButton";
+import { BalanceReveal } from "../../components/homeScreen/BalanceReveal";
+import { EmptyVaultCard } from "../../components/homeScreen/EmptyVaultCard";
+import { RecentActivity } from "../../components/homeScreen/RecentActivity";
 import { ScreenWrapper } from "../../components/ScreenWrapper";
 
 export default function HomeTab() {
