@@ -1,14 +1,14 @@
+import { AuthService } from "@/services/auth.service";
+import { useAuthStore } from "@/stores/useAuthStore";
 import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { View } from "react-native";
+import { Alert, View } from "react-native";
 import { GateScreen } from "../components/onboarding/GateScreen";
 import { IdentityScreen } from "../components/onboarding/IdentityScreen";
 import { RestoreScreen } from "../components/onboarding/RestoreScreen";
 import { SecurityScreen } from "../components/onboarding/SecurityScreen";
 import { VaultOpeningAnimation } from "../components/onboarding/VaultOpeningAnimation";
-import { generateSeedPhrase } from "../utils/seedPhrase";
-import { StorageService } from "../utils/storage";
 
 type OnboardingStep = "gate" | "identity" | "security" | "restore";
 
@@ -17,26 +17,34 @@ export default function Onboarding() {
   const [step, setStep] = useState<OnboardingStep>("gate");
   const [handle, setHandle] = useState("");
   const [keyCopied, setKeyCopied] = useState(false);
+
   const [isVaultOpening, setIsVaultOpening] = useState(false);
-  const [existingUser, setExistingUser] = useState<string | null>(null);
-  const [seedPhrase] = useState(generateSeedPhrase());
+  const [isLoading, setIsLoading] = useState(false);
+
+  const [walletAddress, setWalletAddress] = useState<string>("");
+  const [seedPhrase, setSeedPhrase] = useState<string[]>([]);
 
   useEffect(() => {
     checkExistingUser();
+    initializeWallet();
   }, []);
 
   const checkExistingUser = async () => {
+    const isAuthenticated = useAuthStore.getState().isAuthenticated;
+    if (isAuthenticated) {
+      router.replace("/");
+    }
+  };
+
+  const initializeWallet = async () => {
     try {
-      const hasUser = await StorageService.hasExistingUser();
-      if (hasUser) {
-        const savedHandle = await StorageService.getHandle();
-        if (savedHandle) {
-          setExistingUser(savedHandle);
-          router.replace("/");
-        }
+      const { mnemonic, address } = await AuthService.createWallet();
+      if (mnemonic) {
+        setSeedPhrase(mnemonic.split(" "));
+        setWalletAddress(address);
       }
-    } catch (error) {
-      console.error("Error checking existing user:", error);
+    } catch (e) {
+      console.error("Failed to init wallet", e);
     }
   };
 
@@ -47,62 +55,53 @@ export default function Onboarding() {
 
   const handleFinish = async () => {
     if (!handle.trim()) {
-      console.error("Handle is required");
+      Alert.alert("Error", "Handle is required");
       return;
     }
 
-    setIsVaultOpening(true);
+    setIsLoading(true);
+
     try {
-      const results = await Promise.all([
-        StorageService.setOnboardingComplete(),
-        StorageService.setHandle(handle),
-        StorageService.setSeedPhrase(seedPhrase.join(" ")),
-      ]);
-
-      const allSuccess = results.every((result) => result === true);
-      if (!allSuccess) {
-        console.error("Error saving data: Some operations failed");
-        setIsVaultOpening(false);
-        return;
-      }
-
-      setTimeout(() => router.replace("/"), 1500);
-    } catch (error) {
-      console.error("Error saving data:", error);
-      setIsVaultOpening(false);
+      await AuthService.register(handle, walletAddress);
+      setIsLoading(false);
+      setIsVaultOpening(true);
+    } catch (error: any) {
+      console.error("Registration Error:", error);
+      setIsLoading(false);
+      Alert.alert(
+        "Registration Failed",
+        error?.response?.data?.message || "Could not create account"
+      );
     }
   };
 
-  const handleRestore = async (restoredHandle: string) => {
-    if (!restoredHandle.trim()) {
-      console.error("Handle is required");
-      return;
-    }
+  const handleRestore = async (mnemonic: string) => {
+    if (!mnemonic.trim()) return;
 
-    setIsVaultOpening(true);
+    setIsLoading(true);
+
     try {
-      const results = await Promise.all([
-        StorageService.setOnboardingComplete(),
-        StorageService.setHandle(restoredHandle),
-      ]);
+      await AuthService.restoreWallet(mnemonic);
+      await AuthService.login();
 
-      const allSuccess = results.every((result) => result === true);
-      if (!allSuccess) {
-        console.error("Error restoring: Some operations failed");
-        setIsVaultOpening(false);
-        return;
-      }
-
-      setTimeout(() => router.replace("/"), 1500);
-    } catch (error) {
-      console.error("Error restoring:", error);
-      setIsVaultOpening(false);
+      setIsLoading(false);
+      setIsVaultOpening(true);
+    } catch (error: any) {
+      console.error("Restore Error:", error);
+      setIsLoading(false);
+      Alert.alert("Login Failed", "Invalid seed phrase or account not found.");
     }
+  };
+
+  const onAnimationComplete = () => {
+    router.replace("/");
   };
 
   return (
     <View className="flex-1 bg-background">
-      {isVaultOpening && <VaultOpeningAnimation />}
+      {isVaultOpening && (
+        <VaultOpeningAnimation onComplete={onAnimationComplete} />
+      )}
 
       {step === "gate" && !isVaultOpening && (
         <GateScreen
@@ -125,6 +124,7 @@ export default function Onboarding() {
           keyCopied={keyCopied}
           onCopyKey={handleCopyKey}
           onFinish={handleFinish}
+          isLoading={isLoading}
         />
       )}
 
@@ -132,6 +132,7 @@ export default function Onboarding() {
         <RestoreScreen
           onRestore={handleRestore}
           onBack={() => setStep("gate")}
+          isLoading={isLoading}
         />
       )}
     </View>

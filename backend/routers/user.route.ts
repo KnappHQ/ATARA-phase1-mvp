@@ -8,4 +8,6 @@ router.get("/me", authentication, userController.getMe);
 
 router.patch("/me", authentication, userController.updateProfile);
 
+router.get("/check-handle", userController.checkHandleAvailability);
+
 export default router;

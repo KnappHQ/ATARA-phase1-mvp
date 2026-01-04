@@ -76,6 +76,15 @@ class UserService {
 
     return updatedUser;
   }
+
+  public async checkHandleAvailability(handle: string): Promise<boolean> {
+    const user = await prisma.user.findUnique({
+      where: { handle },
+      select: { id: true },
+    });
+
+    return !user;
+  }
 }
 
 export const userService = new UserService();

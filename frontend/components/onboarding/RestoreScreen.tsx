@@ -1,14 +1,25 @@
-import { View, Text, TextInput, Pressable } from "react-native";
-import { useState, useCallback } from "react";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Eye, EyeOff } from "lucide-react-native";
+import { useCallback, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface RestoreScreenProps {
-  onRestore: (handle: string) => void;
+  onRestore: (mnemonic: string) => void;
   onBack: () => void;
+  isLoading?: boolean;
 }
 
-export const RestoreScreen = ({ onRestore, onBack }: RestoreScreenProps) => {
+export const RestoreScreen = ({
+  onRestore,
+  onBack,
+  isLoading = false,
+}: RestoreScreenProps) => {
   const SEED_WORD_COUNT = 12;
   const [words, setWords] = useState<string[]>(Array(SEED_WORD_COUNT).fill(""));
   const [showWords, setShowWords] = useState(false);
@@ -34,9 +45,8 @@ export const RestoreScreen = ({ onRestore, onBack }: RestoreScreenProps) => {
 
   const handleRecover = () => {
     if (!isValid) return;
-    const generatedHandle =
-      "restored_" + Math.random().toString(36).substr(2, 6);
-    onRestore(generatedHandle);
+    const mnemonic = words.join(" ").trim();
+    onRestore(mnemonic);
   };
 
   return (
@@ -107,6 +117,7 @@ export const RestoreScreen = ({ onRestore, onBack }: RestoreScreenProps) => {
       <View className="flex-row gap-3 mt-8">
         <Pressable
           onPress={onBack}
+          disabled={isLoading}
           className="px-8 py-4 rounded-xl border border-champagne/20 active:scale-95"
         >
           <Text className="text-foreground/70 text-base tracking-wide font-rajdhani">
@@ -116,20 +127,24 @@ export const RestoreScreen = ({ onRestore, onBack }: RestoreScreenProps) => {
 
         <Pressable
           onPress={handleRecover}
-          disabled={!isValid}
-          className={`px-10 py-4 rounded-xl border active:scale-95 ${
+          disabled={!isValid || isLoading}
+          className={`px-10 py-4 rounded-xl border ${
             isValid
               ? "border-champagne/40 bg-champagne/10"
               : "border-champagne/20 bg-obsidian-glass/30"
-          }`}
+          } ${isLoading ? "opacity-80" : "active:scale-95"}`}
         >
-          <Text
-            className={`text-base tracking-[0.15em] font-rajdhani uppercase ${
-              isValid ? "text-champagne" : "text-champagne/40"
-            }`}
-          >
-            Recover
-          </Text>
+          {isLoading ? (
+            <ActivityIndicator color="#FFE666" size="small" />
+          ) : (
+            <Text
+              className={`text-base tracking-[0.15em] font-rajdhani uppercase ${
+                isValid ? "text-champagne" : "text-champagne/40"
+              }`}
+            >
+              Recover
+            </Text>
+          )}
         </Pressable>
       </View>
     </SafeAreaView>

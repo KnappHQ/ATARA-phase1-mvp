@@ -41,8 +41,12 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   loadSession: async () => {
     try {
+      console.log("Loading session from SecureStore");
       const token = await SecureStore.getItemAsync("auth_token");
       const userStr = await SecureStore.getItemAsync("user_profile");
+
+      console.log("Token:", token);
+      console.log("User String:", userStr);
 
       if (token && userStr) {
         set({
@@ -51,6 +55,7 @@ export const useAuthStore = create<AuthState>((set) => ({
           isAuthenticated: true,
         });
       }
+      console.log("Session loaded successfully");
     } catch (e) {
       console.error("Failed to load session", e);
     } finally {

@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { View } from "react-native";
 import Animated, {
   Easing,
+  runOnJS,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -24,7 +25,13 @@ const particleData = Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
   delay: i * 20,
 }));
 
-export const VaultOpeningAnimation = () => {
+interface VaultOpeningAnimationProps {
+  onComplete?: () => void;
+}
+
+export const VaultOpeningAnimation = ({
+  onComplete,
+}: VaultOpeningAnimationProps) => {
   const orbScale = useSharedValue(0);
   const orbOpacity = useSharedValue(0);
   const doorsY = useSharedValue(0);
@@ -77,10 +84,14 @@ export const VaultOpeningAnimation = () => {
       FLASH_DELAY,
       withSequence(
         withTiming(0.6, { duration: 300 }),
-        withTiming(0, { duration: 300 })
+        withTiming(0, { duration: 300 }, (finished) => {
+          if (finished && onComplete) {
+            runOnJS(onComplete)();
+          }
+        })
       )
     );
-  }, [particles, orbScale, orbOpacity, doorsY, flashOpacity]);
+  }, []);
 
   const orbStyle = useAnimatedStyle(() => ({
     transform: [{ scale: orbScale.value }],

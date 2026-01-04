@@ -1,3 +1,4 @@
+import { useAuthStore } from "@/stores/useAuthStore";
 import {
   Orbitron_400Regular,
   Orbitron_500Medium,
@@ -15,56 +16,17 @@ import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import "../shim";
-import { StorageService } from "../utils/storage";
 import "./global.css";
 SplashScreen.preventAutoHideAsync();
 
-function NavigationGuard() {
-  const segments = useSegments();
-  const router = useRouter();
-  const [isInitialized, setIsInitialized] = useState(false);
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const isOnboardingComplete =
-          await StorageService.isOnboardingComplete();
-        const currentSegment = segments[0];
-
-        if (!isOnboardingComplete && currentSegment !== "onboarding") {
-          router.replace("/onboarding");
-          return;
-        }
-
-        setIsInitialized(true);
-      } catch (error) {
-        console.error("Error checking auth status:", error);
-        router.replace("/onboarding");
-        setIsInitialized(true);
-      }
-    };
-
-    checkAuth();
-  }, [segments, router]);
-
-  if (!isInitialized) {
-    return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <Text className="text-2xl font-bold text-foreground">
-          Astr<Text className="text-primary">â</Text>
-        </Text>
-      </View>
-    );
-  }
-
-  return null;
-}
-
 export default function RootLayout() {
-  const [loaded, error] = useFonts({
+  const router = useRouter();
+  const segments = useSegments();
+
+  const [fontsLoaded] = useFonts({
     Orbitron_400Regular,
     Orbitron_500Medium,
     Orbitron_600SemiBold,
@@ -75,20 +37,69 @@ export default function RootLayout() {
     Rajdhani_700Bold,
   });
 
-  useEffect(() => {
-    if (loaded || error) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded, error]);
+  const {
+    isAuthenticated,
+    loadSession,
+    isLoading: isAuthLoading,
+  } = useAuthStore();
+  const [isReady, setIsReady] = useState(false);
+  const [hasNavigated, setHasNavigated] = useState(false);
 
-  if (!loaded && !error) {
-    return null;
+  useEffect(() => {
+    const prepare = async () => {
+      try {
+        await loadSession();
+      } catch (e) {
+        console.warn(e);
+      } finally {
+        setIsReady(true);
+      }
+    };
+    prepare();
+  }, []);
+
+  useEffect(() => {
+    if (!isReady || !fontsLoaded || isAuthLoading || hasNavigated) return;
+
+    const inTabsGroup = segments[0] === "(tabs)";
+    const onOnboarding = segments[0] === "onboarding";
+
+    if (isAuthenticated) {
+      if (!inTabsGroup && !onOnboarding) {
+        router.replace("/(tabs)");
+        setHasNavigated(true);
+      }
+    } else {
+      if (!onOnboarding) {
+        router.replace("/onboarding");
+        setHasNavigated(true);
+      }
+    }
+    setTimeout(() => {
+      SplashScreen.hideAsync();
+    }, 100);
+  }, [
+    isReady,
+    fontsLoaded,
+    isAuthenticated,
+    isAuthLoading,
+    segments,
+    hasNavigated,
+  ]);
+
+  if (!isReady || !fontsLoaded || isAuthLoading) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#070609" }}>
+        <View className="flex-1 bg-[#070609] items-center justify-center">
+          <ActivityIndicator size="large" color="#FFE666" />
+        </View>
+      </GestureHandlerRootView>
+    );
   }
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#070609" }}>
       <StatusBar style="light" translucent backgroundColor="transparent" />
-      <NavigationGuard />
       <Stack
         screenOptions={{
           headerShown: false,
@@ -103,7 +114,12 @@ export default function RootLayout() {
             contentStyle: { backgroundColor: "#070609" },
           }}
         />
-        <Stack.Screen name="onboarding" />
+        <Stack.Screen
+          name="onboarding"
+          options={{
+            gestureEnabled: false,
+          }}
+        />
         <Stack.Screen
           name="send"
           options={{
@@ -111,7 +127,7 @@ export default function RootLayout() {
             animation: "slide_from_bottom",
             contentStyle: { backgroundColor: "#070609" },
           }}
-        />{" "}
+        />
         <Stack.Screen
           name="transaction-success"
           options={{
@@ -119,7 +135,7 @@ export default function RootLayout() {
             animation: "fade",
             contentStyle: { backgroundColor: "#070609" },
           }}
-        />{" "}
+        />
       </Stack>
     </GestureHandlerRootView>
   );

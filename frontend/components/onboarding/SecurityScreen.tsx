@@ -1,5 +1,5 @@
 import { Copy, Shield } from "lucide-react-native";
-import { Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 interface SecurityScreenProps {
@@ -7,6 +7,7 @@ interface SecurityScreenProps {
   keyCopied: boolean;
   onCopyKey: () => void;
   onFinish: () => void;
+  isLoading?: boolean;
 }
 
 export const SecurityScreen = ({
@@ -14,6 +15,7 @@ export const SecurityScreen = ({
   keyCopied,
   onCopyKey,
   onFinish,
+  isLoading = false,
 }: SecurityScreenProps) => {
   return (
     <SafeAreaView className="flex-1 items-center justify-center px-6">
@@ -60,11 +62,18 @@ export const SecurityScreen = ({
 
         <Pressable
           onPress={onFinish}
-          className="px-10 py-4 rounded-xl border border-champagne/40 bg-champagne/10 active:scale-95"
+          disabled={isLoading}
+          className={`px-10 py-4 rounded-xl border border-champagne/40 bg-champagne/10 items-center justify-center ${
+            isLoading ? "opacity-80" : "active:scale-95"
+          }`}
         >
-          <Text className="text-champagne text-base tracking-[0.1em] font-rajdhani uppercase">
-            Finish
-          </Text>
+          {isLoading ? (
+            <ActivityIndicator color="#FFE666" size="small" />
+          ) : (
+            <Text className="text-champagne text-base tracking-[0.1em] font-rajdhani uppercase">
+              Finish
+            </Text>
+          )}
         </Pressable>
       </View>
     </SafeAreaView>
