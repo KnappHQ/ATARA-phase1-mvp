@@ -60,7 +60,7 @@ export const RecipientStep = () => {
     const delayDebounce = setTimeout(() => {
       const query = searchQuery.trim();
       if (query.length > 2) {
-        if (ethers.isAddress(query)) {
+        if (ethers.utils.isAddress(query)) {
           setManualAddress(query);
           setSearchResults([]);
         } else {

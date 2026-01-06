@@ -1,9 +1,11 @@
+import "../shim";
 import { ethers } from "ethers";
 import * as SecureStore from "expo-secure-store";
 import { api } from "./api";
 import { PROVIDER_URL } from "../utils/constants";
 
-const provider = new ethers.JsonRpcProvider(PROVIDER_URL);
+const provider = new ethers.providers.JsonRpcProvider(PROVIDER_URL);
+
 export type TxStatus = "PENDING" | "COMPLETED" | "FAILED";
 
 export interface TransactionHistoryItem {
@@ -42,13 +44,13 @@ export const TransactionService = {
 
       const estimatedGas = await provider.estimateGas({
         to: toAddress,
-        value: ethers.parseEther(amountEth),
+        value: ethers.utils.parseEther(amountEth),
       });
 
-      const totalFeeWei = estimatedGas * gasPrice;
+      const totalFeeWei = estimatedGas.mul(gasPrice);
 
       return {
-        estimatedFee: ethers.formatEther(totalFeeWei),
+        estimatedFee: ethers.utils.formatEther(totalFeeWei),
       };
     } catch (error) {
       console.error("Gas estimation failed", error);
@@ -65,7 +67,7 @@ export const TransactionService = {
     if (!privateKey) throw new Error("Wallet not found on device");
 
     const wallet = new ethers.Wallet(privateKey, provider);
-    const amountWei = ethers.parseEther(amountEth);
+    const amountWei = ethers.utils.parseEther(amountEth);
 
     const txResponse = await wallet.sendTransaction({
       to: toAddress,

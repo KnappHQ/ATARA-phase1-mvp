@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { WalletService } from "../services/wallet.service";
+import { useAuthStore } from "@/stores/useAuthStore"; // <--- 1. Import Auth Store
 
 const COIN_MAP: Record<string, string> = {
   ETH: "ethereum",
@@ -26,12 +27,22 @@ export const useWallet = () => {
     changePercentage: 0,
   });
 
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Changed default to false (optional but cleaner)
+
+  // 2. Get the authentication status
+  const { isAuthenticated } = useAuthStore();
 
   useEffect(() => {
     let isMounted = true;
 
+    // 3. THE FIX: Stop here if not logged in
+    if (!isAuthenticated) {
+      setIsLoading(false);
+      return;
+    }
+
     const fetchData = async () => {
+      setIsLoading(true); // Start loading only if we are actually fetching
       try {
         const [portfolioData, priceData] = await Promise.all([
           WalletService.getPortfolio(),
@@ -73,7 +84,7 @@ export const useWallet = () => {
               : 0;
 
           setAssets(mergedAssets);
-          setTotals({ 
+          setTotals({
             balance: totalValue,
             changeAmount: changeAmount,
             changePercentage: changePercentage,
@@ -91,7 +102,7 @@ export const useWallet = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isAuthenticated]); // <--- 4. Re-run when auth status changes
 
   return { assets, totals, isLoading };
 };

@@ -1,4 +1,12 @@
-import "react-native-get-random-values";
+import * as Crypto from "expo-crypto";
 import "@ethersproject/shims";
 
-import { ethers } from "ethers";
+if (typeof global.crypto !== "object") {
+  global.crypto = {} as any;
+}
+
+if (typeof global.crypto.getRandomValues !== "function") {
+  global.crypto.getRandomValues = (array: any) => {
+    return Crypto.getRandomValues(array);
+  };
+}

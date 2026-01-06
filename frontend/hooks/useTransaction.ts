@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { TransactionService } from "../services/transaction.service";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 export interface UI_Transaction {
   id: string;
@@ -59,8 +60,10 @@ export const useTransactions = (currentUserId: string | undefined) => {
   const [recentTransactions, setRecentTransactions] = useState<
     UI_Transaction[]
   >([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const { isAuthenticated } = useAuthStore();
 
   const formatAddress = (addr: string) => {
     if (!addr) return "Unknown";
@@ -68,7 +71,10 @@ export const useTransactions = (currentUserId: string | undefined) => {
   };
 
   const fetchHistory = useCallback(async () => {
-    if (!currentUserId) return;
+    if (!isAuthenticated || !currentUserId) {
+      setIsLoading(false);
+      return;
+    }
 
     setIsLoading(true);
     setError(null);
@@ -123,7 +129,7 @@ export const useTransactions = (currentUserId: string | undefined) => {
     } finally {
       setIsLoading(false);
     }
-  }, [currentUserId]);
+  }, [currentUserId, isAuthenticated]);
 
   useEffect(() => {
     fetchHistory();

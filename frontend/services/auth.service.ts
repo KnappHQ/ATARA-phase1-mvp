@@ -1,3 +1,4 @@
+import "../shim";
 import { ethers } from "ethers";
 import * as SecureStore from "expo-secure-store";
 import { useAuthStore } from "../stores/useAuthStore";
@@ -21,11 +22,11 @@ export const AuthService = {
   restoreWallet: async (mnemonic: string) => {
     const cleanMnemonic = mnemonic.trim();
 
-    if (!ethers.Mnemonic.isValidMnemonic(cleanMnemonic)) {
+    if (!ethers.utils.isValidMnemonic(cleanMnemonic)) {
       throw new Error("Invalid seed phrase");
     }
 
-    const wallet = ethers.Wallet.fromPhrase(cleanMnemonic);
+    const wallet = ethers.Wallet.fromMnemonic(cleanMnemonic);
 
     await SecureStore.setItemAsync(STORE_KEY_PRIVATE, wallet.privateKey);
 
