@@ -15,6 +15,8 @@ import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
+import { AstraAlert } from "../components/alert/AstraAlert";
+import { useAlertStore } from "../stores/useAlertStore";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -23,6 +25,7 @@ import "./global.css";
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
+  const { visible, type, message, duration, hide } = useAlertStore();
   const router = useRouter();
   const segments = useSegments();
 
@@ -100,6 +103,13 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#070609" }}>
       <StatusBar style="light" translucent backgroundColor="transparent" />
+      <AstraAlert
+        visible={visible}
+        type={type}
+        message={message}
+        duration={duration}
+        onDismiss={hide}
+      />
       <Stack
         screenOptions={{
           headerShown: false,

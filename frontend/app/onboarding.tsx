@@ -3,7 +3,8 @@ import { useAuthStore } from "@/stores/useAuthStore";
 import * as Clipboard from "expo-clipboard";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, View } from "react-native";
+import { View } from "react-native";
+import { useAlertStore, AlertType } from "../stores/useAlertStore";
 import { GateScreen } from "../components/onboarding/GateScreen";
 import { IdentityScreen } from "../components/onboarding/IdentityScreen";
 import { RestoreScreen } from "../components/onboarding/RestoreScreen";
@@ -23,6 +24,8 @@ export default function Onboarding() {
 
   const [walletAddress, setWalletAddress] = useState<string>("");
   const [seedPhrase, setSeedPhrase] = useState<string[]>([]);
+
+  const showAlert = useAlertStore((s) => s.show);
 
   useEffect(() => {
     checkExistingUser();
@@ -55,7 +58,7 @@ export default function Onboarding() {
 
   const handleFinish = async () => {
     if (!handle.trim()) {
-      Alert.alert("Error", "Handle is required");
+      showAlert("info", "Handle is required");
       return;
     }
 
@@ -68,8 +71,8 @@ export default function Onboarding() {
     } catch (error: any) {
       console.error("Registration Error:", error);
       setIsLoading(false);
-      Alert.alert(
-        "Registration Failed",
+      showAlert(
+        "error",
         error?.response?.data?.message || "Could not create account"
       );
     }
@@ -89,7 +92,7 @@ export default function Onboarding() {
     } catch (error: any) {
       console.error("Restore Error:", error);
       setIsLoading(false);
-      Alert.alert("Login Failed", "Invalid seed phrase or account not found.");
+      showAlert("error", "Invalid seed phrase or account not found.");
     }
   };
 
@@ -102,14 +105,12 @@ export default function Onboarding() {
       {isVaultOpening && (
         <VaultOpeningAnimation onComplete={onAnimationComplete} />
       )}
-
       {step === "gate" && !isVaultOpening && (
         <GateScreen
           onInitialize={() => setStep("identity")}
           onRestore={() => setStep("restore")}
         />
       )}
-
       {step === "identity" && !isVaultOpening && (
         <IdentityScreen
           handle={handle}
@@ -117,7 +118,6 @@ export default function Onboarding() {
           onNext={() => setStep("security")}
         />
       )}
-
       {step === "security" && !isVaultOpening && (
         <SecurityScreen
           seedPhrase={seedPhrase}
@@ -127,7 +127,6 @@ export default function Onboarding() {
           isLoading={isLoading}
         />
       )}
-
       {step === "restore" && !isVaultOpening && (
         <RestoreScreen
           onRestore={handleRestore}

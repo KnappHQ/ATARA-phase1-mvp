@@ -6,12 +6,12 @@ import { ArrowRight, Check } from "lucide-react-native";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Pressable,
   ScrollView,
   Text,
   View,
 } from "react-native";
+import { useAlertStore } from "@/stores/useAlertStore";
 import Animated, { FadeIn } from "react-native-reanimated";
 
 interface ConfirmStepProps {
@@ -35,6 +35,7 @@ export const ConfirmStep = ({ priceUsd = 0 }: ConfirmStepProps) => {
     maximumFractionDigits: 2,
   });
 
+  const showAlert = useAlertStore((s) => s.show);
   const onConfirm = async () => {
     if (!recipient?.publicAddress) return;
 
@@ -60,10 +61,7 @@ export const ConfirmStep = ({ priceUsd = 0 }: ConfirmStepProps) => {
         },
       });
     } catch (error: any) {
-      Alert.alert(
-        "Transaction Failed",
-        error.message || "Unknown error occurred"
-      );
+      showAlert("error", error.message || "Unknown error occurred");
       setIsSending(false);
     }
   };
