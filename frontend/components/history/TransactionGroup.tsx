@@ -2,11 +2,11 @@ import React from "react";
 import { View, Text } from "react-native";
 import { MotiView } from "moti";
 import { TransactionItem } from "./TransactionItem";
-import { Transaction } from "./mockData";
+import { UiTransaction } from "@/types/transaction";
 
 interface TransactionGroupProps {
   date: string;
-  transactions: Transaction[];
+  transactions: UiTransaction[];
   index: number;
 }
 

@@ -1,33 +1,13 @@
 import { useState } from "react";
-import { View, Text, ScrollView, Pressable } from "react-native";
+import { View, Text, ScrollView, Pressable, RefreshControl } from "react-native";
 import { Search } from "lucide-react-native";
 import { ScreenWrapper } from "../../components/ScreenWrapper";
 import { FilterTabs, FilterType } from "../../components/history/FilterTabs";
 import { TransactionGroup } from "../../components/history/TransactionGroup";
-import {
-  ALL_TRANSACTIONS,
-  Transaction,
-} from "../../components/history/mockData";
+import { useHistoryData } from "@/hooks/useHistoryData";
 
 export default function HistoryTab() {
-  const [filter, setFilter] = useState<FilterType>("all");
-
-  const filteredTransactions = ALL_TRANSACTIONS.filter((tx) => {
-    if (filter === "all") return true;
-    return tx.type === filter;
-  });
-
-  // Group transactions by date
-  const groupedTransactions = filteredTransactions.reduce(
-    (acc, tx) => {
-      if (!acc[tx.date]) acc[tx.date] = [];
-      acc[tx.date].push(tx);
-      return acc;
-    },
-    {} as Record<string, Transaction[]>
-  );
-
-  const groupedEntries = Object.entries(groupedTransactions);
+  const { filter, setFilter, groupedEntries, isLoading, refetch } = useHistoryData();
 
   return (
     <ScreenWrapper>
@@ -35,6 +15,16 @@ export default function HistoryTab() {
         className="flex-1"
         contentContainerClassName="px-6 pt-6 pb-28"
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={isLoading} 
+            onRefresh={refetch} 
+            tintColor="#E5D2A6"
+            titleColor="#E5D2A6"
+            colors={["#E5D2A6"]}
+            progressBackgroundColor="#0A0A0A"
+          />
+        }
       >
         <View className="flex-row items-center justify-between mb-8">
           <Text className="text-2xl font-rajdhani-semibold text-white tracking-wide">

@@ -1,16 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { TransactionService } from "../services/transaction.service";
 import { useAuthStore } from "@/stores/useAuthStore";
-
-export interface UI_Transaction {
-  id: string;
-  name: string;
-  date: string;
-  amount: string;
-  type: "receive" | "send";
-  status: string;
-  rawDate: Date;
-}
+import { UiTransaction } from "@/types/transaction";
 
 export const useGasEstimation = (
   recipientAddress?: string,
@@ -56,9 +47,9 @@ export const useGasEstimation = (
 };
 
 export const useTransactions = (currentUserId: string | undefined) => {
-  const [allTransactions, setAllTransactions] = useState<UI_Transaction[]>([]);
+  const [allTransactions, setAllTransactions] = useState<UiTransaction[]>([]);
   const [recentTransactions, setRecentTransactions] = useState<
-    UI_Transaction[]
+    UiTransaction[]
   >([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -117,7 +108,7 @@ export const useTransactions = (currentUserId: string | undefined) => {
           type: isSend ? "send" : "receive",
           amount: `${isSend ? "-" : "+"}${parseFloat(tx.amount).toFixed(4)} ${tx.assetSymbol}`,
           status: tx.status,
-        } as UI_Transaction;
+        } as UiTransaction;
       });
 
       setAllTransactions(formatted);

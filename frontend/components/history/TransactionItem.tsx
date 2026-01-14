@@ -2,10 +2,10 @@ import React from "react";
 import { View, Text, Pressable } from "react-native";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react-native";
 import { MotiView } from "moti";
-import { Transaction } from "./mockData";
+import { UiTransaction } from "@/types/transaction";
 
 interface TransactionItemProps {
-  transaction: Transaction;
+  transaction: UiTransaction;
   index: number;
 }
 
