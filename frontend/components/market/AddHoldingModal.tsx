@@ -9,17 +9,14 @@ import {
 } from "react-native";
 import { X } from "lucide-react-native";
 import { MotiView } from "moti";
-import { CRYPTO_DATA, formatPrice } from "./mockData";
+import { useMarketStore } from "@/stores/useMarketStore";
+import { formatCurrency } from "@/utils/format";
+import { Holding } from "@/types/market";
 
 interface AddHoldingModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAdd: (holding: {
-    symbol: string;
-    name: string;
-    quantity: number;
-    purchasePrice: number;
-  }) => void;
+  onAdd: (holding: Omit<Holding, "id" | "currentPrice">) => void;
 }
 
 export const AddHoldingModal = ({
@@ -27,26 +24,28 @@ export const AddHoldingModal = ({
   onClose,
   onAdd,
 }: AddHoldingModalProps) => {
+  const { marketData } = useMarketStore();
+
   const [selectedCoin, setSelectedCoin] = useState<string>("");
   const [quantity, setQuantity] = useState<string>("");
   const [purchasePrice, setPurchasePrice] = useState<string>("");
 
-  const selectedCoinData = CRYPTO_DATA.find((p) => p.symbol === selectedCoin);
+  const selectedCoinData = marketData.find(
+    (p) => p.symbol.toUpperCase() === selectedCoin.toUpperCase()
+  );
 
   const handleSubmit = () => {
     if (!selectedCoin || !quantity || !purchasePrice) return;
 
-    const coin = CRYPTO_DATA.find((p) => p.symbol === selectedCoin);
-    if (!coin) return;
+    const name = selectedCoinData ? selectedCoinData.name : selectedCoin;
 
     onAdd({
-      symbol: coin.symbol,
-      name: coin.name,
+      symbol: selectedCoin.toUpperCase(),
+      name: name,
       quantity: parseFloat(quantity),
       purchasePrice: parseFloat(purchasePrice),
     });
 
-    // Reset form
     setSelectedCoin("");
     setQuantity("");
     setPurchasePrice("");
@@ -54,21 +53,15 @@ export const AddHoldingModal = ({
   };
 
   const handleUseCurrent = () => {
-    if (selectedCoinData?.price) {
-      setPurchasePrice(selectedCoinData.price.toString());
+    if (selectedCoinData?.current_price) {
+      setPurchasePrice(selectedCoinData.current_price.toString());
     }
   };
 
   const totalInvested =
     quantity && purchasePrice
-      ? (parseFloat(quantity) * parseFloat(purchasePrice)).toLocaleString(
-          "en-US",
-          {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          }
-        )
-      : null;
+      ? parseFloat(quantity) * parseFloat(purchasePrice)
+      : 0;
 
   return (
     <Modal
@@ -103,12 +96,12 @@ export const AddHoldingModal = ({
                   Select Coin
                 </Text>
                 <View className="flex-row flex-wrap gap-2">
-                  {CRYPTO_DATA.map((coin) => (
+                  {marketData.slice(0, 10).map((coin) => (
                     <Pressable
-                      key={coin.symbol}
-                      onPress={() => setSelectedCoin(coin.symbol)}
+                      key={coin.id}
+                      onPress={() => setSelectedCoin(coin.symbol.toUpperCase())}
                       className={`px-3 py-2 rounded-lg border ${
-                        selectedCoin === coin.symbol
+                        selectedCoin.toUpperCase() === coin.symbol.toUpperCase()
                           ? "border-champagne bg-champagne/10"
                           : "border-champagne/20 bg-white/5"
                       }`}
@@ -120,14 +113,15 @@ export const AddHoldingModal = ({
                             : "text-white/70"
                         }`}
                       >
-                        {coin.symbol}
+                        {coin.symbol.toUpperCase()}
                       </Text>
                     </Pressable>
                   ))}
                 </View>
                 {selectedCoinData && (
                   <Text className="text-xs text-muted-foreground font-rajdhani-medium mt-3">
-                    Current price: {formatPrice(selectedCoinData.price)}
+                    Current price:{" "}
+                    {formatCurrency(selectedCoinData.current_price)}
                   </Text>
                 )}
               </View>

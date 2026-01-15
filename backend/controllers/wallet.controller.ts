@@ -25,6 +25,31 @@ export const walletController = {
       });
     }
   ),
+
+  getMarketOverview: catchAsync(
+    async (req: Request, res: Response, next: NextFunction) => {
+      const currency = (req.query.currency as string) || "usd";
+
+      const marketData = await walletService.getMarketOverview(currency);
+
+      res.status(200).json({
+        status: "success",
+        data: marketData,
+      });
+    }
+  ),
+  
+  getNews: catchAsync(
+    async (req: Request, res: Response, next: NextFunction) => {
+      const news = await walletService.getCryptoNews();
+
+      res.status(200).json({
+        status: "success",
+        data: news,
+      });
+    }
+  ),
+  
   getMyPortfolio: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
       const userId = req.user.id;

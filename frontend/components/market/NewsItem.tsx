@@ -1,8 +1,8 @@
 import React from "react";
-import { View, Text, Pressable } from "react-native";
+import { View, Text, Pressable, Linking } from "react-native";
 import { ExternalLink } from "lucide-react-native";
 import { MotiView } from "moti";
-import { NewsItem as NewsItemType } from "./mockData";
+import { NewsItem as NewsItemType } from "@/types/market";
 
 interface NewsItemProps {
   news: NewsItemType;
@@ -10,17 +10,24 @@ interface NewsItemProps {
 }
 
 export const NewsItem = ({ news, index }: NewsItemProps) => {
+  const handlePress = () => {
+    if (news.url) Linking.openURL(news.url);
+  };
+
   return (
     <MotiView
       from={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ type: "timing", duration: 300, delay: index * 100 }}
     >
-      <Pressable className="relative overflow-hidden rounded-xl border border-champagne/20 bg-[rgba(255,255,255,0.03)] p-4 active:bg-white/5">
+      <Pressable
+        onPress={handlePress}
+        className="relative overflow-hidden rounded-xl border border-champagne/20 bg-[rgba(255,255,255,0.03)] p-4 active:bg-white/5"
+      >
         <View className="flex-row items-start gap-3">
           <View className="px-2 py-1 rounded bg-primary/20 border border-champagne/30">
             <Text className="text-xs font-rajdhani-bold text-champagne-neon tracking-wider">
-              {news.tag}
+              {news.source.slice(0, 3).toUpperCase()}
             </Text>
           </View>
 
@@ -29,7 +36,7 @@ export const NewsItem = ({ news, index }: NewsItemProps) => {
               {news.title}
             </Text>
             <Text className="text-xs text-muted-foreground font-rajdhani-medium">
-              {news.time}
+              {new Date(news.published_at).toLocaleDateString()}
             </Text>
           </View>
 

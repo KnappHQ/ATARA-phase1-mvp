@@ -10,10 +10,30 @@ interface PriceResponse {
   };
 }
 
+interface MarketCoin {
+  id: string;
+  symbol: string;
+  name: string;
+  image: string;
+  current_price: number;
+  market_cap: number;
+  price_change_percentage_24h: number;
+}
+
+interface NewsItem {
+  title: string;
+  description: string;
+  url: string;
+  source: string;
+  published_at: string;
+  image_url?: string;
+}
+
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 
 class WalletService {
   private readonly baseUrl = "https://api.coingecko.com/api/v3";
+  private readonly newsDataUrl = "https://newsdata.io/api/1/crypto";
 
   /**
    * Fetches the current price of multiple cryptocurrencies.
@@ -54,6 +74,71 @@ class WalletService {
       }
       console.error("CoinGecko API Error:", error);
       throw new ErrorHandler("Failed to fetch price data", 502);
+    }
+  }
+
+  /**
+   * Get Top 20 Coins (For 'Market Pulse' Screen)
+   */
+  public async getMarketOverview(
+    currency: string = "usd",
+    limit: number = 20
+  ): Promise<MarketCoin[]> {
+    try {
+      const response = await axios.get<MarketCoin[]>(
+        `${this.baseUrl}/coins/markets`,
+        {
+          params: {
+            vs_currency: currency,
+            order: "market_cap_desc",
+            per_page: limit,
+            page: 1,
+            sparkline: false,
+            price_change_percentage: "24h",
+            x_cg_demo_api_key: process.env.COINGECKO_API_KEY,
+          },
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      console.error("CoinGecko Market Error:", error);
+      throw new ErrorHandler("Failed to fetch market overview", 502);
+    }
+  }
+
+  public async getCryptoNews(): Promise<NewsItem[]> {
+    try {
+      const apiKey = process.env.NEWSDATA_API_KEY;
+      if (!apiKey) {
+        console.warn("Skipping News: No NEWSDATA_API_KEY found in .env");
+        return [];
+      }
+
+      const response = await axios.get(this.newsDataUrl, {
+        params: {
+          apikey: apiKey,
+          coin: "btc,eth",
+          language: "en",
+          size: 5,
+          removeduplicate: 1,
+          sort: "pubdateasc",
+        },
+      });
+
+      const articles = response.data.results || [];
+
+      return articles.map((article: any) => ({
+        title: article.title,
+        description: article.description,
+        url: article.link,
+        source: article.source_id,
+        published_at: article.pubDate,
+        image_url: article.image_url,
+      }));
+    } catch (error) {
+      console.error("NewsData API Error:", error);
+      return [];
     }
   }
 

@@ -12,43 +12,21 @@ import { ScreenWrapper } from "../../components/ScreenWrapper";
 import { PortfolioSection } from "../../components/market/PortfolioSection";
 import { MarketPulseSection } from "../../components/market/MarketPulseSection";
 import { RelevantIntelSection } from "../../components/market/RelevantIntelSection";
-import { Holding } from "../../components/market/PortfolioCard";
 import { AddHoldingModal } from "../../components/market/AddHoldingModal";
-import { CRYPTO_DATA } from "../../components/market/mockData";
+import { useMarketStore } from "@/stores/useMarketStore";
 
 export default function MarketTab() {
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [showAddModal, setShowAddModal] = useState(false);
-  const [holdings, setHoldings] = useState<Holding[]>([]);
 
-  const onRefresh = async () => {
-    setIsRefreshing(true);
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setLastUpdated(new Date());
-    setIsRefreshing(false);
-  };
+  const {
+    refreshAll,
+    isMarketLoading,
+    isNewsLoading,
+    lastUpdated,
+    addHolding,
+  } = useMarketStore();
 
-  const addHolding = (holding: {
-    symbol: string;
-    name: string;
-    quantity: number;
-    purchasePrice: number;
-  }) => {
-    const currentPrice =
-      CRYPTO_DATA.find((c) => c.symbol === holding.symbol)?.price || 0;
-    const newHolding: Holding = {
-      id: Date.now().toString(),
-      ...holding,
-      currentPrice,
-    };
-    setHoldings((prev) => [...prev, newHolding]);
-  };
-
-  const removeHolding = (id: string) => {
-    setHoldings((prev) => prev.filter((h) => h.id !== id));
-  };
+  const isLoading = isMarketLoading || isNewsLoading;
 
   return (
     <ScreenWrapper>
@@ -58,8 +36,8 @@ export default function MarketTab() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={onRefresh}
+            refreshing={isLoading}
+            onRefresh={refreshAll}
             tintColor="#E5D2A6"
             titleColor="#E5D2A6"
             colors={["#E5D2A6"]}
@@ -90,14 +68,14 @@ export default function MarketTab() {
             </MotiView>
 
             <Pressable
-              onPress={onRefresh}
-              disabled={isRefreshing}
+              onPress={refreshAll}
+              disabled={isLoading}
               className="w-8 h-8 rounded-xl bg-[#0A0A0A]/40 border border-champagne/10 items-center justify-center active:bg-champagne/5"
             >
               <MotiView
                 from={{ rotate: "0deg" }}
-                animate={{ rotate: isRefreshing ? "360deg" : "0deg" }}
-                transition={{ loop: isRefreshing, duration: 800 }}
+                animate={{ rotate: isLoading ? "360deg" : "0deg" }}
+                transition={{ loop: isLoading, duration: 800 }}
               >
                 <RefreshCw size={16} color="#E5D2A6" />
               </MotiView>
@@ -109,11 +87,7 @@ export default function MarketTab() {
           Updated {lastUpdated.toLocaleTimeString()}
         </Text>
 
-        <PortfolioSection
-          holdings={holdings}
-          onAddPress={() => setShowAddModal(true)}
-          onRemoveHolding={removeHolding}
-        />
+        <PortfolioSection onAddPress={() => setShowAddModal(true)} />
 
         <MarketPulseSection />
 

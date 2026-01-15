@@ -1,9 +1,14 @@
-import React from "react";
-import { View, Text, ScrollView } from "react-native";
+import React, { useEffect } from "react";
+import { View, Text, ScrollView, ActivityIndicator } from "react-native";
 import { MarketRow } from "./MarketRow";
-import { CRYPTO_DATA } from "./mockData";
+import { useMarketStore } from "@/stores/useMarketStore";
 
 export const MarketPulseSection = () => {
+  const { marketData, isMarketLoading, fetchMarketOverview } = useMarketStore();
+
+  useEffect(() => {
+    if (marketData.length === 0) fetchMarketOverview();
+  }, []);
   return (
     <View className="mb-8">
       <Text className="text-sm font-rajdhani-medium text-muted-foreground uppercase tracking-wider mb-4">
@@ -23,20 +28,26 @@ export const MarketPulseSection = () => {
           </Text>
         </View>
 
-        <ScrollView
-          style={{ maxHeight: 280 }}
-          showsVerticalScrollIndicator={false}
-          nestedScrollEnabled={true}
-        >
-          {CRYPTO_DATA.map((crypto, index) => (
-            <MarketRow
-              key={crypto.symbol}
-              crypto={crypto}
-              index={index}
-              isLast={index === CRYPTO_DATA.length - 1}
-            />
-          ))}
-        </ScrollView>
+        {isMarketLoading && marketData.length === 0 ? (
+          <View className="py-20 items-center justify-center">
+            <ActivityIndicator color="#E5D2A6" size="large" />
+          </View>
+        ) : (
+          <ScrollView
+            style={{ maxHeight: 280 }}
+            showsVerticalScrollIndicator={false}
+            nestedScrollEnabled={true}
+          >
+            {marketData.map((crypto, index) => (
+              <MarketRow
+                key={crypto.id}
+                crypto={crypto}
+                index={index}
+                isLast={index === marketData.length - 1}
+              />
+            ))}
+          </ScrollView>
+        )}
       </View>
     </View>
   );

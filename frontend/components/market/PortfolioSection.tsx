@@ -2,31 +2,16 @@ import React from "react";
 import { View, Text, ScrollView, Pressable } from "react-native";
 import { Plus } from "lucide-react-native";
 import { MotiView } from "moti";
-import { PortfolioCard, Holding } from "./PortfolioCard";
-import { formatPrice } from "./mockData";
+import { PortfolioCard } from "./PortfolioCard";
+import { usePortfolio } from "@/hooks/usePortfolio";
+import { formatCurrency } from "@/utils/format";
 
 interface PortfolioSectionProps {
-  holdings: Holding[];
   onAddPress: () => void;
-  onRemoveHolding: (id: string) => void;
 }
 
-export const PortfolioSection = ({
-  holdings,
-  onAddPress,
-  onRemoveHolding,
-}: PortfolioSectionProps) => {
-  const totalValue = holdings.reduce(
-    (sum, h) => sum + h.quantity * h.currentPrice,
-    0
-  );
-  const totalInvested = holdings.reduce(
-    (sum, h) => sum + h.quantity * h.purchasePrice,
-    0
-  );
-  const totalProfitLoss = totalValue - totalInvested;
-  const totalProfitLossPercent =
-    totalInvested > 0 ? (totalProfitLoss / totalInvested) * 100 : 0;
+export const PortfolioSection = ({ onAddPress }: PortfolioSectionProps) => {
+  const { holdings, totals, removeHolding } = usePortfolio();
 
   return (
     <View>
@@ -43,12 +28,12 @@ export const PortfolioSection = ({
             </Text>
             <Text
               className={`text-xs font-rajdhani-semibold ${
-                totalProfitLoss >= 0 ? "text-champagne" : "text-red-400"
+                totals.totalProfitLoss >= 0 ? "text-champagne" : "text-red-400"
               }`}
             >
-              {totalProfitLoss >= 0 ? "+" : ""}
-              {formatPrice(totalProfitLoss)} (
-              {totalProfitLossPercent.toFixed(1)}%)
+              {totals.totalProfitLoss >= 0 ? "+" : ""}
+              {formatCurrency(totals.totalProfitLoss)} (
+              {totals.totalProfitLossPercent.toFixed(1)}%)
             </Text>
           </View>
           <Text
@@ -59,10 +44,10 @@ export const PortfolioSection = ({
               textShadowRadius: 20,
             }}
           >
-            {formatPrice(totalValue)}
+            {formatCurrency(totals.totalValue)}
           </Text>
           <Text className="text-xs text-white/40 font-rajdhani-medium mt-1">
-            Invested: {formatPrice(totalInvested)}
+            Invested: {formatCurrency(totals.totalInvested)}
           </Text>
         </MotiView>
       )}
@@ -105,7 +90,7 @@ export const PortfolioSection = ({
                 key={holding.id}
                 holding={holding}
                 index={index}
-                onRemove={onRemoveHolding}
+                onRemove={removeHolding}
               />
             ))
           )}
