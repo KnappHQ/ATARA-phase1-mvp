@@ -9,7 +9,7 @@ import Svg, {
 } from "react-native-svg";
 
 export const SparklineChart = ({
-  data,
+  data = [],
   width = 320,
   height = 100,
 }: {
@@ -17,6 +17,9 @@ export const SparklineChart = ({
   width?: number;
   height?: number;
 }) => {
+  if (!data || data.length === 0) {
+    return <View style={{ width, height }} />;
+  }
   const padding = 16;
   const availableWidth = width - padding * 2;
   const availableHeight = height - padding * 2;
@@ -27,10 +30,15 @@ export const SparklineChart = ({
 
   const points = data.map((value, index) => {
     const x = padding + (index / (data.length - 1)) * availableWidth;
-    const y =
-      padding +
-      availableHeight -
-      ((value - minValue) / range) * availableHeight;
+    let y;
+    if (range === 0) {
+      y = height - padding;
+    } else {
+      y =
+        padding +
+        availableHeight -
+        ((value - minValue) / range) * availableHeight;
+    }
     return { x, y };
   });
 
@@ -47,9 +55,12 @@ export const SparklineChart = ({
   };
 
   const linePath = createSmoothPath(points);
-  const areaPath = `${linePath} L ${points[points.length - 1].x},${height - padding} L ${padding},${height - padding} Z`;
+  const areaPath =
+    points.length > 0
+      ? `${linePath} L ${points[points.length - 1].x},${height - padding} L ${padding},${height - padding} Z`
+      : "";
 
-  const lastPoint = points[points.length - 1];
+  const lastPoint = points[points.length - 1] || { x: 0, y: 0 };
 
   return (
     <View className="w-full h-[100px] bg-transparent">

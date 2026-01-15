@@ -6,12 +6,15 @@ export interface UiTransaction {
   amount: string;
   type: TransactionType;
   status: string;
-  
 
-  rawDate: Date; 
-  
- 
-  date: string;   
-  time: string;   
-  value?: string | null; 
+  isExternal: boolean;
+  otherPartyAddress: string;
+
+  category: string | null;
+  userNote: string | null;
+
+  rawDate: Date;
+  date: string;
+  time: string;
+  value?: string;
 }

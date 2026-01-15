@@ -4,10 +4,23 @@ import { MotiView } from "moti";
 import { Zap } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { SparklineChart } from "./SparklineChart";
-import { CHART_DATA } from "./mockData";
+import { formatCurrency } from "@/utils/format";
+import { CHART_DATA } from "@/utils/constants";
 
-export const WeeklyInsightsCard = ({ onPress }: { onPress: () => void }) => {
+interface WeeklyInsightsCardProps {
+  onPress: () => void;
+  totalSpent: number;
+  chartData: number[];
+}
+
+export const WeeklyInsightsCard = ({
+  onPress,
+  totalSpent,
+  chartData,
+}: WeeklyInsightsCardProps) => {
   const shimmerAnim = useRef(new Animated.Value(0)).current;
+
+  console.log(chartData);
 
   useEffect(() => {
     const shimmer = Animated.loop(
@@ -125,7 +138,7 @@ export const WeeklyInsightsCard = ({ onPress }: { onPress: () => void }) => {
                   Spent this week:
                 </Text>
                 <Text className="text-sm font-rajdhani-semibold text-champagne">
-                  €0.00
+                  {formatCurrency(totalSpent)}
                 </Text>
               </View>
 

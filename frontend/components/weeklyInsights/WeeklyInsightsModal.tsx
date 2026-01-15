@@ -25,15 +25,23 @@ import Animated, {
 import { ChevronLeft, X } from "lucide-react-native";
 import { CategoryListItem } from "./CategoryListItem";
 import { TransactionListItem } from "./TransactionListItem";
-import { CATEGORIES, TRANSACTIONS, TOTAL_OUTBOUND } from "./mockData";
+import { formatCurrency } from "@/utils/format";
+
+interface WeeklyInsightsModalProps {
+  visible: boolean;
+  onClose: () => void;
+  totalSpent: number;
+  categories: any[];
+  transactionsByCategory: Record<string, any[]>;
+}
 
 export const WeeklyInsightsModal = ({
   visible,
   onClose,
-}: {
-  visible: boolean;
-  onClose: () => void;
-}) => {
+  totalSpent,
+  categories,
+  transactionsByCategory,
+}: WeeklyInsightsModalProps) => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const translateY = useSharedValue(0);
@@ -98,7 +106,7 @@ export const WeeklyInsightsModal = ({
   }, []);
 
   const selectedCategoryData = selectedCategory
-    ? CATEGORIES.find((c) => c.name === selectedCategory)
+    ? categories.find((c) => c.name === selectedCategory)
     : null;
 
   return (
@@ -159,13 +167,11 @@ export const WeeklyInsightsModal = ({
                             : "Total Spent This Week:"}
                         </Text>
                         <Text className="text-2xl font-bold text-[#E5D2A6]">
-                          $
-                          {(selectedCategory
-                            ? selectedCategoryData?.amount || 0
-                            : TOTAL_OUTBOUND
-                          ).toLocaleString("en-US", {
-                            minimumFractionDigits: 2,
-                          })}
+                          {formatCurrency(
+                            selectedCategory
+                              ? selectedCategoryData?.amount || 0
+                              : totalSpent
+                          )}
                         </Text>
                       </View>
                     </View>
@@ -194,18 +200,24 @@ export const WeeklyInsightsModal = ({
                 >
                   {!selectedCategory ? (
                     <View className="gap-3">
-                      {CATEGORIES.map((category, idx) => (
-                        <CategoryListItem
-                          key={category.name}
-                          category={category}
-                          index={idx}
-                          onPress={() => setSelectedCategory(category.name)}
-                        />
-                      ))}
+                      {categories.length === 0 ? (
+                        <Text className="text-center text-white/40 font-rajdhani-medium py-4">
+                          No spending this week
+                        </Text>
+                      ) : (
+                        categories.map((category, idx) => (
+                          <CategoryListItem
+                            key={category.name}
+                            category={category}
+                            index={idx}
+                            onPress={() => setSelectedCategory(category.name)}
+                          />
+                        ))
+                      )}
                     </View>
                   ) : (
                     <View className="gap-2">
-                      {(TRANSACTIONS as any)[selectedCategory]?.map(
+                      {(transactionsByCategory[selectedCategory] || []).map(
                         (tx: any, idx: number) => (
                           <TransactionListItem
                             key={tx.id}
@@ -215,7 +227,7 @@ export const WeeklyInsightsModal = ({
                         )
                       )}
                       <Text className="text-center text-xs text-white/30 pt-2">
-                        {(TRANSACTIONS as any)[selectedCategory]?.length || 0}{" "}
+                        {transactionsByCategory[selectedCategory]?.length || 0}{" "}
                         transactions
                       </Text>
                     </View>

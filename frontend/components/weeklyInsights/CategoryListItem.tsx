@@ -7,12 +7,15 @@ import {
   Terminal,
   MoreHorizontal,
   Circle,
+  ArrowDownLeft,
 } from "lucide-react-native";
 
 function getCategoryIcon(icon: string) {
   switch (icon) {
     case "users":
       return <Users size={20} color="#ffe066" />;
+    case "arrow-down-left":
+      return <ArrowDownLeft size={20} color="#ffe066" />;
     case "shopping-bag":
       return <ShoppingBag size={20} color="#ffe066" />;
     case "terminal":
@@ -65,7 +68,7 @@ export const CategoryListItem = ({
               <Text className="text-base font-rajdhani-semibold text-white ml-2">
                 $
                 {category.amount.toLocaleString("en-US", {
-                  minimumFractionDigits: 2,
+                  minimumFractionDigits: 4,
                 })}
               </Text>
             </View>

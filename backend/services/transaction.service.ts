@@ -2,9 +2,28 @@ import { ethers } from "ethers";
 import prisma from "../config/prisma";
 import { TxStatus } from "../generated/prisma";
 import { ErrorHandler } from "../utils/errorHandler";
-import { RPC_URL } from "../utils/constants";
+import { ALCHEMY_URL, RPC_URL } from "../utils/constants";
+import axios from "axios";
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
+
+interface AlchemyTransfer {
+  blockNum: string;
+  uniqueId: string;
+  hash: string;
+  from: string;
+  to: string;
+  value: number;
+  erc721TokenId: string | null;
+  erc1155Metadata: any | null;
+  tokenId: string | null;
+  asset: string;
+  category: string;
+  metadata: {
+    blockTimestamp: string; // We need this for sorting
+  };
+}
+
 class TransactionService {
   public async resolveHandle(handle: string) {
     const user = await prisma.user.findUnique({
@@ -117,24 +136,118 @@ class TransactionService {
     return transaction;
   }
 
-  public async getHistory(userId: string) {
-    const transactions = await prisma.transaction.findMany({
-      where: {
-        OR: [{ senderId: userId }, { receiverId: userId }],
-      },
-      orderBy: {
-        createdAt: "desc",
-      },
-      include: {
-        sender: {
-          select: { handle: true, profilePicUrl: true, publicAddress: true },
-        },
-        receiver: {
-          select: { handle: true, profilePicUrl: true, publicAddress: true },
-        },
-      },
+  private async fetchAlchemyHistory(
+    address: string
+  ): Promise<AlchemyTransfer[]> {
+    const commonParams = {
+      fromBlock: "0x0",
+      category: ["external", "erc20"],
+      withMetadata: true,
+      excludeZeroValue: true,
+      maxCount: "0x3e8",
+    };
+
+    const makeRequest = (params: any) => ({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "alchemy_getAssetTransfers",
+      params: [params],
     });
-    return transactions;
+
+    try {
+      // Parallel Requests: 1. Sent by User, 2. Received by User
+      const [sentRes, receivedRes] = await Promise.all([
+        axios.post(
+          ALCHEMY_URL,
+          makeRequest({ ...commonParams, fromAddress: address })
+        ),
+        axios.post(
+          ALCHEMY_URL,
+          makeRequest({ ...commonParams, toAddress: address })
+        ),
+      ]);
+
+      const sent = sentRes.data.result?.transfers || [];
+      const received = receivedRes.data.result?.transfers || [];
+
+      return [...sent, ...received];
+    } catch (error) {
+      console.error("Alchemy Fetch Error:", error);
+      return [];
+    }
+  }
+
+  public async getHistory(userId: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { publicAddress: true },
+    });
+
+    if (!user || !user.publicAddress) {
+      throw new ErrorHandler("User wallet not found", 404);
+    }
+
+    const userAddressLower = user.publicAddress.toLowerCase();
+
+    // Parallel Fetch: Internal DB & External Blockchain
+    const [dbTransactions, alchemyTransactions] = await Promise.all([
+      prisma.transaction.findMany({
+        where: { OR: [{ senderId: userId }, { receiverId: userId }] },
+        orderBy: { createdAt: "desc" },
+        include: {
+          sender: {
+            select: { handle: true, profilePicUrl: true, publicAddress: true },
+          },
+          receiver: {
+            select: { handle: true, profilePicUrl: true, publicAddress: true },
+          },
+        },
+      }),
+
+      this.fetchAlchemyHistory(user.publicAddress),
+    ]);
+
+    const dbTxHashes = new Set(
+      dbTransactions.map((tx) => tx.txHash.toLowerCase())
+    );
+
+    // Normalize Alchemy Data to match Prisma Shape
+    const externalTransactions = alchemyTransactions
+      .filter((tx) => !dbTxHashes.has(tx.hash.toLowerCase()))
+      .map((tx) => {
+        const isSend = tx.from.toLowerCase() === userAddressLower;
+
+        return {
+          id: `ext_${tx.hash}`,
+          txHash: tx.hash,
+          createdAt: new Date(tx.metadata.blockTimestamp),
+          status: "COMPLETED",
+          amount: tx.value.toString(),
+          assetSymbol: tx.asset,
+          category: null,
+          userNote: null,
+
+          senderId: isSend ? userId : "external",
+          receiverId: isSend ? "external" : userId,
+
+          sender: {
+            publicAddress: tx.from,
+            handle: null,
+            profilePicUrl: null,
+          },
+          receiver: {
+            publicAddress: tx.to,
+            handle: null,
+            profilePicUrl: null,
+          },
+        };
+      });
+
+    const unifiedHistory = [...dbTransactions, ...externalTransactions].sort(
+      (a, b) => b.createdAt.getTime() - a.createdAt.getTime()
+    );
+
+    return unifiedHistory;
   }
 
   public async getTransactionById(transactionId: string, userId: string) {

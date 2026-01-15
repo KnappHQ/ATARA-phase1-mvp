@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text } from "react-native";
 import { MotiView } from "moti";
 import { ArrowUpRight, ArrowDownLeft } from "lucide-react-native";
+import { formatCurrency } from "@/utils/format";
 
 export const TransactionListItem = ({
   transaction,
@@ -49,10 +50,8 @@ export const TransactionListItem = ({
             transaction.type === "out" ? "text-white" : "text-[#E5D2A6]"
           }`}
         >
-          {transaction.type === "out" ? "-" : "+"}$
-          {transaction.amount.toLocaleString("en-US", {
-            minimumFractionDigits: 2,
-          })}
+          {transaction.type === "out" ? "-" : "+"}
+          {formatCurrency(transaction.amount)}
         </Text>
       </View>
     </MotiView>

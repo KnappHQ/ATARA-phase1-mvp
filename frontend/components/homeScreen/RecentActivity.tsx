@@ -1,5 +1,6 @@
-import { UI_Transaction, useTransactions } from "@/hooks/useTransaction";
+import { useRecentActivity } from "@/hooks/useRecentActivity";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { UiTransaction } from "@/types/transaction";
 import { ArrowDownLeft, ArrowUpRight, History } from "lucide-react-native";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import Animated, {
@@ -15,7 +16,7 @@ const TransactionItem = ({
   tx,
   index,
 }: {
-  tx: UI_Transaction;
+  tx: UiTransaction;
   index: number;
 }) => {
   const scale = useSharedValue(1);
@@ -83,7 +84,7 @@ const TransactionItem = ({
 
 export const RecentActivity = () => {
   const { user } = useAuthStore();
-  const { recentTransactions, isLoading } = useTransactions(user?.id);
+  const { recentTransactions, isLoading } = useRecentActivity(user?.id);
 
   if (isLoading) {
     return (

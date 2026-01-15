@@ -20,3 +20,8 @@ export const VS_CURRENCY = "usd";
 
 // RPC Endpoints
 export const RPC_URL = `https://base-sepolia.infura.io/v3/${process.env.INFURA_API_KEY}`;
+
+// Alchemy API
+export const ALCHEMY_KEY = process.env.ALCHEMY_API_KEY || "";
+export const NETWORK = process.env.ALCHEMY_NETWORK || "base-sepolia";
+export const ALCHEMY_URL = `https://${NETWORK}.g.alchemy.com/v2/${ALCHEMY_KEY}`;
