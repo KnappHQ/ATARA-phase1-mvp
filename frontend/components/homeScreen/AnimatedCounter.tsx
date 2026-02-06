@@ -1,82 +1,83 @@
-import { useEffect, useState } from "react";
-import { Text, TextStyle } from "react-native";
+import { useEffect, useState, useRef } from "react";
+import { Text } from "react-native";
+import { MotiText } from "moti";
 
 interface AnimatedCounterProps {
   value: number;
+  duration?: number;
   prefix?: string;
   suffix?: string;
   decimals?: number;
-  duration?: number;
   className?: string;
-  style?: TextStyle;
-  glowing?: boolean;
+  onComplete?: () => void;
 }
 
 export const AnimatedCounter = ({
   value,
+  duration = 2000,
   prefix = "",
   suffix = "",
   decimals = 0,
-  duration = 1500,
   className = "",
-  style,
-  glowing = false,
+  onComplete,
 }: AnimatedCounterProps) => {
   const [displayValue, setDisplayValue] = useState(0);
+  const [isComplete, setIsComplete] = useState(false);
+  const startTimeRef = useRef<number | null>(null);
+  const animationRef = useRef<number | null>(null);
 
   useEffect(() => {
-    let startTime: number;
-    let animationFrame: number;
+    const animate = (timestamp: number) => {
+      if (!startTimeRef.current) {
+        startTimeRef.current = timestamp;
+      }
 
-    const animate = (currentTime: number) => {
-      if (!startTime) startTime = currentTime;
-      const progress = Math.min((currentTime - startTime) / duration, 1);
+      const elapsed = timestamp - startTimeRef.current;
+      const progress = Math.min(elapsed / duration, 1);
 
-      const easeOutQuart = 1 - Math.pow(1 - progress, 4);
-      setDisplayValue(value * easeOutQuart);
+      // Easing function - ease out cubic
+      const easeOutCubic = 1 - Math.pow(1 - progress, 3);
+
+      const currentValue = easeOutCubic * value;
+      setDisplayValue(currentValue);
 
       if (progress < 1) {
-        animationFrame = requestAnimationFrame(animate);
+        animationRef.current = requestAnimationFrame(animate);
+      } else {
+        setIsComplete(true);
+        onComplete?.();
       }
     };
 
-    animationFrame = requestAnimationFrame(animate);
+    animationRef.current = requestAnimationFrame(animate);
 
     return () => {
-      if (animationFrame) {
-        cancelAnimationFrame(animationFrame);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [value, duration]);
+  }, [value, duration, onComplete]);
 
-  const formattedValue = displayValue
-    .toFixed(decimals)
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const formattedValue = displayValue.toLocaleString("en-US", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
 
-  const textContent = `${prefix}${formattedValue}${suffix}`;
-
-  if (glowing) {
-    return (
-      <Text
-        className={className}
-        style={[
-          style,
-          {
-            color: "#FCD34D",
-            textShadowColor: "rgba(252, 211, 77, 0.6)",
-            textShadowOffset: { width: 0, height: 0 },
-            textShadowRadius: 30,
-          },
-        ]}
-      >
-        {textContent}
-      </Text>
-    );
-  }
+  // Split into whole and decimal parts
+  const [wholePart, decimalPart] = formattedValue.split(".");
 
   return (
-    <Text className={className} style={style}>
-      {textContent}
-    </Text>
+    <MotiText
+      from={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className={className}
+    >
+      {prefix}
+      <Text>{wholePart}</Text>
+      {decimals > 0 && decimalPart && (
+        <Text className="opacity-60">.{decimalPart}</Text>
+      )}
+      {suffix}
+    </MotiText>
   );
 };

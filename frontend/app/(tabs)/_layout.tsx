@@ -1,4 +1,3 @@
-import { LivingBackground } from "@/components/LivingBackground";
 import { Tabs } from "expo-router";
 import { useState } from "react";
 import { View } from "react-native";
@@ -11,8 +10,7 @@ export default function TabsLayout() {
   const [shareModalOpen, setShareModalOpen] = useState(false);
 
   return (
-    <View className="flex-1">
-      <LivingBackground />
+    <View className="flex-1 bg-black">
       <SafeAreaView
         className="flex-1 mx-auto w-full"
         edges={["top"]}
@@ -35,17 +33,10 @@ export default function TabsLayout() {
               }}
             />
             <Tabs.Screen
-              name="market"
+              name="activity"
               options={{
-                href: "/market",
-                title: "Market",
-              }}
-            />
-            <Tabs.Screen
-              name="history"
-              options={{
-                href: "/history",
-                title: "History",
+                href: "/activity",
+                title: "Activity",
               }}
             />
             <Tabs.Screen

@@ -1,7 +1,7 @@
-import { BlurView } from "expo-blur";
 import { usePathname, useRouter } from "expo-router";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react-native";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, Text, View, TouchableOpacity } from "react-native";
+import { CrownIcon } from "./onboarding/CrownIcon";
 
 interface HeaderProps {
   onReceive?: () => void;
@@ -21,49 +21,62 @@ export const Header = ({ onReceive }: HeaderProps) => {
   };
 
   return (
-    <View className="pt-6 pb-2 px-6 flex-row items-center justify-between bg-transparent">
-      <Text className="text-2xl font-rajdhani-semibold tracking-wide text-foreground">
-        Astr<Text className=" font-rajdhani-semibold text-primary">â</Text>
-      </Text>
+    <View className="pt-12 pb-2 px-6 flex-row items-center justify-between">
+      <View className="flex-row items-center gap-3">
+        <CrownIcon size={24} color="#FFFFFF" />
+        <Text
+          className="text-base font-bold text-white"
+          style={{ letterSpacing: 3 }}
+        >
+          ATARA
+        </Text>
+      </View>
 
       {!isHomePage && (
         <View className="flex-1 items-center">
           <View className="flex-row items-center gap-2">
-            <Pressable onPress={handleReceive} className="active:scale-95">
-              <View className="overflow-hidden rounded-xl border border-champagne/30">
-                <BlurView
-                  intensity={40}
-                  tint="dark"
-                  className="px-3 py-1.5 flex-row items-center gap-1.5"
-                >
-                  <ArrowDownLeft size={14} color="#F5D580" />
-                  <Text className="font-hud text-[10px] font-semibold tracking-hud text-foreground uppercase">
-                    RCV
-                  </Text>
-                </BlurView>
-              </View>
-            </Pressable>
+            <TouchableOpacity
+              onPress={handleReceive}
+              activeOpacity={0.7}
+              className="px-3 py-1.5 rounded-xl flex-row items-center gap-1.5 border border-white/10"
+              style={{ backgroundColor: "rgba(255, 255, 255, 0.05)" }}
+            >
+              <ArrowDownLeft size={14} color="#84CCFF" />
+              <Text
+                className="text-[10px] font-semibold uppercase text-white"
+                style={{ letterSpacing: 1.5 }}
+              >
+                RCV
+              </Text>
+            </TouchableOpacity>
 
-            <Pressable onPress={handleSend} className="active:scale-95">
-              <View className="overflow-hidden rounded-xl border border-champagne/30">
-                <BlurView
-                  intensity={40}
-                  tint="dark"
-                  className="px-3 py-1.5 flex-row items-center gap-1.5"
-                >
-                  <ArrowUpRight size={14} color="#F5D580" />
-                  <Text className="font-hud text-[10px] font-semibold tracking-hud text-foreground uppercase">
-                    SEND
-                  </Text>
-                </BlurView>
-              </View>
-            </Pressable>
+            <TouchableOpacity
+              onPress={handleSend}
+              activeOpacity={0.7}
+              className="px-3 py-1.5 rounded-xl flex-row items-center gap-1.5 border border-white/10"
+              style={{ backgroundColor: "rgba(255, 255, 255, 0.05)" }}
+            >
+              <ArrowUpRight size={14} color="#F5F5F0" />
+              <Text
+                className="text-[10px] font-semibold uppercase text-white"
+                style={{ letterSpacing: 1.5 }}
+              >
+                SEND
+              </Text>
+            </TouchableOpacity>
           </View>
         </View>
       )}
 
-      <View className="w-8 h-8 rounded-full bg-muted items-center justify-center">
-        <Text className="text-xs font-bold text-foreground">TV</Text>
+      <View
+        className="w-9 h-9 rounded-full items-center justify-center"
+        style={{
+          backgroundColor: "transparent",
+          borderWidth: 1,
+          borderColor: "rgba(255, 255, 255, 0.3)",
+        }}
+      >
+        <Text className="text-xs font-medium text-white">TV</Text>
       </View>
     </View>
   );

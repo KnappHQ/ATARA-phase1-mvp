@@ -9,6 +9,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
+import { COLORS } from "@/utils/constants";
 
 interface ShieldIconProps {
   visible: boolean;
@@ -33,8 +34,8 @@ export const ShieldIcon = ({ visible }: ShieldIconProps) => {
           withTiming(-4, { duration: 50 }),
           withTiming(4, { duration: 50 }),
           withTiming(-2, { duration: 50 }),
-          withTiming(0, { duration: 50 })
-        )
+          withTiming(0, { duration: 50 }),
+        ),
       );
     }
   }, [visible]);
@@ -49,16 +50,10 @@ export const ShieldIcon = ({ visible }: ShieldIconProps) => {
 
   return (
     <Animated.View style={shieldContainerStyle}>
-      <View
-        className="w-20 h-20 rounded-full bg-champagne/20 items-center justify-center border border-champagne/40"
-        style={{
-          boxShadow:
-            "0 0 30px rgba(255, 230, 102, 0.3), 0 0 60px rgba(255, 230, 102, 0.2)",
-        }}
-      >
-        <Shield size={32} color="#FFE666" strokeWidth={1.5} />
+      <View className="w-20 h-20 rounded-full items-center justify-center bg-primary/20 border border-primary/40">
+        <Shield size={32} color={COLORS.primary} strokeWidth={1.5} />
         <View className="absolute">
-          <Check size={20} color="#FFE666" strokeWidth={3} />
+          <Check size={20} color={COLORS.primary} strokeWidth={3} />
         </View>
       </View>
     </Animated.View>

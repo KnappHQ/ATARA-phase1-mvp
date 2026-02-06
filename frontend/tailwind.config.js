@@ -3,87 +3,32 @@ module.exports = {
   presets: [require("nativewind/preset")],
   theme: {
     extend: {
-      fontSize: {
-        xxs: "0.70rem", // 11.2px (custom)
-        tiny: "0.95rem", // 15.2px (custom)
-        md: "1.075rem", // 17.2px (custom)
-        xlg: "1.18rem", // 18.88px (custom)
-        xxl: "1.35rem", // 21.6px (custom)
-      },
       colors: {
-        background: "#070609",
-        foreground: "#EAE0CA",
-        card: "#0F0A14",
-        "card-foreground": "#F2EDE3",
-        popover: "#0D080F",
-        "popover-foreground": "#F2EDE3",
-        primary: {
-          DEFAULT: "#dfcfaa",
-          foreground: "#0D080F",
+        // ATARA Universal Sovereignty Design System
+        obsidian: "#05010A",
+        void: "#000000",
+        platinum: {
+          DEFAULT: "#F5F5F0",
+          muted: "#c6c1b9",
         },
-        secondary: {
-          DEFAULT: "#A855F7",
-          foreground: "#B3B3B3",
+        primary: "#f7f7f3",
+        sapphire: "#4ade80",
+        bitcoin: "#F7931A",
+        glass: {
+          DEFAULT: "rgba(5, 1, 10, 0.6)",
+          strong: "rgba(5, 1, 10, 0.8)",
+          border: "rgba(224, 224, 224, 0.3)",
         },
-        muted: {
-          DEFAULT: "#12101A",
-          foreground: "#808080",
-        },
-        accent: {
-          DEFAULT: "#E5D2A6",
-          foreground: "#0D080F",
-        },
-        destructive: {
-          DEFAULT: "#DC2626",
-          foreground: "#FFFFFF",
-        },
-        border: "#241f2e",
-        input: "#1A1622",
-        ring: "#E5D2A6",
-        ceramic: "#14111C",
-        "ceramic-hover": "#1C1826",
-        void: "#06040A",
-        champagne: {
-          DEFAULT: "hsl(48, 100%, 70%)",
-          light: "#FFEFC2",
-          glow: "#F0CC5F",
-          neon: "#F7DC8F",
-        },
-        "hud-cyan": {
-          DEFAULT: "#00D9FF",
-          glow: "#33E0FF",
-        },
-        obsidian: {
-          DEFAULT: "#0D080F",
-          glass: "#14111C",
-        },
+        muted: "#8a8375",
+        emarald: "#10b981",
+        accent: "#3c83f6",
       },
       fontFamily: {
         sans: ["System"],
-        display: ["Orbitron_400Regular"],
-        hud: ["Orbitron_400Regular"],
-        orbitron: ["Orbitron_400Regular"],
-        rajdhani: ["Rajdhani_400Regular"],
-        data: ["Rajdhani_400Regular"],
-        "orbitron-medium": ["Orbitron_500Medium"],
-        "orbitron-semibold": ["Orbitron_600SemiBold"],
-        "orbitron-bold": ["Orbitron_700Bold"],
-        "rajdhani-medium": ["Rajdhani_500Medium"],
-        "rajdhani-semibold": ["Rajdhani_600SemiBold"],
-        "rajdhani-bold": ["Rajdhani_700Bold"],
+        mono: ["Courier", "monospace"],
       },
-
       letterSpacing: {
-        hud: "0.15em",
-        "hud-wide": "0.25em",
-        "hud-ultra": "0.35em",
-      },
-      borderRadius: {
-        lg: "16px",
-        md: "12px",
-        sm: "8px",
-        xl: "20px",
-        "2xl": "24px",
+        ultra: "0.25em",
       },
     },
   },

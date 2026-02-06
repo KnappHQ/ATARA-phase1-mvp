@@ -1,5 +1,6 @@
 import { Pressable, Text, View } from "react-native";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import { LinearGradient } from "expo-linear-gradient";
+import { COLORS } from "@/utils/constants";
 
 interface AstraDropButtonProps {
   onPress: () => void;
@@ -7,25 +8,34 @@ interface AstraDropButtonProps {
 
 export const AstraDropButton = ({ onPress }: AstraDropButtonProps) => {
   return (
-    <Animated.View entering={FadeInDown} className="mb-6">
-      <Pressable
-        onPress={onPress}
-        className="w-full rounded-2xl overflow-hidden active:opacity-90 bg-champagne/[0.08] border border-champagne/20"
+    <Pressable onPress={onPress} className="w-full mb-6 active:opacity-80">
+      <LinearGradient
+        colors={[
+          `${COLORS.primary}33`, // 20% opacity
+          `${COLORS.primary}1A`, // 10% opacity
+          `${COLORS.primary}33`, // 20% opacity
+        ]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        className="p-4 flex-row items-center justify-center gap-3"
+        style={{
+          borderWidth: 1,
+          borderColor: `${COLORS.primary}4D`, // 30% opacity
+          borderRadius: 16,
+        }}
       >
-        <View className="p-5 flex-row items-center gap-3">
-          <View className="w-10 h-10 rounded-full items-center justify-center bg-champagne/[0.15]">
-            <Text className="text-lg">📡</Text>
-          </View>
-          <View className="flex-1">
-            <Text className="text-base font-rajdhani-semibold text-champagne">
-              Astrâ Drop
-            </Text>
-            <Text className="text-xs text-muted-foreground mt-0.5">
-              Find nearby users to send instantly
-            </Text>
-          </View>
+        <View className="w-10 h-10 rounded-full items-center justify-center bg-primary/30">
+          <Text className="text-lg">📡</Text>
         </View>
-      </Pressable>
-    </Animated.View>
+        <View className="flex-1">
+          <Text className="text-base font-semibold text-primary">
+            ATARA Drop
+          </Text>
+          <Text className="text-sm text-muted">
+            Find nearby users to send instantly
+          </Text>
+        </View>
+      </LinearGradient>
+    </Pressable>
   );
 };

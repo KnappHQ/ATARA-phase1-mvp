@@ -1,12 +1,37 @@
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { BlurView } from "expo-blur";
 import { Clock, Home, TrendingUp, User } from "lucide-react-native";
-import { Pressable, Text, View } from "react-native";
+import { TouchableOpacity, Text, View } from "react-native";
+import { COLORS } from "@/utils/constants";
+import Svg, { Polyline } from "react-native-svg";
+
+// Custom Activity pulse/zig-zag icon
+const ActivityIcon = ({
+  size = 22,
+  color = COLORS.white,
+  strokeWidth = 2,
+}: {
+  size?: number;
+  color?: string;
+  strokeWidth?: number;
+}) => (
+  <Svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke={color}
+    strokeWidth={strokeWidth}
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <Polyline points="4 13 8 9 12 15 16 7 20 11" />
+  </Svg>
+);
 
 const tabs = [
   { id: "home", route: "index", icon: Home, label: "Home" },
-  { id: "market", route: "market", icon: TrendingUp, label: "Market" },
-  { id: "history", route: "history", icon: Clock, label: "History" },
+  { id: "activity", route: "activity", icon: ActivityIcon, label: "Activity" },
   { id: "profile", route: "profile", icon: User, label: "Profile" },
 ];
 
@@ -20,16 +45,15 @@ export const BottomNav = ({ state, navigation }: BottomTabBarProps) => {
           className="rounded-2xl overflow-hidden"
           style={{
             borderWidth: 1,
-            borderColor: "rgba(229,210,166,0.18)",
+            borderColor: "rgba(255, 255, 255, 0.1)",
           }}
         >
           <BlurView
-            intensity={80}
+            intensity={20}
             tint="dark"
             style={{
-              backgroundColor: "rgba(255,255,255,0.01)",
+              backgroundColor: "rgba(255, 255, 255, 0.05)",
             }}
-            renderToHardwareTextureAndroid
           >
             <View className="flex-row items-center justify-around py-3">
               {tabs.map((tab) => {
@@ -37,38 +61,35 @@ export const BottomNav = ({ state, navigation }: BottomTabBarProps) => {
                 const Icon = tab.icon;
 
                 return (
-                  <Pressable
+                  <TouchableOpacity
                     key={tab.id}
                     onPress={() => {
                       if (!isActive) {
                         navigation.navigate(tab.route as never);
                       }
                     }}
-                    className="flex-col items-center gap-1 px-4 py-2 rounded-xl active:scale-95"
+                    activeOpacity={0.7}
+                    className="flex-col items-center gap-1 px-4 py-2"
                   >
                     <Icon
                       size={22}
                       strokeWidth={isActive ? 2.5 : 2}
-                      color={isActive ? "#E5D2A6" : "rgb(161,161,170)"}
-                      style={
-                        isActive
-                          ? {
-                              shadowColor: "#E5D2A6",
-                              shadowOpacity: 0.8,
-                              shadowRadius: 10,
-                            }
-                          : undefined
+                      color={
+                        isActive ? COLORS.white : "rgba(255, 255, 255, 0.4)"
                       }
                     />
 
                     <Text
-                      className={`text-[10px] font-medium tracking-wide ${
-                        isActive ? "text-primary" : "text-zinc-400"
-                      }`}
+                      className="text-xs font-medium"
+                      style={{
+                        color: isActive
+                          ? COLORS.white
+                          : "rgba(255, 255, 255, 0.4)",
+                      }}
                     >
                       {tab.label}
                     </Text>
-                  </Pressable>
+                  </TouchableOpacity>
                 );
               })}
             </View>

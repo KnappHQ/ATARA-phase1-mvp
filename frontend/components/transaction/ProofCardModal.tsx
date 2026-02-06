@@ -1,18 +1,10 @@
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { Share2, X, CheckCircle2 } from "lucide-react-native";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Modal, Pressable, Text, View, Dimensions, Share } from "react-native";
-import Animated, {
-  FadeIn,
-  FadeInDown,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-  withSequence,
-  Easing,
-} from "react-native-reanimated";
+import { MotiView, AnimatePresence } from "moti";
+import { COLORS } from "@/utils/constants";
 
 interface ProofCardModalProps {
   isOpen: boolean;
@@ -44,62 +36,22 @@ export const ProofCardModal = ({
   const [isGenerating, setIsGenerating] = useState(true);
   const [cardReady, setCardReady] = useState(false);
 
-  const titleOpacity = useSharedValue(0.5);
-  const loadingProgress = useSharedValue(-100);
-  const cardScale = useSharedValue(0.7);
-  const cardOpacity = useSharedValue(0.5);
-  const buttonOpacity = useSharedValue(0.3);
+  const handleModalOpen = () => {
+    setIsGenerating(true);
+    setCardReady(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      setIsGenerating(true);
-      setCardReady(false);
-
-      titleOpacity.value = withRepeat(
-        withSequence(
-          withTiming(1, { duration: 750 }),
-          withTiming(0.5, { duration: 750 })
-        ),
-        -1,
-        false
-      );
-
-      loadingProgress.value = withRepeat(
-        withTiming(200, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
-        -1,
-        false
-      );
-
-      const timer = setTimeout(() => {
-        setIsGenerating(false);
-        titleOpacity.value = withTiming(1, { duration: 300 });
-        cardScale.value = withTiming(1, {
-          duration: 600,
-          easing: Easing.out(Easing.cubic),
-        });
-        cardOpacity.value = withTiming(1, { duration: 500 });
-
-        setTimeout(() => {
-          setCardReady(true);
-          buttonOpacity.value = withTiming(1, { duration: 500 });
-        }, 300);
-      }, 1500);
-
-      return () => {
-        clearTimeout(timer);
-        titleOpacity.value = 0.5;
-        loadingProgress.value = -100;
-        cardScale.value = 0.7;
-        cardOpacity.value = 0.5;
-        buttonOpacity.value = 0.3;
-      };
-    }
-  }, [isOpen]);
+    setTimeout(() => {
+      setIsGenerating(false);
+      setTimeout(() => {
+        setCardReady(true);
+      }, 300);
+    }, 1500);
+  };
 
   const handleNativeShare = async () => {
     try {
       await Share.share({
-        message: `Payment of ${amount} ${coin} to ${recipientHandle} confirmed on Astrâ.\nRef: ${transactionId}`,
+        message: `Payment of ${amount} ${coin} to ${recipientHandle} confirmed on ATARA.\nRef: ${transactionId}`,
       });
       if (onShare) onShare();
     } catch (error) {
@@ -107,33 +59,20 @@ export const ProofCardModal = ({
     }
   };
 
-  const titleStyle = useAnimatedStyle(() => ({
-    opacity: titleOpacity.value,
-  }));
-
-  const loadingStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: loadingProgress.value }],
-  }));
-
-  const cardContainerStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: cardScale.value }],
-    opacity: cardOpacity.value,
-  }));
-
-  const buttonStyle = useAnimatedStyle(() => ({
-    opacity: buttonOpacity.value,
-  }));
-
   return (
-    <Modal visible={isOpen} transparent animationType="fade">
-      <View
-        className="flex-1"
-        style={{ backgroundColor: "rgba(8, 5, 15, 0.98)" }}
-      >
+    <Modal
+      visible={isOpen}
+      transparent
+      animationType="fade"
+      onShow={handleModalOpen}
+    >
+      <View className="flex-1 bg-black">
         <BlurView intensity={20} className="flex-1" tint="dark">
           <View className="flex-1 px-6">
-            <Animated.View
-              entering={FadeIn.delay(300)}
+            <MotiView
+              from={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: "timing", duration: 300, delay: 300 }}
               style={{ position: "absolute", top: 24, right: 24, zIndex: 10 }}
             >
               <Pressable
@@ -147,10 +86,12 @@ export const ProofCardModal = ({
               >
                 <X size={20} color="#8B8B8B" />
               </Pressable>
-            </Animated.View>
+            </MotiView>
 
-            <Animated.View
-              entering={FadeInDown.duration(500)}
+            <MotiView
+              from={{ opacity: 0, translateY: -20 }}
+              animate={{ opacity: 1, translateY: 0 }}
+              transition={{ type: "timing", duration: 500 }}
               style={{
                 position: "absolute",
                 top: 80,
@@ -159,44 +100,74 @@ export const ProofCardModal = ({
                 alignItems: "center",
               }}
             >
-              <Animated.View style={titleStyle}>
+              <MotiView
+                animate={{
+                  opacity: isGenerating ? [0.5, 1, 0.5] : 1,
+                }}
+                transition={{
+                  type: "timing",
+                  duration: 1500,
+                  loop: isGenerating,
+                }}
+              >
                 <Text
-                  className="font-rajdhani-medium text-base uppercase text-champagne"
-                  style={{ letterSpacing: 6 }}
+                  className="font-medium text-base uppercase"
+                  style={{ letterSpacing: 6, color: COLORS.primary }}
                 >
                   {isGenerating ? "Generating Proof..." : "Proof Generated"}
                 </Text>
-              </Animated.View>
+              </MotiView>
 
               {isGenerating && (
-                <Animated.View
-                  entering={FadeIn}
+                <MotiView
+                  from={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
                   style={{
                     marginTop: 16,
                     width: 128,
                     height: 2,
                     borderRadius: 2,
-                    backgroundColor: "rgba(229, 210, 166, 0.1)",
+                    backgroundColor: "rgba(247, 247, 243, 0.1)",
                     overflow: "hidden",
                   }}
                 >
-                  <Animated.View
-                    style={[loadingStyle, { width: "30%", height: "100%" }]}
+                  <MotiView
+                    from={{ translateX: -100 }}
+                    animate={{ translateX: 200 }}
+                    transition={{
+                      type: "timing",
+                      duration: 1000,
+                      loop: true,
+                    }}
+                    style={{ width: "30%", height: "100%" }}
                   >
                     <LinearGradient
-                      colors={["#C4A86B", "#E5D2A6"]}
+                      colors={[COLORS.primary, COLORS.platinum]}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 0 }}
                       style={{ width: "100%", height: "100%", borderRadius: 2 }}
                     />
-                  </Animated.View>
-                </Animated.View>
+                  </MotiView>
+                </MotiView>
               )}
-            </Animated.View>
+            </MotiView>
 
             <View className="flex-1 justify-center items-center">
-              <Animated.View
-                style={[cardContainerStyle, { width: CARD_WIDTH }]}
+              <MotiView
+                from={{
+                  scale: 0.7,
+                  opacity: 0.5,
+                }}
+                animate={{
+                  scale: isGenerating ? 0.7 : 1,
+                  opacity: isGenerating ? 0.5 : 1,
+                }}
+                transition={{
+                  type: "timing",
+                  duration: 600,
+                  delay: isGenerating ? 0 : 100,
+                }}
+                style={{ width: CARD_WIDTH }}
               >
                 <View
                   style={{
@@ -213,9 +184,9 @@ export const ProofCardModal = ({
                   <LinearGradient
                     colors={[
                       "transparent",
-                      "#C4A86B",
-                      "#E5D2A6",
-                      "#C4A86B",
+                      COLORS.primary,
+                      COLORS.platinum,
+                      COLORS.primary,
                       "transparent",
                     ]}
                     start={{ x: 0, y: 0 }}
@@ -230,7 +201,7 @@ export const ProofCardModal = ({
                     }}
                   />
                   <LinearGradient
-                    colors={["#C4A86B", "#B39859", "#C4A86B"]}
+                    colors={[COLORS.primary, COLORS.platinum, COLORS.primary]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 0, y: 1 }}
                     style={{
@@ -243,7 +214,7 @@ export const ProofCardModal = ({
                     }}
                   />
                   <LinearGradient
-                    colors={["#C4A86B", "#B39859", "#C4A86B"]}
+                    colors={[COLORS.primary, COLORS.platinum, COLORS.primary]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 0, y: 1 }}
                     style={{
@@ -258,9 +229,9 @@ export const ProofCardModal = ({
                   <LinearGradient
                     colors={[
                       "transparent",
-                      "#C4A86B",
-                      "#E5D2A6",
-                      "#C4A86B",
+                      COLORS.primary,
+                      COLORS.platinum,
+                      COLORS.primary,
                       "transparent",
                     ]}
                     start={{ x: 0, y: 0 }}
@@ -277,24 +248,33 @@ export const ProofCardModal = ({
 
                   <View style={{ padding: 32 }}>
                     <View style={{ alignItems: "center", marginBottom: 32 }}>
-                      <Text className="font-rajdhani-medium text-base uppercase tracking-hud-wide text-champagne">
-                        Astrâ
+                      <Text
+                        className="font-medium text-base uppercase tracking-widest"
+                        style={{ color: COLORS.primary }}
+                      >
+                        ATARA
                       </Text>
                     </View>
 
                     <View style={{ alignItems: "center", marginBottom: 24 }}>
                       <Text
-                        className="font-rajdhani-bold text-4xl text-champagne"
-                        style={{ letterSpacing: 2 }}
+                        className="font-bold text-4xl"
+                        style={{ letterSpacing: 2, color: COLORS.primary }}
                       >
                         - {amount} {coin}
                       </Text>
                     </View>
 
                     <View style={{ alignItems: "center", marginBottom: 32 }}>
-                      <Text className="font-rajdhani text-base text-foreground/85">
+                      <Text
+                        className="text-base"
+                        style={{ color: "rgba(255, 255, 255, 0.7)" }}
+                      >
                         Sent to{" "}
-                        <Text className="font-rajdhani-semibold text-foreground">
+                        <Text
+                          className="font-semibold"
+                          style={{ color: COLORS.white }}
+                        >
                           {recipientHandle}
                         </Text>
                       </Text>
@@ -311,7 +291,7 @@ export const ProofCardModal = ({
                       <LinearGradient
                         colors={[
                           "transparent",
-                          "rgba(196, 168, 107, 0.3)",
+                          `${COLORS.primary}4D`,
                           "transparent",
                         ]}
                         start={{ x: 0, y: 0 }}
@@ -329,10 +309,10 @@ export const ProofCardModal = ({
                           opacity: 0.8,
                         }}
                       >
-                        <CheckCircle2 size={12} color="#C4A86B" />
+                        <CheckCircle2 size={12} color={COLORS.primary} />
                         <Text
-                          className="font-rajdhani-medium text-[10px] text-champagne uppercase"
-                          style={{ letterSpacing: 2 }}
+                          className="font-medium text-[10px] uppercase"
+                          style={{ letterSpacing: 2, color: COLORS.primary }}
                         >
                           Confirmed On-Chain
                         </Text>
@@ -349,8 +329,11 @@ export const ProofCardModal = ({
                         }}
                       >
                         <Text
-                          className="font-rajdhani-medium text-xs text-muted-foreground"
-                          style={{ letterSpacing: 1 }}
+                          className="font-medium text-xs"
+                          style={{
+                            letterSpacing: 1,
+                            color: "rgba(255, 255, 255, 0.5)",
+                          }}
                         >
                           REF: {formatTxHash(transactionId)}
                         </Text>
@@ -367,7 +350,7 @@ export const ProofCardModal = ({
                       height: 12,
                       borderTopWidth: 1,
                       borderLeftWidth: 1,
-                      borderColor: "rgba(229, 210, 166, 0.3)",
+                      borderColor: `${COLORS.primary}4D`,
                       borderTopLeftRadius: 2,
                     }}
                   />
@@ -380,7 +363,7 @@ export const ProofCardModal = ({
                       height: 12,
                       borderTopWidth: 1,
                       borderRightWidth: 1,
-                      borderColor: "rgba(229, 210, 166, 0.3)",
+                      borderColor: `${COLORS.primary}4D`,
                       borderTopRightRadius: 2,
                     }}
                   />
@@ -393,7 +376,7 @@ export const ProofCardModal = ({
                       height: 12,
                       borderBottomWidth: 1,
                       borderLeftWidth: 1,
-                      borderColor: "rgba(229, 210, 166, 0.3)",
+                      borderColor: `${COLORS.primary}4D`,
                       borderBottomLeftRadius: 2,
                     }}
                   />
@@ -406,19 +389,19 @@ export const ProofCardModal = ({
                       height: 12,
                       borderBottomWidth: 1,
                       borderRightWidth: 1,
-                      borderColor: "rgba(229, 210, 166, 0.3)",
+                      borderColor: `${COLORS.primary}4D`,
                       borderBottomRightRadius: 2,
                     }}
                   />
                 </View>
-              </Animated.View>
+              </MotiView>
             </View>
 
-            <Animated.View
-              style={[
-                buttonStyle,
-                { position: "absolute", bottom: 40, left: 24, right: 24 },
-              ]}
+            <MotiView
+              from={{ opacity: 0.3 }}
+              animate={{ opacity: cardReady ? 1 : 0.3 }}
+              transition={{ type: "timing", duration: 500 }}
+              style={{ position: "absolute", bottom: 40, left: 24, right: 24 }}
             >
               <Pressable
                 onPress={handleNativeShare}
@@ -426,9 +409,9 @@ export const ProofCardModal = ({
                 className="py-4 rounded-xl items-center justify-center active:scale-95"
                 style={{
                   backgroundColor: cardReady
-                    ? "#C4A86B"
-                    : "rgba(229, 210, 166, 0.1)",
-                  shadowColor: cardReady ? "#E5D2A6" : "transparent",
+                    ? COLORS.primary
+                    : "rgba(247, 247, 243, 0.1)",
+                  shadowColor: cardReady ? COLORS.platinum : "transparent",
                   shadowOffset: { width: 0, height: 15 },
                   shadowOpacity: 0.35,
                   shadowRadius: 40,
@@ -436,12 +419,15 @@ export const ProofCardModal = ({
                 }}
               >
                 <View className="flex-row items-center gap-3">
-                  <Share2 size={20} color={cardReady ? "#0D080F" : "#8B8B8B"} />
+                  <Share2
+                    size={20}
+                    color={cardReady ? COLORS.black : "#8B8B8B"}
+                  />
                   <Text
                     numberOfLines={1}
-                    className="font-orbitron-medium text-sm uppercase"
+                    className="font-medium text-sm uppercase"
                     style={{
-                      color: cardReady ? "#0D080F" : "#8B8B8B",
+                      color: cardReady ? COLORS.black : "#8B8B8B",
                       letterSpacing: 2,
                     }}
                   >
@@ -449,7 +435,7 @@ export const ProofCardModal = ({
                   </Text>
                 </View>
               </Pressable>
-            </Animated.View>
+            </MotiView>
           </View>
         </BlurView>
       </View>

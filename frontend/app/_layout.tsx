@@ -62,22 +62,39 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (!isReady || !fontsLoaded || isAuthLoading || hasNavigated) return;
+    if (!isReady || !fontsLoaded || isAuthLoading) return;
 
     const inTabsGroup = segments[0] === "(tabs)";
     const onOnboarding = segments[0] === "onboarding";
+    const onSend = segments[0] === "send";
+    const onTransactionSuccess = segments[0] === "transaction-success";
+    const onTransactionDetail = segments[0] === "transaction-detail";
+    const onContactDetail = segments[0] === "contact-detail";
+
+    // Skip navigation if already on a valid screen
+    if (
+      hasNavigated ||
+      inTabsGroup ||
+      onOnboarding ||
+      onSend ||
+      onTransactionSuccess ||
+      onTransactionDetail ||
+      onContactDetail
+    ) {
+      setTimeout(() => {
+        SplashScreen.hideAsync();
+      }, 100);
+      return;
+    }
 
     if (isAuthenticated) {
-      if (!inTabsGroup && !onOnboarding) {
-        router.replace("/(tabs)");
-        setHasNavigated(true);
-      }
+      router.replace("/(tabs)");
+      setHasNavigated(true);
     } else {
-      if (!onOnboarding) {
-        router.replace("/onboarding");
-        setHasNavigated(true);
-      }
+      router.replace("/onboarding");
+      setHasNavigated(true);
     }
+
     setTimeout(() => {
       SplashScreen.hideAsync();
     }, 100);
@@ -92,16 +109,16 @@ export default function RootLayout() {
 
   if (!isReady || !fontsLoaded || isAuthLoading) {
     return (
-      <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#070609" }}>
-        <View className="flex-1 bg-[#070609] items-center justify-center">
-          <ActivityIndicator size="large" color="#FFE666" />
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#000000" }}>
+        <View className="flex-1 bg-black items-center justify-center">
+          <ActivityIndicator size="large" color="#FFFFFF" />
         </View>
       </GestureHandlerRootView>
     );
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#070609" }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#000000" }}>
       <StatusBar style="light" translucent backgroundColor="transparent" />
       <AstraAlert
         visible={visible}
@@ -114,14 +131,14 @@ export default function RootLayout() {
         screenOptions={{
           headerShown: false,
           animation: "fade",
-          contentStyle: { backgroundColor: "#070609" },
+          contentStyle: { backgroundColor: "#000000" },
         }}
       >
         <Stack.Screen
           name="(tabs)"
           options={{
             headerShown: false,
-            contentStyle: { backgroundColor: "#070609" },
+            contentStyle: { backgroundColor: "#000000" },
           }}
         />
         <Stack.Screen
@@ -135,7 +152,7 @@ export default function RootLayout() {
           options={{
             presentation: "transparentModal",
             animation: "slide_from_bottom",
-            contentStyle: { backgroundColor: "#070609" },
+            contentStyle: { backgroundColor: "#000000" },
           }}
         />
         <Stack.Screen
@@ -143,7 +160,23 @@ export default function RootLayout() {
           options={{
             presentation: "card",
             animation: "fade",
-            contentStyle: { backgroundColor: "#070609" },
+            contentStyle: { backgroundColor: "#000000" },
+          }}
+        />
+        <Stack.Screen
+          name="transaction-detail"
+          options={{
+            presentation: "card",
+            animation: "slide_from_bottom",
+            contentStyle: { backgroundColor: "#000000" },
+          }}
+        />
+        <Stack.Screen
+          name="contact-detail"
+          options={{
+            presentation: "card",
+            animation: "slide_from_bottom",
+            contentStyle: { backgroundColor: "#000000" },
           }}
         />
       </Stack>

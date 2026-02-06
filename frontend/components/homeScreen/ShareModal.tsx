@@ -1,42 +1,40 @@
 import { useAuthStore } from "@/stores/useAuthStore";
 import { BlurView } from "expo-blur";
 import * as Clipboard from "expo-clipboard";
-import { LinearGradient } from "expo-linear-gradient";
-import {
-  Check,
-  Copy,
-  ExternalLink,
-  QrCode,
-  Share2,
-  X,
-} from "lucide-react-native";
+import { Check, Copy, ExternalLink, Share2, X } from "lucide-react-native";
 import React, { useState } from "react";
 import { Modal, Pressable, Share, Text, View } from "react-native";
-import Animated, { FadeIn, FadeInDown, ZoomIn } from "react-native-reanimated";
+import { MotiView } from "moti";
+import { COLORS } from "@/utils/constants";
+import * as Haptics from "expo-haptics";
 
 interface ShareModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+const VANITY_URL_BASE = "atara.money";
+
 export function ShareModal({ isOpen, onClose }: ShareModalProps) {
   const { user } = useAuthStore();
   const [copied, setCopied] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
-  const WALLET_ADDRESS = user?.publicAddress || "";
-  const USER_HANDLE = user?.handle || "User";
-  const VANITY_URL = `astra.money/${USER_HANDLE}`;
+  const WALLET_ADDRESS = "0x1234456789abcdef1234567890abcdef12345678";
+  const USER_HANDLE = user?.handle || "thomas";
+  const VANITY_URL = `${VANITY_URL_BASE}/${USER_HANDLE}`;
 
   const handleCopyAddress = async () => {
     if (!WALLET_ADDRESS) return;
     await Clipboard.setStringAsync(WALLET_ADDRESS);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleCopyLink = async () => {
     await Clipboard.setStringAsync(`https://${VANITY_URL}`);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
   };
@@ -44,19 +42,19 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
   const handleShare = async () => {
     try {
       await Share.share({
-        title: "Pay me on Astrâ",
-        message: `Send me crypto instantly! Claim your Astrâ Handle to get paid. https://${VANITY_URL}`,
+        title: "Pay me on ATARA",
+        message: `Send me instantly via ATARA. https://${VANITY_URL}`,
       });
     } catch (error) {
       console.error("Share failed:", error);
     }
   };
 
-  const initials = USER_HANDLE.substring(0, 2).toUpperCase();
+  const initials = USER_HANDLE.substring(0, 1).toUpperCase();
 
   return (
     <Modal visible={isOpen} transparent animationType="fade">
-      <View className="flex-1 bg-black/80">
+      <View className="flex-1 bg-black/90">
         <BlurView intensity={20} style={{ flex: 1 }} tint="dark">
           <Pressable
             onPress={onClose}
@@ -71,16 +69,19 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
               onPress={(e) => e.stopPropagation()}
               style={{ width: "100%", maxWidth: 400 }}
             >
-              <Animated.View
-                entering={FadeInDown.springify().damping(25).stiffness(300)}
+              <MotiView
+                from={{ opacity: 0, scale: 0.95, translateY: 20 }}
+                animate={{ opacity: 1, scale: 1, translateY: 0 }}
+                exit={{ opacity: 0, scale: 0.95, translateY: 10 }}
+                transition={{ type: "spring", damping: 25, stiffness: 300 }}
               >
                 <View
                   style={{
                     borderRadius: 24,
                     overflow: "hidden",
                     borderWidth: 1,
-                    borderColor: "rgba(229, 210, 166, 0.2)",
-                    backgroundColor: "rgba(10,10,10,0.98)",
+                    borderColor: "rgba(255, 255, 255, 0.1)",
+                    backgroundColor: COLORS.black,
                   }}
                 >
                   <View className="p-4 flex-row justify-end">
@@ -88,132 +89,158 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
                       onPress={onClose}
                       className="w-8 h-8 rounded-full items-center justify-center active:scale-90"
                       style={{
-                        backgroundColor: "rgba(255, 255, 255, 0.04)",
+                        backgroundColor: "rgba(255, 255, 255, 0.03)",
                         borderWidth: 1,
-                        borderColor: "rgba(229, 210, 166, 0.15)",
+                        borderColor: "rgba(255, 255, 255, 0.1)",
                       }}
                     >
-                      <X size={16} color="#8B8B8B" />
+                      <X size={16} color="rgba(255, 255, 255, 0.6)" />
                     </Pressable>
                   </View>
 
                   <View className="px-8 pb-8 items-center">
-                    <Animated.View
-                      entering={ZoomIn.delay(100)
-                        .springify()
-                        .damping(30)
-                        .stiffness(200)}
-                    >
-                      <LinearGradient
-                        colors={[
-                          "#FFE666",
-                          "rgba(255, 230, 102, 0.8)",
-                          "rgba(255, 230, 102, 0.6)",
-                        ]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={{
-                          width: 80,
-                          height: 80,
-                          borderRadius: 40,
-                          justifyContent: "center",
-                          alignItems: "center",
-                          marginBottom: 16,
-                          shadowColor: "#FFE666",
-                          shadowOffset: { width: 0, height: 8 },
-                          shadowOpacity: 0.3,
-                          shadowRadius: 16,
-                        }}
-                      >
-                        <Text className="text-3xl font-rajdhani-bold text-background">
-                          {initials}
-                        </Text>
-                      </LinearGradient>
-                    </Animated.View>
-
-                    <Animated.View entering={FadeInDown.delay(150)}>
-                      <Text className="text-2xl font-rajdhani-semibold text-foreground mb-1">
-                        @{USER_HANDLE}
-                      </Text>
-                    </Animated.View>
-                    <Animated.View entering={FadeIn.delay(200)}>
-                      <Text className="text-base font-rajdhani-medium text-muted-foreground mb-6">
-                        Send me crypto instantly
-                      </Text>
-                    </Animated.View>
-
-                    <Animated.View
-                      entering={ZoomIn.delay(250).springify()}
-                      className="mb-6"
+                    {/* Avatar */}
+                    <MotiView
+                      from={{ opacity: 0, scale: 0 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{
+                        type: "spring",
+                        delay: 100,
+                        damping: 30,
+                        stiffness: 200,
+                      }}
                       style={{
-                        width: 160,
-                        height: 160,
-                        padding: 12,
-                        borderRadius: 16,
-                        borderWidth: 1,
-                        borderColor: "rgba(229, 210, 166, 0.3)",
-                        backgroundColor: "rgba(7, 6, 9, 0.5)",
+                        width: 80,
+                        height: 80,
+                        borderRadius: 40,
                         justifyContent: "center",
                         alignItems: "center",
+                        marginBottom: 16,
+                        backgroundColor: COLORS.platinum,
                       }}
                     >
-                      <LinearGradient
-                        colors={["#E5D2A6", "#C4A86B"]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={{
-                          width: 136,
-                          height: 136,
-                          borderRadius: 12,
-                          justifyContent: "center",
-                          alignItems: "center",
-                        }}
+                      <Text
+                        className="text-3xl font-bold"
+                        style={{ color: COLORS.black }}
                       >
-                        <QrCode size={80} color="#14111C" strokeWidth={2} />
-                      </LinearGradient>
-                    </Animated.View>
+                        {initials}
+                      </Text>
+                    </MotiView>
 
-                    <Animated.View
-                      entering={FadeInDown.delay(300)}
+                    {/* Handle */}
+                    <MotiView
+                      from={{ opacity: 0, translateY: 10 }}
+                      animate={{ opacity: 1, translateY: 0 }}
+                      transition={{ type: "timing", delay: 150, duration: 200 }}
+                    >
+                      <Text
+                        className="text-2xl font-semibold mb-1"
+                        style={{ color: COLORS.white }}
+                      >
+                        @{USER_HANDLE}
+                      </Text>
+                    </MotiView>
+
+                    {/* Description */}
+                    <MotiView
+                      from={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ type: "timing", delay: 200, duration: 200 }}
+                    >
+                      <Text className="text-base mb-8 text-muted">
+                        Send me instantly
+                      </Text>
+                    </MotiView>
+
+                    {/* Vanity URL */}
+                    <MotiView
+                      from={{ opacity: 0, translateY: 10 }}
+                      animate={{ opacity: 1, translateY: 0 }}
+                      transition={{ type: "timing", delay: 250, duration: 200 }}
                       className="mb-6"
                     >
                       <Pressable
                         onPress={handleCopyLink}
-                        className="flex-row items-center gap-2 px-4 py-2 rounded-full active:scale-95"
+                        className="flex-row items-center gap-2 px-6 py-3 rounded-2xl active:scale-95"
                         style={{
-                          backgroundColor: "rgba(255, 255, 255, 0.04)",
+                          backgroundColor: "rgba(255, 255, 255, 0.05)",
                           borderWidth: 1,
-                          borderColor: "rgba(229, 210, 166, 0.2)",
+                          borderColor: "rgba(255, 255, 255, 0.1)",
                         }}
                       >
-                        <ExternalLink size={14} color="#FFE666" />
-                        <Text className="text-sm font-rajdhani-medium text-champagne">
+                        <ExternalLink size={16} color={COLORS.white} />
+                        <Text
+                          className="text-base font-medium"
+                          style={{ color: COLORS.white }}
+                        >
                           {VANITY_URL}
                         </Text>
-                        {linkCopied && <Check size={14} color="#34D399" />}
+                        {linkCopied && (
+                          <Check size={16} color={COLORS.sapphire} />
+                        )}
                       </Pressable>
-                    </Animated.View>
+                    </MotiView>
 
-                    <Animated.View
-                      entering={FadeInDown.delay(350)}
+                    {/* Wallet Address */}
+                    <MotiView
+                      from={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ type: "timing", delay: 300, duration: 200 }}
+                      className="mb-6 w-full"
+                    >
+                      <Text
+                        className="text-xs mb-2 text-center uppercase text-muted"
+                        style={{
+                          letterSpacing: 1.5,
+                        }}
+                      >
+                        Wallet Address
+                      </Text>
+                      <Text
+                        className="text-sm text-center px-4"
+                        style={{
+                          color: "rgba(255, 255, 255, 0.8)",
+                          fontVariant: ["tabular-nums"],
+                          lineHeight: 20,
+                        }}
+                        numberOfLines={2}
+                      >
+                        {WALLET_ADDRESS || "No wallet connected"}
+                      </Text>
+                    </MotiView>
+
+                    {/* Action Buttons */}
+                    <MotiView
+                      from={{ opacity: 0, translateY: 10 }}
+                      animate={{ opacity: 1, translateY: 0 }}
+                      transition={{ type: "timing", delay: 350, duration: 200 }}
                       className="flex-row gap-3 w-full"
                     >
                       <Pressable
                         onPress={handleCopyAddress}
-                        className="flex-1 py-3.5 rounded-xl items-center justify-center active:scale-95"
+                        className="flex-1 py-3.5 rounded-2xl items-center justify-center active:scale-95"
                         style={{
-                          backgroundColor: "rgba(255, 255, 255, 0.04)",
+                          backgroundColor: copied
+                            ? "rgba(132, 204, 255, 0.1)"
+                            : "rgba(255, 255, 255, 0.05)",
                           borderWidth: 1,
-                          borderColor: "rgba(229, 210, 166, 0.15)",
+                          borderColor: copied
+                            ? "rgba(132, 204, 255, 0.3)"
+                            : "rgba(255, 255, 255, 0.1)",
                         }}
                       >
                         <View className="flex-row items-center gap-2">
                           {copied ? (
-                            <Check size={16} color="#34D399" />
+                            <Check size={16} color={COLORS.sapphire} />
                           ) : (
-                            <Copy size={16} color="#FFE666" />
+                            <Copy size={16} color="rgba(255, 255, 255, 0.6)" />
                           )}
-                          <Text className="text-sm font-rajdhani-medium text-foreground">
+                          <Text
+                            className="text-sm font-medium"
+                            style={{
+                              color: copied ? COLORS.sapphire : COLORS.white,
+                            }}
+                          >
                             {copied ? "Copied!" : "Copy Address"}
                           </Text>
                         </View>
@@ -221,31 +248,41 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
 
                       <Pressable
                         onPress={handleShare}
-                        className="flex-1 py-3.5 rounded-xl bg-champagne items-center justify-center active:scale-95"
+                        className="flex-1 py-3.5 rounded-2xl items-center justify-center active:scale-95"
                         style={{
-                          shadowColor: "#FFE666",
+                          backgroundColor: COLORS.platinum,
+                          shadowColor: COLORS.platinum,
                           shadowOffset: { width: 0, height: 8 },
-                          shadowOpacity: 0.3,
-                          shadowRadius: 24,
+                          shadowOpacity: 0.2,
+                          shadowRadius: 20,
+                          elevation: 10,
                         }}
                       >
                         <View className="flex-row items-center gap-2">
-                          <Share2 size={16} color="#070609" />
-                          <Text className="text-sm font-rajdhani-semibold text-background">
+                          <Share2 size={16} color={COLORS.black} />
+                          <Text
+                            className="text-sm font-semibold"
+                            style={{ color: COLORS.black }}
+                          >
                             Share
                           </Text>
                         </View>
                       </Pressable>
-                    </Animated.View>
+                    </MotiView>
 
-                    <Animated.View entering={FadeIn.delay(400)}>
-                      <Text className="text-sm font-rajdhani-medium text-muted-foreground mt-6 text-center">
-                        Claim your Astrâ Handle to get paid
+                    {/* Tagline */}
+                    <MotiView
+                      from={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ type: "timing", delay: 400, duration: 200 }}
+                    >
+                      <Text className="text-xs mt-6 text-center text-muted">
+                        Universal Sovereignty
                       </Text>
-                    </Animated.View>
+                    </MotiView>
                   </View>
                 </View>
-              </Animated.View>
+              </MotiView>
             </Pressable>
           </Pressable>
         </BlurView>

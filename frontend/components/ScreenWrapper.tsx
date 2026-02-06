@@ -1,6 +1,5 @@
 import { ReactNode } from "react";
-import { View } from "react-native";
-import { LivingBackground } from "./LivingBackground";
+import { View, StyleSheet } from "react-native";
 
 interface ScreenWrapperProps {
   children: ReactNode;
@@ -14,9 +13,8 @@ export const ScreenWrapper = ({
   return (
     <View
       className={`flex-1 ${className}`}
-      style={{ backgroundColor: "transparent" }}
+      style={{ backgroundColor: "#000000" }}
     >
-      <LivingBackground />
       {children}
     </View>
   );

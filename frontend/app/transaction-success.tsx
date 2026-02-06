@@ -2,29 +2,31 @@ import { ActionButtons } from "@/components/transaction/ActionButtons";
 import { ProofCardModal } from "@/components/transaction/ProofCardModal";
 import { ShieldIcon } from "@/components/transaction/ShieldIcon";
 import { TransactionReceipt } from "@/components/transaction/TransactionReceipt";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useState } from "react";
 import { ScrollView, Share, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+// Dummy transaction data
+const DUMMY_TRANSACTION = {
+  amount: "0.5",
+  coin: "ETH",
+  recipient: {
+    name: "Alex Chen",
+    handle: "@alexchen",
+    avatar: "AC",
+  },
+  usdValue: "1,250.00",
+  txHash: "0x1a2b3c4d5e6f7890abcdef1234567890abcdef1234567890abcdef1234567890",
+  networkFee: "0.00",
+  timestamp: new Date().toISOString(),
+};
+
 export default function TransactionSuccess() {
   const router = useRouter();
-  const params = useLocalSearchParams();
   const [isProofModalOpen, setIsProofModalOpen] = useState(false);
 
-  const transactionData = {
-    amount: (params.amount as string) || "0.00",
-    coin: (params.coin as string) || "ETH",
-    recipient: {
-      name: (params.recipientName as string) || "Unknown",
-      handle: (params.recipientHandle as string) || "",
-      avatar: (params.recipientAvatar as string) || "??",
-    },
-
-    usdValue: (params.usdValue as string) || "$0.00",
-    txHash: (params.txHash as string) || "",
-    networkFee: (params.networkFee as string) || "0.0001",
-  };
+  const transactionData = DUMMY_TRANSACTION;
 
   const handleShareProof = () => {
     setIsProofModalOpen(true);
@@ -47,7 +49,7 @@ export default function TransactionSuccess() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["top"]}>
+    <SafeAreaView className="flex-1 bg-black" edges={["top"]}>
       <ScrollView
         className="flex-1"
         showsVerticalScrollIndicator={false}
