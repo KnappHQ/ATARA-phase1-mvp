@@ -9,14 +9,13 @@ import { DisplayTransaction } from "@/stores/useTransactionHistoryStore";
 
 const truncateAddress = (address: string) => {
   if (!address || address.length < 12) return address;
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  return `${address.slice(0, 10)}...${address.slice(-8)}`;
 };
 
 export default function ContactDetail() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
-  // Parse contact data from params
   const contact = params.address
     ? {
         address: params.address as string,
@@ -71,11 +70,10 @@ export default function ContactDetail() {
     <View className="flex-1 bg-black">
       <SafeAreaView className="flex-1 bg-black" edges={["top"]}>
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-          {/* Header */}
           <View className="flex-row items-center gap-4 mb-4 px-6 pt-4">
             <Pressable
               onPress={handleBack}
-              className="w-10 h-10 rounded-2xl items-center justify-center active:opacity-70"
+              className="w-12 h-12 rounded-full items-center justify-center active:opacity-70"
               style={{
                 backgroundColor: "rgba(255, 255, 255, 0.05)",
                 borderWidth: 1,
@@ -86,7 +84,7 @@ export default function ContactDetail() {
             </Pressable>
             <View className="flex-row items-center gap-3 flex-1">
               <View
-                className="w-10 h-10 rounded-full items-center justify-center"
+                className="w-12 h-12 rounded-full items-center justify-center"
                 style={{
                   backgroundColor: "rgba(255, 255, 255, 0.1)",
                   borderWidth: 2,
@@ -102,13 +100,13 @@ export default function ContactDetail() {
               </View>
               <View>
                 <Text
-                  className="text-base font-semibold"
+                  className="text-xl font-semibold"
                   style={{ color: COLORS.white }}
                 >
-                  @{contact.displayName.toLowerCase().replace(/\s/g, "")}
+                  {contact.displayName.toLowerCase().replace(/\s/g, "")}
                 </Text>
                 <Text
-                  className="text-xs font-mono"
+                  className="text-sm font-mono"
                   style={{ color: "rgba(255, 255, 255, 0.4)" }}
                 >
                   {truncateAddress(contact.address)}
@@ -117,7 +115,6 @@ export default function ContactDetail() {
             </View>
           </View>
 
-          {/* Financial Summary */}
           <View className="px-6">
             <FinancialSummary
               totalReceived={contact.totalReceived}
@@ -146,8 +143,9 @@ export default function ContactDetail() {
                   >
                     <Pressable
                       onPress={() => handleTransactionClick(tx)}
-                      className="max-w-[75%] p-4 rounded-2xl active:opacity-70"
+                      className="p-4 rounded-2xl active:opacity-70"
                       style={{
+                        width: 180,
                         backgroundColor: isReceive
                           ? `${COLORS.accent}1A`
                           : "rgba(255, 255, 255, 0.05)",
@@ -167,15 +165,6 @@ export default function ContactDetail() {
                       >
                         {tx.formattedAmount}
                       </Text>
-
-                      {tx.userNote && (
-                        <Text
-                          className="text-sm mb-2"
-                          style={{ color: "rgba(255, 255, 255, 0.6)" }}
-                        >
-                          {tx.userNote}
-                        </Text>
-                      )}
 
                       <Text
                         className="text-[10px]"

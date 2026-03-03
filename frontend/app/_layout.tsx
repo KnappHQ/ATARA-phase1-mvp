@@ -27,6 +27,8 @@ const PROTECTED_ROUTES = [
   "transaction-success",
   "transaction-detail",
   "contact-detail",
+  "group-create",
+  "group-details",
 ];
 
 export default function RootLayout() {
@@ -141,6 +143,22 @@ function RootLayoutInner() {
         />
         <Stack.Screen
           name="contact-detail"
+          options={{
+            presentation: "card",
+            animation: "slide_from_bottom",
+            contentStyle: { backgroundColor: "#000000" },
+          }}
+        />
+        <Stack.Screen
+          name="group-create"
+          options={{
+            presentation: "card",
+            animation: "slide_from_bottom",
+            contentStyle: { backgroundColor: "#000000" },
+          }}
+        />
+        <Stack.Screen
+          name="group-details"
           options={{
             presentation: "card",
             animation: "slide_from_bottom",

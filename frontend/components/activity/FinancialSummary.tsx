@@ -1,4 +1,4 @@
-import { ArrowDownLeft, Scale } from "lucide-react-native";
+import { ArrowDownLeft, ArrowUpRight, Scale } from "lucide-react-native";
 import { Text, View } from "react-native";
 import { MotiView } from "moti";
 import { COLORS } from "@/utils/constants";
@@ -26,11 +26,10 @@ export const FinancialSummary = ({
         borderColor: "rgba(255, 255, 255, 0.15)",
       }}
     >
-      {/* Header */}
       <View className="flex-row items-center gap-2 mb-3">
-        <Scale size={14} color="rgba(255, 255, 255, 0.4)" />
+        <Scale size={16} color="rgba(255, 255, 255, 0.4)" />
         <Text
-          className="text-xs uppercase tracking-widest font-mono"
+          className="text-sm uppercase tracking-widest font-mono"
           style={{ color: "rgba(255, 255, 255, 0.4)" }}
         >
           Financial Summary
@@ -38,11 +37,11 @@ export const FinancialSummary = ({
       </View>
 
       {/* Stats */}
-      <View className="flex-row items-center justify-between mb-3">
+      <View className="flex-row items-center justify-between mb-4">
         <View className="flex-row items-center gap-2">
           <ArrowDownLeft size={12} color={COLORS.accent} />
           <Text
-            className="text-xs uppercase tracking-wide"
+            className="text-sm uppercase tracking-wide"
             style={{ color: "rgba(255, 255, 255, 0.4)" }}
           >
             Received
@@ -56,8 +55,9 @@ export const FinancialSummary = ({
           </Text>
         </View>
         <View className="flex-row items-center gap-2">
+          <ArrowUpRight size={12} color={COLORS.white} />
           <Text
-            className="text-xs uppercase tracking-wide"
+            className="text-sm uppercase tracking-wide"
             style={{ color: "rgba(255, 255, 255, 0.4)" }}
           >
             Sent
@@ -77,7 +77,7 @@ export const FinancialSummary = ({
 
       {/* Separator */}
       <View
-        className="h-px mb-3"
+        className="h-px mb-4"
         style={{ backgroundColor: "rgba(255, 255, 255, 0.1)" }}
       />
 
@@ -86,10 +86,10 @@ export const FinancialSummary = ({
         <View className="flex-1">
           <View className="flex-row items-center gap-2">
             <View
-              className="w-5 h-5 rounded-full items-center justify-center"
+              className="w-6 h-6 rounded-full items-center justify-center"
               style={{ backgroundColor: "rgba(255, 255, 255, 0.1)" }}
             >
-              <Scale size={12} color="rgba(255, 255, 255, 0.6)" />
+              <Scale size={14} color="rgba(255, 255, 255, 0.6)" />
             </View>
             <Text
               className="font-mono text-sm"

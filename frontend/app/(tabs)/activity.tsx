@@ -1,14 +1,16 @@
 import { useState, useMemo } from "react";
-import { ScrollView, View, Text } from "react-native";
+import { ScrollView, View, Text, Pressable, Platform } from "react-native";
+import { MotiView } from "moti";
+import { Plus } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { SearchBar } from "@/components/activity/SearchBar";
 import { ContactsTab } from "@/components/activity/ContactsTab";
 import { TransactionsTab } from "@/components/activity/TransactionsTab";
-import { TabSwitcher } from "@/components/activity/TabSwitcher";
+import { TabSwitcher, ActivityTab } from "@/components/activity/TabSwitcher";
+import { GroupsListTab } from "@/components/activity/GroupsListTab";
 import { COLORS } from "@/utils/constants";
 import { useTransactionHistoryStore } from "@/stores/useTransactionHistoryStore";
-
-type ActivityTab = "transactions" | "contacts";
+import { useGroups } from "@/hooks/useGroups";
 
 export default function Activity() {
   const router = useRouter();
@@ -17,6 +19,7 @@ export default function Activity() {
 
   const { displayHistory, contactThreads, isLoading } =
     useTransactionHistoryStore();
+  const { groups } = useGroups();
 
   const filteredTransactions = useMemo(() => {
     if (!searchQuery.trim()) return displayHistory;
@@ -72,6 +75,23 @@ export default function Activity() {
     });
   };
 
+  const handleCreateGroup = () => {
+    router.push("/group-create");
+  };
+
+  const handleSelectGroup = (group: any) => {
+    router.push({
+      pathname: "/group-details",
+      params: {
+        id: group.id,
+        name: group.name,
+        members: JSON.stringify(group.members),
+        expenses: JSON.stringify(group.expenses),
+        createdAt: group.createdAt,
+      },
+    });
+  };
+
   const handleTabChange = (tab: ActivityTab) => {
     setActivityTab(tab);
     setSearchQuery("");
@@ -112,8 +132,43 @@ export default function Activity() {
           />
         )}
 
+        {activityTab === "groups" && (
+          <GroupsListTab
+            groups={groups}
+            searchQuery={searchQuery}
+            onCreateNew={handleCreateGroup}
+            onSelectGroup={(group) => handleSelectGroup(group)}
+          />
+        )}
+
         <View className="h-24" />
       </ScrollView>
+
+      {activityTab === "groups" && (
+        <MotiView
+          from={{ opacity: 0, scale: 0.7 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.7 }}
+          transition={{ type: "spring", damping: 18, stiffness: 200 }}
+          style={{ position: "absolute", bottom: 128, right: 24 }}
+        >
+          <Pressable
+            onPress={handleCreateGroup}
+            className="w-14 h-14 rounded-full items-center justify-center active:opacity-80"
+            style={[
+              { backgroundColor: COLORS.accent },
+              Platform.OS === "ios" && {
+                shadowColor: "#000",
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                shadowOffset: { width: 0, height: 4 },
+              },
+            ]}
+          >
+            <Plus size={24} color="#000" strokeWidth={2.5} />
+          </Pressable>
+        </MotiView>
+      )}
     </View>
   );
 }

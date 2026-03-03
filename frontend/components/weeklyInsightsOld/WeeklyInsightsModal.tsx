@@ -69,7 +69,7 @@ export const WeeklyInsightsModal = ({
           event.translationY,
           [0, 300],
           [1, 0.3],
-          Extrapolate.CLAMP
+          Extrapolate.CLAMP,
         );
       }
     })
@@ -170,7 +170,7 @@ export const WeeklyInsightsModal = ({
                           {formatCurrency(
                             selectedCategory
                               ? selectedCategoryData?.amount || 0
-                              : totalSpent
+                              : totalSpent,
                           )}
                         </Text>
                       </View>
@@ -224,7 +224,7 @@ export const WeeklyInsightsModal = ({
                             transaction={tx}
                             index={idx}
                           />
-                        )
+                        ),
                       )}
                       <Text className="text-center text-xs text-white/30 pt-2">
                         {transactionsByCategory[selectedCategory]?.length || 0}{" "}
