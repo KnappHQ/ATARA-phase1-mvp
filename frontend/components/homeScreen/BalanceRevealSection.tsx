@@ -1,4 +1,4 @@
-import { useState, ReactNode } from "react";
+import { useState, ReactNode, useEffect } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { ChevronDown, EyeOff } from "lucide-react-native";
 import { MotiView } from "moti";
@@ -12,6 +12,9 @@ import Animated, {
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { AnimatedCounter } from "./AnimatedCounter";
+import { BalanceSkeleton } from "./BalanceSkeleton";
+import { useWalletStore } from "@/stores/useWalletStore";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 interface BalanceRevealSectionProps {
   children?: ReactNode;
@@ -24,9 +27,24 @@ export const BalanceRevealSection = ({
   const translateY = useSharedValue(0);
   const startY = useSharedValue(0);
 
-  // Dummy data
-  const totalBalance = 24500;
+  const { user } = useAuthStore();
+  const {
+    totalUSDValue,
+    change24h,
+    percentChange24h,
+    isLoadingBalances,
+    refreshBalances,
+  } = useWalletStore();
+
   const stealthMode = false;
+
+  useEffect(() => {
+    if (user?.publicAddress) {
+      refreshBalances();
+    }
+  }, [user]);
+
+  const isInitialLoad = totalUSDValue === 0;
 
   const updateRevealState = (revealed: boolean) => {
     setIsBalanceRevealed(revealed);
@@ -137,24 +155,27 @@ export const BalanceRevealSection = ({
                 <EyeOff size={24} color="rgba(255, 255, 255, 0.3)" />
                 <Text className="text-5xl font-bold text-white/15">••••••</Text>
               </View>
+            ) : isInitialLoad && isLoadingBalances ? (
+              <BalanceSkeleton />
             ) : isBalanceRevealed ? (
               <View className="items-center mb-3">
                 <AnimatedCounter
-                  value={totalBalance}
+                  key={totalUSDValue}
+                  value={totalUSDValue}
                   prefix="$"
                   decimals={2}
-                  duration={1500}
+                  duration={1200}
                   className="text-5xl font-bold text-white"
                 />
               </View>
             ) : (
               <Text className="text-5xl font-bold text-white mb-3 text-center">
-                ${totalBalance.toLocaleString()}
+                ${totalUSDValue.toLocaleString()}
                 <Text className="text-3xl text-white/40">.00</Text>
               </Text>
             )}
 
-            {!stealthMode && (
+            {!stealthMode && change24h !== 0 && (
               <MotiView
                 from={{ opacity: 0, translateY: 10 }}
                 animate={{
@@ -165,9 +186,13 @@ export const BalanceRevealSection = ({
               >
                 <Text
                   className="text-sm font-semibold text-center"
-                  style={{ color: "#F7931A" }}
+                  style={{
+                    color: change24h >= 0 ? "#10b981" : "#ef4444",
+                  }}
                 >
-                  +$1,240.50 (5.3%)
+                  {change24h >= 0 ? "+" : ""}${Math.abs(change24h).toFixed(2)} (
+                  {percentChange24h >= 0 ? "+" : ""}
+                  {percentChange24h.toFixed(2)}%)
                 </Text>
               </MotiView>
             )}

@@ -28,7 +28,12 @@ export const ContactThreadItem = ({
         <View className="flex-row items-center gap-4">
           <View className="w-12 h-12 rounded-full items-center justify-center bg-white/10 border border-white/20">
             <Text className="text-base font-medium text-white">
-              {thread.displayName.charAt(0).toUpperCase()}
+              {(thread.displayName.startsWith("@")
+                ? thread.displayName.slice(1)
+                : thread.displayName
+              )
+                .charAt(0)
+                .toUpperCase()}
             </Text>
           </View>
 

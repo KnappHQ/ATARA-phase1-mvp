@@ -8,6 +8,7 @@ interface PortfolioResponse {
   totalUSD: number;
   change24h: number;
   percentChange24h: number;
+  tokenPrices: Record<string, number>;
   tokens: Array<{
     symbol: string;
     name: string;

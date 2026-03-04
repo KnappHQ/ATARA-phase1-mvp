@@ -49,6 +49,7 @@ export const DEFAULT_ASSETS = [
     balance: "0.0",
     balanceWei: "0",
     usdValue: "$0.00",
+    usdPrice: 0,
     decimals: 18,
   },
   {
@@ -58,6 +59,7 @@ export const DEFAULT_ASSETS = [
     balance: "0.00",
     balanceWei: "0",
     usdValue: "$0.00",
+    usdPrice: 0,
     decimals: 6,
   },
   {
@@ -67,6 +69,7 @@ export const DEFAULT_ASSETS = [
     balance: "0.00",
     balanceWei: "0",
     usdValue: "$0.00",
+    usdPrice: 0,
     decimals: 6,
   },
-] as const;
+];

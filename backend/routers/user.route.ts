@@ -8,8 +8,6 @@ router.get("/me", authentication, userController.getMe);
 
 router.patch("/me", authentication, userController.updateProfile);
 
-router.get("/check-handle", userController.checkHandleAvailability);
-
 router.get("/search", authentication, userController.search);
 
 router.get("/quick-contacts", authentication, userController.getQuickContacts);

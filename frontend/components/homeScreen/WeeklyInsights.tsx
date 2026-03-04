@@ -9,57 +9,44 @@ import { useTransactionHistoryStore } from "@/stores/useTransactionHistoryStore"
 
 export const WeeklyInsights = () => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { displayHistory } = useTransactionHistoryStore();
-
-  const { totalSent, totalReceived } = useMemo(() => {
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-
-    let sent = 0;
-    let received = 0;
-
-    displayHistory.forEach((tx) => {
-      const txDate = new Date(tx.timestamp);
-      if (txDate >= oneWeekAgo) {
-        const amount = parseFloat(tx.amount);
-        if (tx.type === "send") {
-          sent += amount;
-        } else if (tx.type === "receive") {
-          received += amount;
-        }
-      }
-    });
-
-    return { totalSent: sent, totalReceived: received };
-  }, [displayHistory]);
+  const { weeklyInsights } = useTransactionHistoryStore();
 
   const weeklyFlow = useMemo(() => {
-    const received: number = totalReceived;
-    const sent: number = totalSent;
-    if (received === 0 && sent === 0) return 0;
-    const diff = received - sent;
-    const total = Math.max(received, sent);
+    if (!weeklyInsights) return 0;
+    const { totalReceivedUSD, totalSentUSD } = weeklyInsights;
+    if (totalReceivedUSD === 0 && totalSentUSD === 0) return 0;
+    const diff = totalReceivedUSD - totalSentUSD;
+    const total = Math.max(totalReceivedUSD, totalSentUSD);
     return total > 0 ? (diff / total) * 100 : 0;
-  }, [totalReceived, totalSent]);
+  }, [weeklyInsights]);
 
   const isFlowPositive = weeklyFlow >= 0;
 
-  // Generate smooth spline data points
+  // Drive the sparkline from daily received - sent USD values
   const splineData = useMemo(() => {
-    const points = [];
+    if (weeklyInsights?.days?.length) {
+      return weeklyInsights.days.map(
+        (d) => 50 + (d.totalReceivedUSD - d.totalSentUSD),
+      );
+    }
+    // Fallback synthetic curve
     const trend = isFlowPositive ? 1 : -1;
-    for (let i = 0; i <= 24; i++) {
+    return Array.from({ length: 25 }, (_, i) => {
       const noise = Math.sin(i * 0.6) * 6 + Math.cos(i * 0.9) * 4;
       const trendComponent = (i / 24) * Math.abs(weeklyFlow) * 0.4 * trend;
-      points.push(50 + noise + trendComponent);
-    }
-    return points;
-  }, [weeklyFlow, isFlowPositive]);
+      return 50 + noise + trendComponent;
+    });
+  }, [weeklyInsights, weeklyFlow, isFlowPositive]);
 
   const handleTap = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setIsExpanded(!isExpanded);
   };
+
+  const totalReceivedUSD = weeklyInsights?.totalReceivedUSD ?? 0;
+  const totalSentUSD = weeklyInsights?.totalSentUSD ?? 0;
+  const netUSD = weeklyInsights?.netUSD ?? 0;
+  const period = weeklyInsights?.period ?? "";
 
   return (
     <View>
@@ -110,7 +97,13 @@ export const WeeklyInsights = () => {
           transition={{ type: "timing", duration: 150 }}
           className="mt-3"
         >
-          <View className="p-6 rounded-2xl bg-white/5 border border-white/10">
+          <View className="p-6 rounded-2xl bg-white/5 border border-white/10 gap-5">
+            {period ? (
+              <Text className="text-[10px] uppercase text-white/30 tracking-widest font-mono">
+                {period}
+              </Text>
+            ) : null}
+
             <View className="flex-row gap-3">
               <View className="flex-1 p-3 gap-1 rounded-xl border border-white/10">
                 <View className="flex-row items-center gap-2 mb-1">
@@ -129,7 +122,7 @@ export const WeeklyInsights = () => {
                     fontVariant: ["tabular-nums"],
                   }}
                 >
-                  ${totalReceived.toFixed(2)}
+                  ${totalReceivedUSD.toFixed(2)}
                 </Text>
               </View>
 
@@ -147,9 +140,32 @@ export const WeeklyInsights = () => {
                   className="text-lg font-semibold text-white/80"
                   style={{ fontVariant: ["tabular-nums"] }}
                 >
-                  ${totalSent.toFixed(2)}
+                  ${totalSentUSD.toFixed(2)}
                 </Text>
               </View>
+            </View>
+
+            <View
+              style={{
+                borderTopWidth: 1,
+                borderTopColor: "rgba(255,255,255,0.07)",
+                paddingTop: 16,
+              }}
+              className="flex-row items-center justify-between"
+            >
+              <Text className="text-[10px] uppercase text-white/30 tracking-widest">
+                Net
+              </Text>
+              <Text
+                className="text-xl font-bold font-mono"
+                style={{
+                  color: netUSD >= 0 ? COLORS.accent : "rgba(255,90,90,0.9)",
+                  fontVariant: ["tabular-nums"],
+                  letterSpacing: 0.5,
+                }}
+              >
+                {netUSD >= 0 ? "+" : "-"}${Math.abs(netUSD).toFixed(2)}
+              </Text>
             </View>
           </View>
         </MotiView>

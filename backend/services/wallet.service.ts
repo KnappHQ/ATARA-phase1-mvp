@@ -270,6 +270,7 @@ class WalletService {
         totalUSD: parseFloat(totalUSD.toFixed(2)),
         change24h: parseFloat(change24h.toFixed(2)),
         percentChange24h: parseFloat(percentChange24h.toFixed(2)),
+        tokenPrices: currentPrices,
         tokens,
       };
     } catch (error: any) {

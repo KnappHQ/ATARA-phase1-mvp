@@ -9,6 +9,7 @@ export interface Token {
   balance: string;
   balanceWei?: string;
   usdValue: string;
+  usdPrice: number; // current unit price in USD
   decimals: number;
   logoUrl?: string;
 }
@@ -97,6 +98,8 @@ export const useWalletStore = create<WalletState>((set, get) => ({
             ...asset,
             balance: portfolioToken.balance,
             usdValue: `$${portfolioToken.usdValue.toFixed(2)}`,
+            usdPrice:
+              portfolio.tokenPrices?.[asset.symbol] ?? asset.usdPrice ?? 0,
           };
         }
 

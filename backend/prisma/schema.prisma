@@ -20,8 +20,65 @@ model User {
   updatedAt           DateTime @updatedAt
 
   // Relations
-  sentTx         Transaction[] @relation("Sender")
-  receivedTx     Transaction[] @relation("Receiver")
+  sentTx              Transaction[]      @relation("Sender")
+  receivedTx          Transaction[]      @relation("Receiver")
+  createdGroups       Group[]            @relation("CreatedGroups")
+  groupMemberships    GroupMember[]
+  paidExpenses        GroupExpense[]     @relation("PaidExpenses")
+  expenseSplits       GroupExpenseSplit[]
+}
+
+model Group {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  creator  User          @relation("CreatedGroups", fields: [createdById], references: [id])
+  members  GroupMember[]
+  expenses GroupExpense[]
+}
+
+model GroupMember {
+  id       String   @id @default(uuid())
+  groupId  String
+  userId   String
+  joinedAt DateTime @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id])
+
+  @@unique([groupId, userId])
+}
+
+model GroupExpense {
+  id          String   @id @default(uuid())
+  groupId     String
+  paidById    String
+  description String
+  amount      Decimal  @db.Decimal(24, 8)
+  assetSymbol String
+  createdAt   DateTime @default(now())
+
+  group  Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  paidBy User              @relation("PaidExpenses", fields: [paidById], references: [id])
+  splits GroupExpenseSplit[]
+}
+
+model GroupExpenseSplit {
+  id        String    @id @default(uuid())
+  expenseId String
+  userId    String
+  amount    Decimal   @db.Decimal(24, 8)
+  settled   Boolean   @default(false)
+  settledAt DateTime?
+
+  expense GroupExpense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id])
+
+  @@unique([expenseId, userId])
 }
 
 model Transaction {

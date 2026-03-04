@@ -38,23 +38,6 @@ export const userController = {
       });
     },
   ),
-  checkHandleAvailability: catchAsync(
-    async (req: Request, res: Response, next: NextFunction) => {
-      const { handle } = req.query;
-
-      if (!handle || typeof handle !== "string") {
-        throw new ErrorHandler("Handle is required", 400);
-      }
-      const isAvailable = await userService.checkHandleAvailability(
-        handle.toLowerCase(),
-      );
-
-      res.status(200).json({
-        success: true,
-        available: isAvailable,
-      });
-    },
-  ),
 
   search: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
