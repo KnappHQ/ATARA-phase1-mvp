@@ -2,6 +2,8 @@ import { usePathname, useRouter } from "expo-router";
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react-native";
 import { Pressable, Text, View, TouchableOpacity } from "react-native";
 import { CrownIcon } from "./onboarding/CrownIcon";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { getInitials } from "@/utils/format";
 
 interface HeaderProps {
   onReceive?: () => void;
@@ -11,6 +13,9 @@ export const Header = ({ onReceive }: HeaderProps) => {
   const pathname = usePathname();
   const router = useRouter();
   const isHomePage = pathname === "/";
+  const { user } = useAuthStore();
+
+  const initials = getInitials(user?.displayName ?? null, user?.handle ?? "");
 
   const handleReceive = () => {
     onReceive?.();
@@ -20,9 +25,21 @@ export const Header = ({ onReceive }: HeaderProps) => {
     router.push("/send");
   };
 
+  const handleLogoPress = () => {
+    router.push("/(tabs)");
+  };
+
+  const handleAvatarPress = () => {
+    router.push("/(tabs)/profile");
+  };
+
   return (
     <View className="pt-12 pb-2 px-6 flex-row items-center justify-between">
-      <View className="flex-row items-center gap-3">
+      <TouchableOpacity
+        onPress={handleLogoPress}
+        activeOpacity={0.7}
+        className="flex-row items-center gap-3"
+      >
         <CrownIcon size={24} color="#FFFFFF" />
         <Text
           className="text-base font-bold text-white"
@@ -30,7 +47,7 @@ export const Header = ({ onReceive }: HeaderProps) => {
         >
           ATARA
         </Text>
-      </View>
+      </TouchableOpacity>
 
       {!isHomePage && (
         <View className="flex-1 items-center">
@@ -68,7 +85,9 @@ export const Header = ({ onReceive }: HeaderProps) => {
         </View>
       )}
 
-      <View
+      <TouchableOpacity
+        onPress={handleAvatarPress}
+        activeOpacity={0.7}
         className="w-9 h-9 rounded-full items-center justify-center"
         style={{
           backgroundColor: "transparent",
@@ -76,8 +95,8 @@ export const Header = ({ onReceive }: HeaderProps) => {
           borderColor: "rgba(255, 255, 255, 0.3)",
         }}
       >
-        <Text className="text-xs font-medium text-white">TV</Text>
-      </View>
+        <Text className="text-xs font-medium text-white">{initials}</Text>
+      </TouchableOpacity>
     </View>
   );
 };

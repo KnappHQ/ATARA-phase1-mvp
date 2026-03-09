@@ -344,4 +344,42 @@ export const groupController = {
       });
     },
   ),
+
+  markAsSettledManually: catchAsync(
+    async (req: Request, res: Response, next: NextFunction) => {
+      const userId = req.user.id;
+      const { groupId, memberId } = req.params;
+
+      await groupService.markAsSettledManually(groupId, userId, memberId);
+
+      res.status(200).json({
+        success: true,
+        message: "Balance marked as settled manually",
+      });
+    },
+  ),
+
+  settleByInternalTx: catchAsync(
+    async (req: Request, res: Response, next: NextFunction) => {
+      const userId = req.user.id;
+      const { groupId, memberId } = req.params;
+      const { transactionId } = req.body;
+
+      if (!transactionId || typeof transactionId !== "string") {
+        throw new ErrorHandler("transactionId is required", 400);
+      }
+
+      await groupService.settleAllWithMemberByInternalTx(
+        groupId,
+        userId,
+        memberId,
+        transactionId,
+      );
+
+      res.status(200).json({
+        success: true,
+        message: "All balances settled with this member",
+      });
+    },
+  ),
 };

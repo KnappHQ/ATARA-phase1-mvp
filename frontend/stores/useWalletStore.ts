@@ -15,7 +15,6 @@ export interface Token {
 }
 
 export interface WalletState {
-  address?: string;
   smartAccountAddress?: string;
   assets: Token[];
   isLoadingBalances: boolean;
@@ -23,13 +22,11 @@ export interface WalletState {
   networkName: string;
   chainId: number;
   balanceError: string | null;
-
-  // Portfolio totals
   totalUSDValue: number;
   change24h: number;
   percentChange24h: number;
 
-  setWalletAddress: (address: string, smartAccountAddress?: string) => void;
+  setWalletAddress: (smartAccountAddress: string) => void;
   updateTokenBalances: (tokens: Token[]) => void;
   refreshBalances: () => Promise<void>;
   getAssetBySymbol: (symbol: string) => Token | undefined;
@@ -47,9 +44,8 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   change24h: 0,
   percentChange24h: 0,
 
-  setWalletAddress: (address: string, smartAccountAddress?: string) => {
+  setWalletAddress: (smartAccountAddress: string) => {
     set({
-      address,
       smartAccountAddress,
       balanceError: null,
     });
@@ -98,8 +94,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
             ...asset,
             balance: portfolioToken.balance,
             usdValue: `$${portfolioToken.usdValue.toFixed(2)}`,
-            usdPrice:
-              portfolio.tokenPrices?.[asset.symbol] ?? asset.usdPrice ?? 0,
+            usdPrice: portfolioToken.usdPrice ?? asset.usdPrice ?? 0,
           };
         }
 

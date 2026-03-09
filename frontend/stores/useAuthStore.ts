@@ -1,12 +1,13 @@
 import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 import { useWalletStore } from "./useWalletStore";
+import { UserService } from "@/services/user.service";
 
 interface UserProfile {
   id: string;
   handle: string;
-  publicAddress: string;
-  smartAccountAddress?: string;
+  smartAccountAddress: string;
+  displayName?: string;
   email?: string;
   profilePicUrl?: string;
   authProvider?: string;
@@ -21,6 +22,7 @@ interface AuthState {
   setAuth: (user: UserProfile, token: string) => Promise<void>;
   logout: () => Promise<void>;
   loadSession: () => Promise<void>;
+  updateProfile: (data: { displayName?: string }) => Promise<void>;
   updateUser: (updates: Partial<UserProfile>) => void;
 }
 
@@ -37,10 +39,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user, token, isAuthenticated: true });
 
     // Initialize wallet address after login
-    if (user.publicAddress) {
-      useWalletStore
-        .getState()
-        .setWalletAddress(user.publicAddress, user.smartAccountAddress);
+    if (user.smartAccountAddress) {
+      useWalletStore.getState().setWalletAddress(user.smartAccountAddress);
     }
   },
 
@@ -65,16 +65,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
 
         // Initialize wallet address on session restore
-        if (user.publicAddress) {
-          useWalletStore
-            .getState()
-            .setWalletAddress(user.publicAddress, user.smartAccountAddress);
+        if (user.smartAccountAddress) {
+          useWalletStore.getState().setWalletAddress(user.smartAccountAddress);
         }
       }
     } catch (e) {
       console.error("Failed to load session", e);
     } finally {
       set({ isLoading: false });
+    }
+  },
+
+  updateProfile: async (data) => {
+    const currentUser = get().user;
+    if (!currentUser) return;
+
+    try {
+      const updatedUserFromApi = await UserService.updateProfile(data);
+      const updatedUser = { ...currentUser, ...updatedUserFromApi };
+      set({ user: updatedUser });
+      await SecureStore.setItemAsync(
+        "user_profile",
+        JSON.stringify(updatedUser),
+      );
+    } catch (e) {
+      console.error("Failed to update profile", e);
+      throw e;
     }
   },
 

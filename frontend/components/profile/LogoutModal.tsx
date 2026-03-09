@@ -64,7 +64,6 @@ export const LogoutModal = ({ isOpen, onClose }: LogoutModalProps) => {
               phrase to sign back in.
             </Text>
 
-            {/* Buttons */}
             <Pressable
               onPress={handleLogout}
               className="w-full h-12 rounded-xl items-center justify-center mb-3"

@@ -46,9 +46,6 @@ export const ContactThreadItem = ({
                 >
                   {thread.displayName}
                 </Text>
-                {/* <Text className="text-xs font-mono ml-2 text-white/30">
-                  {truncateAddress(thread.address)}
-                </Text> */}
               </View>
               <Text className="text-sm ml-2 text-white/40">
                 {thread.lastTime}
@@ -64,16 +61,6 @@ export const ContactThreadItem = ({
                 {thread.transactionCount} transaction
                 {thread.transactionCount !== 1 ? "s" : ""}
               </Text>
-
-              <View className="flex-row items-center gap-1">
-                <Scale size={12} color="rgba(255, 255, 255, 0.3)" />
-                <Text
-                  className="font-mono text-[10px]"
-                  style={{ color: "rgba(255, 255, 255, 0.3)" }}
-                >
-                  Square
-                </Text>
-              </View>
             </View>
           </View>
 

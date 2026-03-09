@@ -15,17 +15,17 @@ model User {
   smartAccountAddress String?  @unique // ERC-4337 smart account on Base
   authProvider        String?  // google, apple
   profilePicUrl       String?
-  displayName         String?  //TODO: replace it with name
+  displayName         String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  // Relations
   sentTx              Transaction[]      @relation("Sender")
   receivedTx          Transaction[]      @relation("Receiver")
   createdGroups       Group[]            @relation("CreatedGroups")
   groupMemberships    GroupMember[]
   paidExpenses        GroupExpense[]     @relation("PaidExpenses")
   expenseSplits       GroupExpenseSplit[]
+  feedbacks           Feedback[]
 }
 
 model Group {
@@ -91,13 +91,9 @@ model Transaction {
   assetSymbol String
   amount      Decimal  @db.Decimal(24, 8)
   rawAmountWei String?
-
-  
-  
-  category    String?  
-  userNote    String?  
-  
-  status      TxStatus @default(PENDING) 
+  category    String?
+  userNote    String?
+  status      TxStatus @default(PENDING)
   createdAt   DateTime @default(now())
 
   sender      User     @relation("Sender", fields: [senderId], references: [id])
@@ -108,4 +104,14 @@ enum TxStatus {
   PENDING
   COMPLETED
   FAILED
+}
+
+model Feedback {
+  id        String   @id @default(uuid())
+  userId    String?
+  handle    String?
+  message   String
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
 }

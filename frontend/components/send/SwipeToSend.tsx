@@ -141,7 +141,6 @@ export const SwipeToSend = ({
         borderColor: "rgba(245, 245, 240, 0.15)",
       }}
     >
-      {/* Background glow */}
       <Animated.View
         className="absolute inset-0 rounded-2xl"
         style={[
@@ -152,7 +151,6 @@ export const SwipeToSend = ({
         ]}
       />
 
-      {/* Track lines */}
       <View className="absolute inset-x-0 top-4 bottom-20 flex-col items-center justify-between opacity-20">
         {[...Array(5)].map((_, i) => (
           <View
@@ -163,7 +161,6 @@ export const SwipeToSend = ({
         ))}
       </View>
 
-      {/* Label */}
       <Animated.View
         className="absolute top-6 inset-x-0 items-center"
         style={arrowOpacity}
@@ -179,7 +176,6 @@ export const SwipeToSend = ({
         </Text>
       </Animated.View>
 
-      {/* Success indicator */}
       <Animated.View
         className="absolute top-1/2 left-1/2 items-center justify-center"
         style={[
@@ -204,7 +200,6 @@ export const SwipeToSend = ({
         </View>
       </Animated.View>
 
-      {/* Draggable thumb */}
       <GestureDetector gesture={panGesture}>
         <Animated.View
           className="absolute bottom-2 left-1/2 items-center justify-center"
@@ -236,7 +231,6 @@ export const SwipeToSend = ({
             </Animated.View>
           </View>
 
-          {/* Pulsing ring hint */}
           {!isComplete && (
             <MotiView
               className="absolute rounded-full"

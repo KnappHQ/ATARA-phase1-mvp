@@ -52,6 +52,7 @@ interface MemberBalance {
   handle: string;
   displayName: string | null;
   profilePicUrl: string | null;
+  smartAccountAddress: string | null;
   netBalance: number; // positive = they owe me, negative = I owe them
 }
 
@@ -63,7 +64,7 @@ interface GroupSummary {
   createdAt: Date;
   updatedAt: Date;
   memberCount: number;
-  myUnsettledAmount: number; // total USD I still owe across all expenses in this group
+  userNetBalance: number;
 }
 
 class GroupService {
@@ -170,8 +171,7 @@ class GroupService {
             expenses: {
               include: {
                 splits: {
-                  where: { userId, settled: false },
-                  select: { amount: true },
+                  where: { settled: false },
                 },
               },
             },
@@ -181,9 +181,18 @@ class GroupService {
     });
 
     return memberships.map(({ group }) => {
-      const myUnsettledAmount = group.expenses
-        .flatMap((e) => e.splits)
-        .reduce((sum, s) => sum + Number(s.amount), 0);
+      let owedToMe = 0;
+      let owedByMe = 0;
+
+      for (const expense of group.expenses) {
+        for (const split of expense.splits) {
+          if (expense.paidById === userId && split.userId !== userId) {
+            owedToMe += Number(split.amount);
+          } else if (split.userId === userId && expense.paidById !== userId) {
+            owedByMe += Number(split.amount);
+          }
+        }
+      }
 
       return {
         id: group.id,
@@ -193,7 +202,7 @@ class GroupService {
         createdAt: group.createdAt,
         updatedAt: group.updatedAt,
         memberCount: group._count.members,
-        myUnsettledAmount: parseFloat(myUnsettledAmount.toFixed(8)),
+        userNetBalance: parseFloat((owedToMe - owedByMe).toFixed(8)),
       };
     });
   }
@@ -220,6 +229,7 @@ class GroupService {
                 handle: true,
                 displayName: true,
                 profilePicUrl: true,
+                smartAccountAddress: true,
               },
             },
           },
@@ -283,6 +293,7 @@ class GroupService {
         handle: m.user.handle,
         displayName: m.user.displayName,
         profilePicUrl: m.user.profilePicUrl,
+        smartAccountAddress: m.user.smartAccountAddress ?? null,
         netBalance: parseFloat((balanceMap[m.userId] ?? 0).toFixed(8)),
       }));
 
@@ -618,6 +629,95 @@ class GroupService {
       tokenPriceUsd,
       requiredUsd: totalOwedUsd,
     });
+
+    await prisma.groupExpenseSplit.updateMany({
+      where: {
+        userId: requestingUserId,
+        settled: false,
+        expense: { groupId, paidById: targetUserId },
+      },
+      data: { settled: true, settledAt: new Date() },
+    });
+  }
+
+  public async markAsSettledManually(
+    groupId: string,
+    requestingUserId: string,
+    targetUserId: string,
+  ) {
+    await this.assertMember(groupId, requestingUserId);
+    await this.assertMember(groupId, targetUserId);
+
+    if (requestingUserId === targetUserId) {
+      throw new ErrorHandler("Cannot settle with yourself", 400);
+    }
+
+    const owedSplits = await prisma.groupExpenseSplit.findMany({
+      where: {
+        userId: requestingUserId,
+        settled: false,
+        expense: { groupId, paidById: targetUserId },
+      },
+      select: { expenseId: true },
+    });
+
+    if (owedSplits.length === 0) {
+      throw new ErrorHandler(
+        "You have no unsettled balance with this member",
+        409,
+      );
+    }
+
+    await prisma.groupExpenseSplit.updateMany({
+      where: {
+        userId: requestingUserId,
+        settled: false,
+        expense: { groupId, paidById: targetUserId },
+      },
+      data: { settled: true, settledAt: new Date() },
+    });
+  }
+
+  public async settleAllWithMemberByInternalTx(
+    groupId: string,
+    requestingUserId: string,
+    targetUserId: string,
+    transactionId: string,
+  ) {
+    await this.assertMember(groupId, requestingUserId);
+    await this.assertMember(groupId, targetUserId);
+
+    if (requestingUserId === targetUserId) {
+      throw new ErrorHandler("Cannot settle with yourself", 400);
+    }
+
+    // Verify the transaction exists, belongs to the requesting user, and is completed
+    const tx = await prisma.transaction.findUnique({
+      where: { id: transactionId },
+      select: { senderId: true, status: true },
+    });
+
+    if (!tx) throw new ErrorHandler("Transaction not found", 404);
+    if (tx.senderId !== requestingUserId)
+      throw new ErrorHandler("Transaction does not belong to you", 403);
+    if (tx.status !== "COMPLETED")
+      throw new ErrorHandler("Transaction has not been confirmed yet", 400);
+
+    const owedSplits = await prisma.groupExpenseSplit.findMany({
+      where: {
+        userId: requestingUserId,
+        settled: false,
+        expense: { groupId, paidById: targetUserId },
+      },
+      select: { amount: true },
+    });
+
+    if (owedSplits.length === 0) {
+      throw new ErrorHandler(
+        "You have no unsettled balance with this member",
+        409,
+      );
+    }
 
     await prisma.groupExpenseSplit.updateMany({
       where: {

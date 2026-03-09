@@ -2,7 +2,7 @@ import { View, Text, Pressable } from "react-native";
 import { MotiView } from "moti";
 import { X } from "lucide-react-native";
 import { COLORS } from "@/utils/constants";
-import { GroupMember } from "@/hooks/useGroups";
+import { GroupMember } from "@/stores/useGroupStore";
 
 interface GroupMemberPillsProps {
   selectedMembers: GroupMember[];

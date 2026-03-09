@@ -36,7 +36,6 @@ export const FinancialSummary = ({
         </Text>
       </View>
 
-      {/* Stats */}
       <View className="flex-row items-center justify-between mb-4">
         <View className="flex-row items-center gap-2">
           <ArrowDownLeft size={12} color={COLORS.accent} />
@@ -75,7 +74,6 @@ export const FinancialSummary = ({
         </View>
       </View>
 
-      {/* Separator */}
       <View
         className="h-px mb-4"
         style={{ backgroundColor: "rgba(255, 255, 255, 0.1)" }}

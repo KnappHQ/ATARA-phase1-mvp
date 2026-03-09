@@ -101,7 +101,6 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
                   </View>
 
                   <View className="px-8 pb-8 items-center">
-                    {/* Avatar */}
                     <MotiView
                       from={{ opacity: 0, scale: 0 }}
                       animate={{ opacity: 1, scale: 1 }}
@@ -129,7 +128,6 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
                       </Text>
                     </MotiView>
 
-                    {/* Handle */}
                     <MotiView
                       from={{ opacity: 0, translateY: 10 }}
                       animate={{ opacity: 1, translateY: 0 }}
@@ -143,7 +141,6 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
                       </Text>
                     </MotiView>
 
-                    {/* Description */}
                     <MotiView
                       from={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -154,7 +151,6 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
                       </Text>
                     </MotiView>
 
-                    {/* Vanity URL */}
                     <MotiView
                       from={{ opacity: 0, translateY: 10 }}
                       animate={{ opacity: 1, translateY: 0 }}
@@ -183,7 +179,6 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
                       </Pressable>
                     </MotiView>
 
-                    {/* Wallet Address */}
                     <MotiView
                       from={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
@@ -211,7 +206,6 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
                       </Text>
                     </MotiView>
 
-                    {/* Action Buttons */}
                     <MotiView
                       from={{ opacity: 0, translateY: 10 }}
                       animate={{ opacity: 1, translateY: 0 }}
@@ -272,7 +266,6 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
                       </Pressable>
                     </MotiView>
 
-                    {/* Tagline */}
                     <MotiView
                       from={{ opacity: 0 }}
                       animate={{ opacity: 1 }}

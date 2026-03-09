@@ -39,7 +39,7 @@ export const BalanceRevealSection = ({
   const stealthMode = false;
 
   useEffect(() => {
-    if (user?.publicAddress) {
+    if (user?.smartAccountAddress) {
       refreshBalances();
     }
   }, [user]);

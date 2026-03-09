@@ -5,20 +5,31 @@ import {
   ContactThread,
 } from "@/stores/useTransactionHistoryStore";
 import { ActivitySkeleton } from "../homeScreen/ActivitySkeleton";
+import { useRouter } from "expo-router";
 
 export type { ContactThread };
 
 interface ContactsTabProps {
   contactThreads: ContactThread[];
-  onThreadClick: (thread: ContactThread) => void;
   isLoading?: boolean;
 }
 
 export function ContactsTab({
   contactThreads,
-  onThreadClick,
   isLoading = false,
 }: ContactsTabProps) {
+  const router = useRouter();
+
+  const handleThreadClick = (thread: any) => {
+    router.push({
+      pathname: "/contact-detail",
+      params: {
+        address: thread.address,
+        displayName: thread.displayName,
+      },
+    });
+  };
+
   if (isLoading) {
     return <ActivitySkeleton />;
   }
@@ -41,7 +52,7 @@ export function ContactsTab({
           key={thread.address}
           thread={thread}
           index={index}
-          onPress={onThreadClick}
+          onPress={handleThreadClick}
         />
       ))}
     </View>

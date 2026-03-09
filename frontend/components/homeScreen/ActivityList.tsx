@@ -6,18 +6,36 @@ import { COLORS } from "@/utils/constants";
 import { truncateAddress } from "@/utils/format";
 import { DisplayTransaction } from "@/stores/useTransactionHistoryStore";
 import { ActivitySkeleton } from "./ActivitySkeleton";
+import { useRouter } from "expo-router";
 
 interface ActivityListProps {
   transactions: DisplayTransaction[];
   isLoading: boolean;
-  onTransactionPress: (transaction: DisplayTransaction) => void;
 }
 
 export const ActivityList = ({
   transactions,
   isLoading,
-  onTransactionPress,
 }: ActivityListProps) => {
+  const router = useRouter();
+  const handleTransactionPress = (transaction: DisplayTransaction) => {
+    router.push({
+      pathname: "/transaction-detail",
+      params: {
+        id: transaction.id,
+        name: transaction.counterparty.name,
+        address: transaction.counterparty.address || "",
+        handle: transaction.counterparty.handle || "",
+        amount: transaction.formattedAmount,
+        date: transaction.displayDate,
+        type: transaction.type,
+        category: transaction.category || "",
+        note: transaction.userNote || "",
+        isInApp: transaction.isInApp.toString(),
+      },
+    });
+  };
+
   return (
     <View className="flex-1">
       <Text
@@ -49,7 +67,7 @@ export const ActivityList = ({
               >
                 <TouchableOpacity
                   onPress={() => {
-                    onTransactionPress(tx);
+                    handleTransactionPress(tx);
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }}
                   activeOpacity={0.8}

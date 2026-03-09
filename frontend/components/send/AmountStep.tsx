@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { MotiView } from "moti";
 import { AlertCircle } from "lucide-react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import { SwipeToSend } from "./SwipeToSend";
 import { BalanceLoader } from "./BalanceLoader";
 import { Contact } from "@/stores/useContactStore";
@@ -14,6 +14,7 @@ import {
   useTransactionService,
   SendTransactionRequest,
 } from "@/services/transaction.service";
+import { GroupService } from "@/services/group.service";
 import { COLORS } from "@/utils/constants";
 import {
   formatTokenAmount,
@@ -31,6 +32,17 @@ const QUICK_AMOUNTS = ["25%", "50%", "75%", "MAX"];
 
 export const AmountStep = ({ recipient }: AmountStepProps) => {
   const router = useRouter();
+  const params = useLocalSearchParams();
+
+  // Settlement metadata — set when navigated from the Settle button
+  const settlementGroupId = (params.settlementGroupId as string) || null;
+  const settlementMemberId = (params.settlementMemberId as string) || null;
+  // prefilledAmount is always a USD value when coming from the settle flow
+  const settlementUsdAmount = params.prefilledAmount
+    ? parseFloat(params.prefilledAmount as string)
+    : null;
+  const prefilledNote = (params.prefilledNote as string) || "";
+
   const { user } = useAuthStore();
   const { assets, isLoadingBalances, refreshBalances, getAssetBySymbol } =
     useWalletStore();
@@ -43,10 +55,29 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
   const smartAccountService = useSmartAccountService();
   const transactionService = useTransactionService(smartAccountService);
 
-  const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
+  /** Convert a USD amount to token units using the current token's usdPrice.
+   * Falls back to the raw USD string if price is unavailable (e.g. stablecoins where price ≈ 1). */
+  const usdToTokenAmount = (usdAmt: number, token: Token): string => {
+    if (!token.usdPrice || token.usdPrice <= 0) return usdAmt.toFixed(2);
+    const tokenAmt = usdAmt / token.usdPrice;
+    // High-value (ETH): 6dp. Stablecoins: 4dp to preserve sub-cent precision.
+    const decimals = token.usdPrice > 10 ? 6 : 4;
+    return tokenAmt.toFixed(decimals);
+  };
+
+  const [amount, setAmount] = useState(() =>
+    settlementUsdAmount !== null && assets[0]
+      ? usdToTokenAmount(settlementUsdAmount, assets[0])
+      : "",
+  );
+  const [note, setNote] = useState(prefilledNote);
   const [selectedToken, setSelectedToken] = useState<Token>(assets[0]);
   const [isSending, setIsSending] = useState(false);
+
+  const truncateAddress = (address: string) => {
+    if (!address || address.length < 12) return address;
+    return `${address.slice(0, 10)}...${address.slice(-8)}`;
+  };
 
   const handleAmountChange = (text: string) => {
     const cleanText = text.replace(/[^0-9.]/g, "");
@@ -60,7 +91,7 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
   };
 
   useEffect(() => {
-    if (user?.publicAddress) {
+    if (user?.smartAccountAddress) {
       refreshBalances();
     }
   }, [user]);
@@ -69,6 +100,10 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
     const updatedToken = getAssetBySymbol(selectedToken.symbol);
     if (updatedToken) {
       setSelectedToken(updatedToken);
+      // Recompute crypto amount when fresh prices arrive for a settlement prefill
+      if (settlementUsdAmount !== null) {
+        setAmount(usdToTokenAmount(settlementUsdAmount, updatedToken));
+      }
     }
   }, [assets]);
 
@@ -82,6 +117,16 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
       currentBalance,
     );
     setAmount(calculatedAmount.toString());
+  };
+
+  /** When user manually switches token in a settlement flow, convert to new token units */
+  const handleTokenSelect = (token: Token) => {
+    const asset = getAssetBySymbol(token.symbol);
+    if (!asset) return;
+    setSelectedToken(asset);
+    if (settlementUsdAmount !== null) {
+      setAmount(usdToTokenAmount(settlementUsdAmount, asset));
+    }
   };
 
   const isValidAmount = amountValue > 0 && balanceValidation.isValid;
@@ -105,8 +150,24 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
         tokenSymbol: selectedToken.symbol,
         tokenAddress: selectedToken.contractAddress,
         decimals: selectedToken.decimals,
-        usdValue: selectedToken.usdValue,
+        usdValue:
+          selectedToken.usdPrice > 0
+            ? `$${(amountValue * selectedToken.usdPrice).toFixed(2)}`
+            : selectedToken.usdValue,
         note: note || undefined,
+        // If this is a settle-and-send flow, mark splits settled once the
+        // transaction record is confirmed in the backend DB (after sync).
+        onSynced:
+          settlementGroupId && settlementMemberId
+            ? (txId) =>
+                GroupService.settleByInternalTx(
+                  settlementGroupId,
+                  settlementMemberId,
+                  txId,
+                ).catch((err) =>
+                  console.warn("Settlement sync failed (non-blocking):", err),
+                )
+            : undefined,
       };
 
       const result =
@@ -158,9 +219,11 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
           </View>
           <View>
             <Text className="text-base font-medium text-white">
-              {recipient.name || recipient.handle}
+              @{recipient.handle}
             </Text>
-            <Text className="text-sm text-white/50">@{recipient.handle}</Text>
+            <Text className="text-sm text-white/50">
+              {truncateAddress(recipient.smartAccountAddress)}
+            </Text>
           </View>
         </View>
       </MotiView>
@@ -195,10 +258,7 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
             {assets.map((token) => (
               <Pressable
                 key={token.symbol}
-                onPress={() => {
-                  const asset = getAssetBySymbol(token.symbol);
-                  if (asset) setSelectedToken(asset);
-                }}
+                onPress={() => handleTokenSelect(token)}
                 className="px-5 py-3 rounded-2xl active:opacity-80"
                 style={{
                   backgroundColor:
@@ -262,16 +322,30 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
             <BalanceLoader width={60} height={16} />
           </View>
         ) : (
-          <Text className="text-base mt-2 text-muted">
-            {formatTokenAmount(
-              parseAmount(selectedToken.balance),
-              selectedToken.symbol,
-            )}{" "}
-            · Balance:{" "}
-            {formatCurrency(
-              parseAmount(selectedToken.usdValue.replace(/[$,]/g, "")),
+          <>
+            <Text className="text-base mt-2 text-muted">
+              {formatTokenAmount(
+                parseAmount(selectedToken.balance),
+                selectedToken.symbol,
+              )}{" "}
+              · Balance:{" "}
+              {formatCurrency(
+                parseAmount(selectedToken.usdValue.replace(/[$,]/g, "")),
+              )}
+            </Text>
+            {amountValue > 0 && selectedToken.usdPrice > 0 && (
+              <Text
+                className="text-xs font-mono mt-1"
+                style={{ color: `${COLORS.white}50` }}
+              >
+                ≈ $
+                {(amountValue * selectedToken.usdPrice).toFixed(
+                  selectedToken.usdPrice > 10 ? 2 : 4,
+                )}{" "}
+                USD
+              </Text>
             )}
-          </Text>
+          </>
         )}
       </MotiView>
 
@@ -315,7 +389,6 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
         />
       </MotiView>
 
-      {/* Transaction Error Display */}
       {transactionError && (
         <MotiView
           from={{ opacity: 0, translateY: -5 }}

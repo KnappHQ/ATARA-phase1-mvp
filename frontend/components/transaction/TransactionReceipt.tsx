@@ -1,7 +1,7 @@
-import { BadgeCheck, Zap } from "lucide-react-native";
-import { Text, View } from "react-native";
+import { BadgeCheck, ExternalLink, Zap } from "lucide-react-native";
+import { Linking, Pressable, Text, View } from "react-native";
 import { MotiView } from "moti";
-import { COLORS } from "@/utils/constants";
+import { COLORS, TX_EXPLORER_BASE_URL } from "@/utils/constants";
 
 interface Recipient {
   name: string;
@@ -13,22 +13,29 @@ interface TransactionReceiptProps {
   amount: string;
   coin: string;
   recipient: Recipient;
+  recipientAddress?: string;
   usdValue: string;
   txHash?: string;
   networkFee?: string;
 }
 
+const truncateAddress = (address: string) => {
+  if (!address || address.length < 12) return address;
+  return `${address.slice(0, 10)}...${address.slice(-8)}`;
+};
+
 export const TransactionReceipt = ({
   amount,
   coin,
   recipient,
+  recipientAddress,
   usdValue,
   txHash,
   networkFee = "0.0001",
 }: TransactionReceiptProps) => {
   const formatHash = (hash?: string) => {
     if (!hash) return "#PENDING";
-    return `${hash.slice(0, 6)}...${hash.slice(-4)}`;
+    return `${hash.slice(0, 8)}...${hash.slice(-6)}`;
   };
   return (
     <>
@@ -65,11 +72,18 @@ export const TransactionReceipt = ({
           <View className="flex-1">
             <View className="flex-row items-center gap-2">
               <Text className="text-base font-semibold text-primary">
-                {recipient.name}
+                {recipient.handle}
               </Text>
               <BadgeCheck size={16} color={COLORS.sapphire} />
             </View>
-            <Text className="text-sm text-muted">{recipient.handle}</Text>
+            {recipientAddress && (
+              <Text
+                className="text-xs text-white/40 mt-1"
+                style={{ letterSpacing: 0.5 }}
+              >
+                {truncateAddress(recipientAddress)}
+              </Text>
+            )}
           </View>
         </View>
 
@@ -88,12 +102,32 @@ export const TransactionReceipt = ({
         </View>
 
         <View className="mt-6 gap-3">
-          <View className="flex-row items-center justify-between">
+          <Pressable
+            className="flex-row items-center justify-between"
+            onPress={() =>
+              txHash && txHash !== "#PENDING"
+                ? Linking.openURL(`${TX_EXPLORER_BASE_URL}/${txHash}`)
+                : undefined
+            }
+          >
             <Text className="text-sm font-medium text-muted">Tx Hash</Text>
-            <Text className="text-sm font-medium text-white/70">
-              {formatHash(txHash)}
-            </Text>
-          </View>
+            <View className="flex-row items-center gap-1.5">
+              <Text
+                className="text-sm font-medium"
+                style={{
+                  color:
+                    txHash && txHash !== "#PENDING"
+                      ? COLORS.accent
+                      : "rgba(255,255,255,0.4)",
+                }}
+              >
+                {formatHash(txHash)}
+              </Text>
+              {txHash && txHash !== "#PENDING" && (
+                <ExternalLink size={12} color={COLORS.accent} />
+              )}
+            </View>
+          </Pressable>
           <View className="flex-row items-center justify-between">
             <Text className="text-sm font-medium text-muted">Network Fee</Text>
             <View className="flex-row items-center gap-2">

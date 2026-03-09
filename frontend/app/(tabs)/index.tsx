@@ -7,12 +7,9 @@ import { QuickSendBar } from "../../components/homeScreen/QuickSendBar";
 import { BalanceRevealSection } from "../../components/homeScreen/BalanceRevealSection";
 import { ActionButtons } from "../../components/homeScreen/ActionButtons";
 import { ActivityList } from "../../components/homeScreen/ActivityList";
-import {
-  useTransactionHistoryStore,
-  DisplayTransaction,
-} from "@/stores/useTransactionHistoryStore";
+import { useTransactionHistoryStore } from "@/stores/useTransactionHistoryStore";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { Contact } from "@/stores/useContactStore";
+import { useGroupStore } from "@/stores/useGroupStore";
 import { useState } from "react";
 import { ACTIVITY_LIMIT } from "@/utils/constants";
 
@@ -22,10 +19,12 @@ export default function HomeTab() {
   const { isAuthenticated } = useAuthStore();
   const { displayHistory, isLoading, fetchHistory } =
     useTransactionHistoryStore();
+  const { fetchGroups } = useGroupStore();
 
   useEffect(() => {
     if (isAuthenticated) {
       fetchHistory();
+      fetchGroups();
     }
   }, [isAuthenticated]);
 
@@ -33,23 +32,6 @@ export default function HomeTab() {
     () => displayHistory.slice(0, ACTIVITY_LIMIT),
     [displayHistory],
   );
-
-  const handleTransactionPress = (transaction: DisplayTransaction) => {
-    router.push({
-      pathname: "/transaction-detail",
-      params: {
-        id: transaction.id,
-        name: transaction.counterparty.name,
-        address: transaction.counterparty.address || "",
-        amount: transaction.formattedAmount,
-        date: transaction.displayDate,
-        type: transaction.type,
-        category: transaction.category || "",
-        note: transaction.userNote || "",
-        isInApp: transaction.isInApp.toString(),
-      },
-    });
-  };
 
   return (
     <View className="flex-1" style={{ backgroundColor: "#000000" }}>
@@ -77,7 +59,6 @@ export default function HomeTab() {
               <ActivityList
                 transactions={recentActivity}
                 isLoading={isLoading}
-                onTransactionPress={handleTransactionPress}
               />
             </View>
           </BalanceRevealSection>

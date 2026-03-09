@@ -1,23 +1,38 @@
 import { View, Text, Pressable } from "react-native";
 import { MotiView } from "moti";
-import { Pencil, BadgeCheck } from "lucide-react-native";
+import { Pencil, BadgeCheck, Copy, Check } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
+import * as Clipboard from "expo-clipboard";
+import { useState } from "react";
 import { COLORS } from "@/utils/constants";
 
 interface IdentityCardProps {
   displayName?: string;
   handle?: string;
+  smartAccountAddress?: string;
   isVerified?: boolean;
+  onEditDisplayName?: () => void;
 }
 
 export const IdentityCard = ({
-  displayName = "Thomas Vance",
-  handle = "@ThomasV",
-  isVerified = true,
+  displayName,
+  handle,
+  smartAccountAddress,
+  isVerified = false,
+  onEditDisplayName,
 }: IdentityCardProps) => {
-  const handleEdit = () => {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopyAddress = async () => {
+    if (!smartAccountAddress) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await Clipboard.setStringAsync(smartAccountAddress);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
+
+  const truncateAddress = (addr: string) =>
+    `${addr.slice(0, 16)}...${addr.slice(-14)}`;
 
   return (
     <MotiView
@@ -28,7 +43,7 @@ export const IdentityCard = ({
       style={{ backgroundColor: `${COLORS.white}05` }}
     >
       <View className="flex-row items-center justify-between mb-3">
-        <View>
+        <View className="flex-1 mr-3">
           <Text
             className="text-xs font-mono uppercase mb-1"
             style={{ color: `${COLORS.white}40`, letterSpacing: 1 }}
@@ -36,16 +51,21 @@ export const IdentityCard = ({
             Display Name
           </Text>
           <Text className="text-white text-base font-semibold">
-            {displayName}
+            {displayName || "—"}
           </Text>
         </View>
-        <Pressable
-          onPress={handleEdit}
-          className="w-8 h-8 rounded-full items-center justify-center"
-          style={{ backgroundColor: `${COLORS.white}08` }}
-        >
-          <Pencil size={14} color={`${COLORS.white}50`} />
-        </Pressable>
+        {onEditDisplayName && (
+          <Pressable
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              onEditDisplayName();
+            }}
+            className="w-8 h-8 rounded-full items-center justify-center"
+            style={{ backgroundColor: `${COLORS.white}08` }}
+          >
+            <Pencil size={14} color={`${COLORS.white}50`} />
+          </Pressable>
+        )}
       </View>
 
       <View
@@ -53,34 +73,66 @@ export const IdentityCard = ({
         style={{ backgroundColor: `${COLORS.white}08` }}
       />
 
-      <View className="flex-row items-center justify-between mb-3">
-        <View>
-          <Text
-            className="text-xs font-mono uppercase mb-1"
-            style={{ color: `${COLORS.white}40`, letterSpacing: 1 }}
-          >
-            Handle
-          </Text>
-          <Text
-            className="text-base font-semibold"
-            style={{ color: COLORS.accent }}
-          >
-            {handle}
-          </Text>
-        </View>
-        <Pressable
-          onPress={handleEdit}
-          className="w-8 h-8 rounded-full items-center justify-center"
-          style={{ backgroundColor: `${COLORS.white}08` }}
+      <View className="mb-3">
+        <Text
+          className="text-xs font-mono uppercase mb-1"
+          style={{ color: `${COLORS.white}40`, letterSpacing: 1 }}
         >
-          <Pencil size={14} color={`${COLORS.white}50`} />
-        </Pressable>
+          Handle
+        </Text>
+        <Text
+          className="text-base font-semibold"
+          style={{ color: COLORS.accent }}
+        >
+          @{handle}
+        </Text>
       </View>
+
+      {smartAccountAddress && (
+        <>
+          <View
+            className="h-px mb-3"
+            style={{ backgroundColor: `${COLORS.white}08` }}
+          />
+
+          <View className="flex-row items-center justify-between">
+            <View className="flex-1 mr-3">
+              <Text
+                className="text-xs font-mono uppercase mb-1"
+                style={{ color: `${COLORS.white}40`, letterSpacing: 1 }}
+              >
+                Smart Account
+              </Text>
+              <Text
+                className="text-sm font-mono"
+                style={{ color: `${COLORS.white}70` }}
+              >
+                {truncateAddress(smartAccountAddress)}
+              </Text>
+            </View>
+            <Pressable
+              onPress={handleCopyAddress}
+              className="w-8 h-8 rounded-full items-center justify-center"
+              style={{
+                backgroundColor: copied
+                  ? `${COLORS.accent}20`
+                  : `${COLORS.white}08`,
+              }}
+            >
+              {copied ? (
+                <Check size={14} color={COLORS.accent} />
+              ) : (
+                <Copy size={14} color={`${COLORS.white}50`} />
+              )}
+            </Pressable>
+          </View>
+        </>
+      )}
 
       {isVerified && (
         <>
           <View
-            className="h-px mb-3"
+            className="h-px mb-3 mt-3"
             style={{ backgroundColor: `${COLORS.white}08` }}
           />
           <View className="flex-row items-center gap-2">

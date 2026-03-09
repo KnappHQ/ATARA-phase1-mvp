@@ -10,20 +10,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MotiView } from "moti";
-import {
-  X,
-  Check,
-  Wine,
-  Coffee,
-  ShoppingBag,
-  Utensils,
-  ArrowLeftRight,
-  MoreHorizontal,
-  Pencil,
-  ArrowLeft,
-  Info,
-} from "lucide-react-native";
-import { COLORS } from "@/utils/constants";
+import { X, Check, Pencil, ArrowLeft, Info } from "lucide-react-native";
+import { COLORS, CATEGORIES } from "@/utils/constants";
 import * as Haptics from "expo-haptics";
 import { useAddressBookStore } from "@/stores/useAddressBookStore";
 import { NicknameEditModal } from "@/components/transaction/NicknameEditModal";
@@ -35,24 +23,10 @@ const truncateAddress = (address: string) => {
   return `${address.slice(0, 10)}...${address.slice(-8)}`;
 };
 
-interface Category {
-  id: string;
-  label: string;
-  icon: any;
-}
-
-const CATEGORIES: Category[] = [
-  { id: "drinks", label: "Drinks", icon: Wine },
-  { id: "food", label: "Food", icon: Utensils },
-  { id: "shopping", label: "Shopping", icon: ShoppingBag },
-  { id: "transfer", label: "Transfer", icon: ArrowLeftRight },
-  { id: "other", label: "Other", icon: MoreHorizontal },
-];
-
 export default function TransactionDetail() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const [selectedCategory, setSelectedCategory] = useState("other");
+  const [selectedCategory, setSelectedCategory] = useState("transfer");
   const [note, setNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isNicknameModalOpen, setIsNicknameModalOpen] = useState(false);
@@ -66,6 +40,7 @@ export default function TransactionDetail() {
             id: params.id as string,
             name: params.name as string,
             address: params.address as string,
+            handle: (params.handle as string) || "",
             amount: params.amount as string,
             date: params.date as string,
             type: params.type as "receive" | "send",
@@ -86,7 +61,7 @@ export default function TransactionDetail() {
       const category =
         transaction.category && validCategories.includes(transaction.category)
           ? transaction.category
-          : "other";
+          : "transfer";
       setSelectedCategory(category);
       setNote(transaction.note || "");
     }
@@ -109,9 +84,12 @@ export default function TransactionDetail() {
         userNote: note,
       });
 
-      // Refresh history to get updated data
-      const { fetchHistory } = useTransactionHistoryStore.getState();
-      await fetchHistory();
+      // Patch the store in-place — no network round-trip
+      const { updateLocalTransaction } = useTransactionHistoryStore.getState();
+      updateLocalTransaction(transaction.id, {
+        category: selectedCategory,
+        userNote: note || null,
+      });
 
       router.back();
     } catch (error: any) {
@@ -190,7 +168,7 @@ export default function TransactionDetail() {
                       ? getDisplayName(transaction.address)
                       : transaction.name}
                   </Text>
-                  {!transaction.isInApp && (
+                  {!transaction.handle && (
                     <TouchableOpacity
                       onPress={() => setIsNicknameModalOpen(true)}
                       activeOpacity={0.7}

@@ -79,7 +79,7 @@ export const userController = {
       if (includeAddress === "true") {
         res.status(200).json({
           success: true,
-          address: user.smartAccountAddress || user.publicAddress,
+          address: user.smartAccountAddress,
           user,
         });
       } else {

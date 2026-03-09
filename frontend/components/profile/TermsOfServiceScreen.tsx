@@ -3,6 +3,7 @@ import { MotiView } from "moti";
 import { ArrowLeft } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { COLORS } from "@/utils/constants";
+import { TNC_SECTIONS, TNC_LAST_UPDATED, TNC_FOOTER_TEXT } from "@/utils/tnc";
 
 interface TermsOfServiceScreenProps {
   isOpen: boolean;
@@ -18,75 +19,6 @@ export const TermsOfServiceScreen = ({
     onBack();
   };
 
-  const sections = [
-    {
-      title: "1. Introduction",
-      body: "Welcome to ATARA, operated by ATARA LTD. By accessing or using our services, you agree to be bound by these Terms of Service. ATARA LTD provides a non-custodial digital wallet interface for managing digital assets on supported blockchain networks.",
-    },
-    {
-      title: "2. Self-Custody Notice",
-      highlight: "You are solely responsible for your wallet and private keys.",
-      body: "ATARA operates as a self-custody solution. This means:",
-      bullets: [
-        "You control your private keys and recovery phrase",
-        "ATARA cannot access, recover, or reset your wallet",
-        "Loss of your credentials means permanent loss of access to your assets",
-        "You are responsible for securing your device and credentials",
-      ],
-    },
-    {
-      title: "3. Transaction Finality",
-      highlight:
-        "All transactions on the Base Network are final and irreversible.",
-      body: "Once a transaction is confirmed on the blockchain:",
-      bullets: [
-        "It cannot be reversed, cancelled, or modified",
-        "ATARA has no ability to reverse or refund transactions",
-        "You must verify all transaction details before confirming",
-        "Network fees are non-refundable regardless of transaction outcome",
-      ],
-    },
-    {
-      title: "4. Beta Testing Acknowledgment",
-      highlight: "ATARA is currently in beta testing phase.",
-      body: "By using ATARA during beta, you acknowledge:",
-      bullets: [
-        "The application may contain bugs or unexpected behavior",
-        "Features may change, be added, or removed without notice",
-        "Service interruptions may occur during updates",
-        "You should not store more value than you can afford to lose",
-        "Your feedback helps improve the platform for all users",
-      ],
-    },
-    {
-      title: "5. Supported Networks",
-      body: "ATARA currently operates on the Base Network (a Layer 2 solution built on Ethereum). Transactions are processed according to the network's consensus rules and are subject to network conditions, fees, and potential delays.",
-    },
-    {
-      title: "6. Prohibited Activities",
-      body: "You agree not to use ATARA for:",
-      bullets: [
-        "Money laundering or terrorist financing",
-        "Fraudulent or deceptive activities",
-        "Violating applicable laws or regulations",
-        "Circumventing security measures",
-        "Any activity that could harm the platform or its users",
-      ],
-    },
-    {
-      title: "7. Limitation of Liability",
-      body: 'ATARA is provided "as is" without warranties of any kind. To the maximum extent permitted by law, ATARA LTD shall not be liable for any direct, indirect, incidental, or consequential damages arising from your use of the service, including but not limited to loss of digital assets.',
-    },
-    {
-      title: "8. Privacy",
-      body: "ATARA respects your privacy. We collect minimal data necessary to provide our services. Your wallet information and transaction history are stored locally on your device. Please review our Privacy Policy for detailed information.",
-    },
-    {
-      title: "9. Contact",
-      body: "For questions about these Terms or to report issues, please use the in-app feedback feature or contact us at legal@atara.money.",
-    },
-  ];
-
   return (
     <Modal
       visible={isOpen}
@@ -95,7 +27,6 @@ export const TermsOfServiceScreen = ({
       onRequestClose={handleBack}
     >
       <View className="flex-1" style={{ backgroundColor: COLORS.black }}>
-        {/* Header */}
         <MotiView
           from={{ opacity: 0, translateY: -10 }}
           animate={{ opacity: 1, translateY: 0 }}
@@ -115,7 +46,6 @@ export const TermsOfServiceScreen = ({
           </Text>
         </MotiView>
 
-        {/* Content */}
         <ScrollView
           className="flex-1 px-6"
           contentContainerStyle={{ paddingTop: 20, paddingBottom: 40 }}
@@ -125,10 +55,10 @@ export const TermsOfServiceScreen = ({
             className="text-xs font-mono mb-6"
             style={{ color: `${COLORS.white}30` }}
           >
-            Last Updated: January 2025
+            Last Updated: {TNC_LAST_UPDATED}
           </Text>
 
-          {sections.map((section, idx) => (
+          {TNC_SECTIONS.map((section, idx) => (
             <MotiView
               key={idx}
               from={{ opacity: 0, translateY: 8 }}
@@ -173,7 +103,6 @@ export const TermsOfServiceScreen = ({
             </MotiView>
           ))}
 
-          {/* Footer */}
           <View
             className="pt-6 border-t"
             style={{ borderTopColor: `${COLORS.white}08` }}
@@ -182,9 +111,7 @@ export const TermsOfServiceScreen = ({
               className="text-xs text-center"
               style={{ color: `${COLORS.white}30` }}
             >
-              © 2025 ATARA LTD. All rights reserved. By using ATARA, you
-              acknowledge that you have read, understood, and agree to these
-              Terms of Service.
+              {TNC_FOOTER_TEXT}
             </Text>
           </View>
         </ScrollView>

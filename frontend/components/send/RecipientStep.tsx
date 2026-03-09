@@ -37,8 +37,8 @@ export const RecipientStep = ({ onSelectRecipient }: RecipientStepProps) => {
 
   const quickContacts = recentContacts.slice(0, 5).map((contact) => ({
     id: contact.id,
-    name: contact.name || contact.handle,
-    avatar: (contact.name || contact.handle).slice(0, 2).toUpperCase(),
+    name: contact.handle,
+    avatar: contact.handle.replace(/^@/, "").slice(0, 2).toUpperCase(),
   }));
 
   return (

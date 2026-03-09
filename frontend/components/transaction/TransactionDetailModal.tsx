@@ -26,7 +26,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useAddressBookStore } from "@/stores/useAddressBookStore";
 import { NicknameEditModal } from "./NicknameEditModal";
 
-// Helper to truncate wallet addresses
 const truncateAddress = (address: string) => {
   if (!address || address.length < 12) return address;
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -80,7 +79,6 @@ export const TransactionDetailModal = ({
   const { getDisplayName, hasNickname, setNickname, removeNickname } =
     useAddressBookStore();
 
-  // Reset state when transaction changes
   useEffect(() => {
     if (transaction) {
       setSelectedCategory(transaction.category || "other");
@@ -94,7 +92,6 @@ export const TransactionDetailModal = ({
     setIsSaving(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    // Simulate API call
     await new Promise((resolve) => setTimeout(resolve, 500));
 
     onSave?.(transaction.id, selectedCategory, note);
@@ -387,7 +384,6 @@ export const TransactionDetailModal = ({
         </ScrollView>
       </SafeAreaView>
 
-      {/* Nickname Edit Modal */}
       {transaction?.address && (
         <NicknameEditModal
           isOpen={isNicknameModalOpen}

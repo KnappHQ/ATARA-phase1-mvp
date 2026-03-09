@@ -10,7 +10,7 @@ import { TabSwitcher, ActivityTab } from "@/components/activity/TabSwitcher";
 import { GroupsListTab } from "@/components/activity/GroupsListTab";
 import { COLORS } from "@/utils/constants";
 import { useTransactionHistoryStore } from "@/stores/useTransactionHistoryStore";
-import { useGroups } from "@/hooks/useGroups";
+import { useGroupStore } from "@/stores/useGroupStore";
 
 export default function Activity() {
   const router = useRouter();
@@ -19,7 +19,12 @@ export default function Activity() {
 
   const { displayHistory, contactThreads, isLoading } =
     useTransactionHistoryStore();
-  const { groups } = useGroups();
+  const {
+    groups,
+    isLoading: groupsLoading,
+    error: groupsError,
+    fetchGroups,
+  } = useGroupStore();
 
   const filteredTransactions = useMemo(() => {
     if (!searchQuery.trim()) return displayHistory;
@@ -45,51 +50,14 @@ export default function Activity() {
     );
   }, [contactThreads, searchQuery]);
 
-  const handleThreadClick = (thread: any) => {
-    router.push({
-      pathname: "/contact-detail",
-      params: {
-        address: thread.address,
-        displayName: thread.displayName,
-        totalReceived: thread.totalReceived.toString(),
-        totalSent: thread.totalSent.toString(),
-        transactions: JSON.stringify(thread.transactions),
-      },
-    });
-  };
-
-  const handleTransactionClick = (tx: any) => {
-    router.push({
-      pathname: "/transaction-detail",
-      params: {
-        id: tx.id,
-        name: tx.counterparty.name,
-        address: tx.counterparty.address,
-        amount: tx.formattedAmount,
-        date: tx.displayDate,
-        type: tx.type,
-        note: tx.userNote || "",
-        category: tx.category || "",
-        isInApp: tx.isInApp.toString(),
-      },
-    });
-  };
+  const filteredGroups = useMemo(() => {
+    if (!searchQuery.trim()) return groups;
+    const query = searchQuery.toLowerCase();
+    return groups.filter((g) => g.name.toLowerCase().includes(query));
+  }, [groups, searchQuery]);
 
   const handleCreateGroup = () => {
     router.push("/group-create");
-  };
-
-  const handleSelectGroup = (group: any) => {
-    router.push({
-      pathname: "/group-details",
-      params: {
-        id: group.id,
-        name: group.name,
-        members: JSON.stringify(group.members),
-        expenses: JSON.stringify(group.expenses),
-        createdAt: group.createdAt,
-      },
-    });
   };
 
   const handleTabChange = (tab: ActivityTab) => {
@@ -119,7 +87,6 @@ export default function Activity() {
         {activityTab === "transactions" && (
           <TransactionsTab
             transactions={filteredTransactions}
-            onTransactionClick={handleTransactionClick}
             isLoading={isLoading}
           />
         )}
@@ -127,17 +94,17 @@ export default function Activity() {
         {activityTab === "contacts" && (
           <ContactsTab
             contactThreads={filteredContactThreads}
-            onThreadClick={handleThreadClick}
             isLoading={isLoading}
           />
         )}
 
         {activityTab === "groups" && (
           <GroupsListTab
-            groups={groups}
+            groups={filteredGroups}
             searchQuery={searchQuery}
-            onCreateNew={handleCreateGroup}
-            onSelectGroup={(group) => handleSelectGroup(group)}
+            isLoading={groupsLoading}
+            error={groupsError}
+            onRetry={fetchGroups}
           />
         )}
 

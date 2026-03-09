@@ -17,7 +17,8 @@ export const GroupBalanceCard = ({
   balance,
   onSettleUp,
 }: GroupBalanceCardProps) => {
-  const isSettled = balance.youOwe < 0.01 && balance.groupOwesYou < 0.01;
+  const net = balance.groupOwesYou - balance.youOwe;
+  const isSettled = Math.abs(net) < 0.01;
 
   return (
     <MotiView
@@ -61,7 +62,7 @@ export const GroupBalanceCard = ({
                 All settled up
               </Text>
             </View>
-          ) : balance.youOwe > 0 ? (
+          ) : net < 0 ? (
             <View>
               <Text
                 className="text-xs font-mono uppercase"
@@ -72,7 +73,7 @@ export const GroupBalanceCard = ({
               <Text className="font-mono text-xl text-white mt-1">
                 You owe the group{" "}
                 <Text className="font-semibold">
-                  ${balance.youOwe.toFixed(2)}
+                  ${Math.abs(net).toFixed(2)}
                 </Text>
               </Text>
             </View>
@@ -89,15 +90,13 @@ export const GroupBalanceCard = ({
                 style={{ color: COLORS.accent }}
               >
                 The group owes you{" "}
-                <Text className="font-semibold">
-                  ${balance.groupOwesYou.toFixed(2)}
-                </Text>
+                <Text className="font-semibold">${net.toFixed(2)}</Text>
               </Text>
             </View>
           )}
         </View>
 
-        {balance.youOwe > 0 && (
+        {net < 0 && (
           <Pressable
             onPress={onSettleUp}
             className="px-5 py-3 rounded-2xl ml-4 active:opacity-80"

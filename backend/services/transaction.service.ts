@@ -2,7 +2,11 @@ import { ethers } from "ethers";
 import prisma from "../config/prisma";
 import { TxStatus } from "../generated/prisma";
 import { ErrorHandler } from "../utils/errorHandler";
-import { ALCHEMY_URL } from "../utils/constants";
+import {
+  ALCHEMY_URL,
+  TRANSACTION_CATEGORIES,
+  DEFAULT_CATEGORY,
+} from "../utils/constants";
 import axios from "axios";
 
 interface AlchemyTransfer {
@@ -84,15 +88,9 @@ class TransactionService {
       throw new ErrorHandler("Transaction failed on-chain", 400);
     }
 
-    // ERC-4337 UserOperation validation note:
-    // For smart account (ModularAccountV2) transactions sent via Alchemy's Bundler:
-    //   - tx.from = bundler address (NOT the user's EOA or smart account)
-    //   - tx.to   = EntryPoint contract (NOT the actual recipient)
-    //   - tx.value = 0 (actual value transfer is an internal transaction)
-    // Therefore, we CANNOT validate sender/receiver/amount from the outer transaction.
-    // receipt.status === 1 confirms the UserOperation executed successfully.
-    // TODO: For enhanced validation, use Alchemy's alchemy_getAssetTransfers API
-    // to verify the internal transfer details (sender SMA → receiver SMA).
+    // For ERC-4337 smart account txs via Alchemy Bundler, tx.from is the bundler
+    // and tx.to is the EntryPoint — not the actual sender/receiver. receipt.status === 1
+    // is sufficient to confirm the UserOperation executed successfully.
 
     // Validate that rawAmountWei and amount are consistent
     const calculatedDecimal = ethers.formatEther(data.rawAmountWei);
@@ -108,15 +106,8 @@ class TransactionService {
       );
     }
 
-    // Look up receiver by BOTH publicAddress (signer EOA) and smartAccountAddress (SMA)
-    // since the frontend sends to the recipient's smart account address
     const receiver = await prisma.user.findFirst({
-      where: {
-        OR: [
-          { publicAddress: normalizedReceiverAddress },
-          { smartAccountAddress: normalizedReceiverAddress },
-        ],
-      },
+      where: { smartAccountAddress: normalizedReceiverAddress },
     });
 
     const transaction = await prisma.transaction.create({
@@ -128,7 +119,11 @@ class TransactionService {
         assetSymbol: data.assetSymbol,
         amount: data.amount,
         rawAmountWei: data.rawAmountWei,
-        category: data.category,
+        category:
+          data.category &&
+          (TRANSACTION_CATEGORIES as readonly string[]).includes(data.category)
+            ? data.category
+            : DEFAULT_CATEGORY,
         userNote: data.userNote,
         status: "COMPLETED",
       },
@@ -146,12 +141,10 @@ class TransactionService {
   ): Promise<AlchemyTransfer[]> {
     const commonParams = {
       fromBlock: "0x0",
-      // Note: "internal" is only supported on Ethereum and Polygon mainnets, not on Base Sepolia
-      // Using "external" to fetch all asset transfers including smart account transactions
       category: ["external"],
       withMetadata: true,
       excludeZeroValue: true,
-      maxCount: "0x64", // 100 results per direction
+      maxCount: "0x64",
     };
 
     const makeRequest = (params: any) => ({
@@ -189,7 +182,6 @@ class TransactionService {
         );
       }
 
-      // Deduplicate by uniqueId (a transfer can appear in both sent/received)
       const seen = new Set<string>();
       const all: AlchemyTransfer[] = [];
       for (const tx of [...sent, ...received]) {
@@ -214,19 +206,21 @@ class TransactionService {
   public async getHistory(userId: string) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { publicAddress: true, smartAccountAddress: true },
+      select: { smartAccountAddress: true },
     });
 
     if (!user) {
       throw new ErrorHandler("User not found", 404);
     }
 
-    // Smart account address is where all funds and transactions live.
-    // Fall back to publicAddress (signer EOA) if SMA not yet set.
-    const walletAddress = user.smartAccountAddress || user.publicAddress;
+    const walletAddress = user.smartAccountAddress;
+
+    if (!walletAddress) {
+      throw new ErrorHandler("User has no smart account address", 400);
+    }
+
     const walletAddressLower = walletAddress.toLowerCase();
 
-    // Parallel Fetch: Internal DB & External Blockchain
     const [dbTransactions, alchemyTransactions] = await Promise.all([
       prisma.transaction.findMany({
         where: { OR: [{ senderId: userId }, { receiverId: userId }] },
@@ -237,7 +231,6 @@ class TransactionService {
               handle: true,
               displayName: true,
               profilePicUrl: true,
-              publicAddress: true,
               smartAccountAddress: true,
             },
           },
@@ -246,7 +239,6 @@ class TransactionService {
               handle: true,
               displayName: true,
               profilePicUrl: true,
-              publicAddress: true,
               smartAccountAddress: true,
             },
           },
@@ -275,7 +267,7 @@ class TransactionService {
         address:
           tx.senderId === userId
             ? tx.receiverAddress
-            : tx.sender.smartAccountAddress || tx.sender.publicAddress,
+            : tx.sender.smartAccountAddress,
         handle:
           tx.senderId === userId
             ? tx.receiver?.handle || null
@@ -303,7 +295,7 @@ class TransactionService {
           status: "COMPLETED",
           amount: tx.value.toString(),
           assetSymbol: tx.asset || "ETH",
-          category: tx.category, // "external", "internal", or "erc20"
+          category: tx.category,
           userNote: null,
           type: isSend ? "send" : "receive",
           isInApp: false,

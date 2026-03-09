@@ -6,11 +6,14 @@ import {
   Modal,
   Pressable,
   TouchableOpacity,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { MotiView } from "moti";
 import { X, Send, Check } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { COLORS } from "@/utils/constants";
+import { FeedbackService } from "@/services/feedback.service";
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -20,16 +23,29 @@ interface FeedbackModalProps {
 export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
   const [feedback, setFeedback] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = () => {
-    if (!feedback.trim()) return;
+  const handleSubmit = async () => {
+    if (!feedback.trim() || isLoading) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setIsSubmitted(true);
-    setTimeout(() => {
-      setFeedback("");
-      setIsSubmitted(false);
-      onClose();
-    }, 2000);
+
+    setIsLoading(true);
+    try {
+      await FeedbackService.submit(feedback.trim());
+      setIsSubmitted(true);
+      setTimeout(() => {
+        setFeedback("");
+        setIsSubmitted(false);
+        onClose();
+      }, 2000);
+    } catch (err) {
+      Alert.alert(
+        "Failed to send feedback",
+        "Please try again or contact us at support@atara.app",
+      );
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleClose = () => {
@@ -142,18 +158,41 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
 
                   <Pressable
                     onPress={handleSubmit}
-                    disabled={!feedback.trim()}
-                    className="py-4 rounded-2xl flex-row items-center justify-center gap-2"
+                    disabled={!feedback.trim() || isLoading}
                     style={{
                       backgroundColor: feedback.trim()
                         ? COLORS.accent
-                        : `${COLORS.accent}30`,
-                      opacity: feedback.trim() ? 1 : 0.5,
+                        : `${COLORS.accent}50`,
+                      opacity: feedback.trim() ? 1 : 0.6,
+                      paddingVertical: 14,
+                      borderRadius: 16,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
                     }}
                   >
-                    <Send size={16} color={COLORS.white} />
-                    <Text className="text-sm font-semibold text-white tracking-wide">
-                      Send Feedback
+                    {isLoading ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={COLORS.white}
+                        style={{ marginRight: 8 }}
+                      />
+                    ) : (
+                      <Send
+                        size={16}
+                        color={COLORS.white}
+                        style={{ marginRight: 8 }}
+                      />
+                    )}
+                    <Text
+                      style={{
+                        color: COLORS.white,
+                        fontSize: 14,
+                        fontWeight: "600",
+                        letterSpacing: 0.5,
+                      }}
+                    >
+                      {isLoading ? "Sending..." : "Send Feedback"}
                     </Text>
                   </Pressable>
                 </View>

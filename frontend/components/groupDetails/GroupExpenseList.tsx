@@ -1,11 +1,11 @@
 import { View, Text } from "react-native";
 import { DollarSign } from "lucide-react-native";
 import { COLORS } from "@/utils/constants";
-import { GroupExpense } from "@/hooks/useGroups";
+import { GroupExpenseDetail } from "@/stores/useGroupStore";
 import { GroupExpenseItem } from "./GroupExpenseItem";
 
 interface GroupExpenseListProps {
-  expenses: GroupExpense[];
+  expenses: GroupExpenseDetail[];
   memberCount: number;
 }
 

@@ -2,7 +2,7 @@ import { View, Text, Pressable } from "react-native";
 import { MotiView } from "moti";
 import { Check } from "lucide-react-native";
 import { COLORS } from "@/utils/constants";
-import { GroupMember } from "@/hooks/useGroups";
+import { GroupMember } from "@/stores/useGroupStore";
 
 interface GroupContactRowProps {
   contact: GroupMember;
@@ -17,6 +17,7 @@ export const GroupContactRow = ({
   isSelected,
   onToggle,
 }: GroupContactRowProps) => {
+  console.log(contact);
   return (
     <MotiView
       from={{ opacity: 0, translateY: 10 }}
@@ -56,7 +57,7 @@ export const GroupContactRow = ({
             className="text-xs font-mono mt-0.5"
             style={{ color: `${COLORS.white}66` }}
           >
-            {contact.address.slice(0, 10)}...{contact.address.slice(-8)}
+            {contact.address.slice(0, 10)}...${contact.address.slice(-8)}
           </Text>
         </View>
 

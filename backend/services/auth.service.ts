@@ -14,8 +14,7 @@ class AuthService {
       {
         id: user.id,
         handle: user.handle,
-        address: user.publicAddress,
-        smartAccountAddress: user.smartAccountAddress,
+        address: user.smartAccountAddress,
       },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN },

@@ -2,7 +2,18 @@ import { ChevronRight, Scale, Users } from "lucide-react-native";
 import { Pressable, View, Text } from "react-native";
 import { MotiView } from "moti";
 import { COLORS } from "@/utils/constants";
-import { Group, useGroups } from "@/hooks/useGroups";
+import { Group } from "@/stores/useGroupStore";
+
+function getBalanceLabel(net: number): { label: string; color: string } {
+  if (Math.abs(net) < 0.01)
+    return { label: "All settled", color: "rgba(255,255,255,0.3)" };
+  if (net > 0)
+    return { label: `You're owed $${net.toFixed(2)}`, color: COLORS.accent };
+  return {
+    label: `You owe $${Math.abs(net).toFixed(2)}`,
+    color: "rgba(255, 255, 255, 0.6)",
+  };
+}
 
 interface GroupItemProps {
   group: Group;
@@ -11,11 +22,7 @@ interface GroupItemProps {
 }
 
 export const GroupItem = ({ group, index, onPress }: GroupItemProps) => {
-  const { getUserBalance } = useGroups();
-  const balance = getUserBalance(group);
-  const isSettled = balance.youOwe < 0.01 && balance.groupOwesYou < 0.01;
-  const totalExpenses = group.expenses.reduce((sum, e) => sum + e.amount, 0);
-
+  const balance = getBalanceLabel(group.userNetBalance);
   return (
     <MotiView
       from={{ opacity: 0, translateY: 10 }}
@@ -40,52 +47,22 @@ export const GroupItem = ({ group, index, onPress }: GroupItemProps) => {
                 {group.name}
               </Text>
               <Text className="text-sm ml-2 text-white/40">
-                {group.members.length} members
+                {group.memberCount} members
               </Text>
             </View>
 
-            <Text className="text-sm mb-1 text-white/40" numberOfLines={1}>
-              $
-              {totalExpenses.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}{" "}
-              total expenses
-            </Text>
-
             <View className="flex-row items-center justify-between">
-              <Text className="font-mono text-xs uppercase tracking-wide text-white/30">
-                {group.expenses.length} expense
-                {group.expenses.length !== 1 ? "s" : ""}
-              </Text>
-
               <View className="flex-row items-center gap-1">
-                {isSettled ? (
-                  <>
-                    <Scale size={12} color="rgba(255, 255, 255, 0.3)" />
-                    <Text
-                      className="font-mono text-[10px]"
-                      style={{ color: "rgba(255, 255, 255, 0.3)" }}
-                    >
-                      Settled
-                    </Text>
-                  </>
-                ) : balance.youOwe > 0 ? (
-                  <Text
-                    className="font-mono text-[10px]"
-                    style={{ color: "rgba(255, 255, 255, 0.5)" }}
-                  >
-                    You owe ${balance.youOwe.toFixed(2)}
-                  </Text>
-                ) : (
-                  <Text
-                    className="font-mono text-[10px]"
-                    style={{ color: COLORS.accent }}
-                  >
-                    +${balance.groupOwesYou.toFixed(2)} owed
-                  </Text>
-                )}
+                <Scale size={12} color={balance.color} />
+                <Text
+                  className="font-mono text-[10px]"
+                  style={{ color: balance.color }}
+                >
+                  {balance.label}
+                </Text>
               </View>
+
+              <Text className="text-xs text-white/30">{group.createdAt}</Text>
             </View>
           </View>
 

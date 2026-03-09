@@ -3,18 +3,37 @@ import { TransactionItem } from "./TransactionItem";
 import { ActivitySkeleton } from "../homeScreen/ActivitySkeleton";
 import { COLORS } from "@/utils/constants";
 import { DisplayTransaction } from "@/stores/useTransactionHistoryStore";
+import { useRouter } from "expo-router";
 
 interface TransactionsTabProps {
   transactions: DisplayTransaction[];
-  onTransactionClick: (tx: DisplayTransaction) => void;
   isLoading?: boolean;
 }
 
 export function TransactionsTab({
   transactions,
-  onTransactionClick,
   isLoading = false,
 }: TransactionsTabProps) {
+  const router = useRouter();
+
+  const handleTransactionClick = (tx: any) => {
+    router.push({
+      pathname: "/transaction-detail",
+      params: {
+        id: tx.id,
+        name: tx.counterparty.name,
+        address: tx.counterparty.address,
+        handle: tx.counterparty.handle || "",
+        amount: tx.formattedAmount,
+        date: tx.displayDate,
+        type: tx.type,
+        note: tx.userNote || "",
+        category: tx.category || "",
+        isInApp: tx.isInApp.toString(),
+      },
+    });
+  };
+
   if (isLoading) {
     return <ActivitySkeleton />;
   }
@@ -37,7 +56,7 @@ export function TransactionsTab({
           key={tx.id}
           transaction={tx}
           index={index}
-          onPress={onTransactionClick}
+          onPress={handleTransactionClick}
         />
       ))}
     </View>

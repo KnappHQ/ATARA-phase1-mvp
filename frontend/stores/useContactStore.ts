@@ -1,33 +1,27 @@
 import { create } from "zustand";
 import { ContactService } from "@/services/contact.service";
+import { truncateAddress } from "@/utils/format";
 
 export interface Contact {
   id: string;
   handle: string;
   name?: string;
   email?: string;
-  publicAddress: string;
   smartAccountAddress: string;
   profilePicUrl?: string;
   lastTransactionAt?: string;
+  isLocalContact?: boolean;
 }
 
 interface ContactState {
-  // Contact lists
   recentContacts: Contact[];
   searchResults: Contact[];
   favoriteContacts: Contact[];
-
-  // Search state
   searchQuery: string;
   isSearching: boolean;
   searchError: string | null;
-
-  // Loading states
   isLoadingRecents: boolean;
   isLoadingSearch: boolean;
-
-  // Actions
   setSearchQuery: (query: string) => void;
   searchContacts: (query: string) => Promise<void>;
   getRecentContacts: () => Promise<void>;
@@ -37,7 +31,6 @@ interface ContactState {
 }
 
 export const useContactStore = create<ContactState>((set, get) => ({
-  // Initial state
   recentContacts: [],
   searchResults: [],
   favoriteContacts: [],

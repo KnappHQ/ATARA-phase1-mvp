@@ -13,6 +13,8 @@ export interface SendTransactionRequest {
   decimals?: number;
   usdValue?: string;
   note?: string;
+  /** Called after the transaction is synced to the backend DB. Safe to call backend endpoints that depend on the transaction record existing. */
+  onSynced?: (transactionId: string) => Promise<void> | void;
 }
 
 export interface TransactionResponse {
@@ -39,14 +41,12 @@ export class TransactionService {
       markTransactionFailed,
     } = useTransactionStore.getState();
 
-    // Calculate rawAmountWei for the transaction
     const decimals =
       request.decimals || (request.tokenSymbol === "ETH" ? 18 : 6);
     const rawAmountWei = (
       parseFloat(request.amount) * Math.pow(10, decimals)
     ).toFixed(0);
 
-    // Add transaction to store as pending
     const transactionId = addTransaction({
       recipientAddress: request.recipientAddress,
       recipientHandle: request.recipientHandle,
@@ -82,9 +82,14 @@ export class TransactionService {
 
       // Sync with backend in background (don't block the UI)
       this.syncTransactionWithBackend(transactionId)
-        .then(() => {
+        .then(async (backendTransactionId) => {
           // Auto-refresh history to show new transaction
           useTransactionHistoryStore.getState().fetchHistory();
+          // Notify caller with the backend DB id (not the local UUID)
+          // so any follow-up endpoints that look up by id work correctly.
+          if (request.onSynced && backendTransactionId) {
+            await request.onSynced(backendTransactionId);
+          }
         })
         .catch((err) =>
           console.error("Backend sync failed (non-blocking):", err),
@@ -108,12 +113,14 @@ export class TransactionService {
     }
   }
 
-  private async syncTransactionWithBackend(transactionId: string) {
+  private async syncTransactionWithBackend(
+    transactionId: string,
+  ): Promise<string | null> {
     const { getTransactionById } = useTransactionStore.getState();
     const transaction = getTransactionById(transactionId);
 
     if (!transaction || !transaction.hash) {
-      return;
+      return null;
     }
 
     try {
@@ -124,25 +131,29 @@ export class TransactionService {
           Math.pow(10, transaction.decimals || 18)
         ).toFixed(0);
 
-      await api.post("/transaction/sync", {
+      const response = await api.post("/transaction/sync", {
         receiverAddress: transaction.recipientAddress,
         txHash: transaction.hash,
         amount: parseFloat(transaction.amount),
         rawAmountWei: rawAmountWei,
         assetSymbol: transaction.tokenSymbol,
-        category: transaction.tokenSymbol === "ETH" ? "native" : "erc20",
+        category: "transfer",
         userNote: transaction.note || null,
       });
+
+      // Return the backend-generated transaction id so callers can reference
+      // the DB record directly (e.g. for settlement linking).
+      return (response.data?.transaction?.id as string) ?? null;
     } catch (error: any) {
       // 409 = already synced, not a real error
       if (error.response?.status !== 409) {
         console.error("Failed to sync transaction with backend:", error);
       }
+      return null;
     }
   }
 }
 
-// Hook to get transaction service
 export const useTransactionService = (
   smartAccountService: SmartAccountService | null,
 ) => {

@@ -29,12 +29,11 @@ export const SparklineChart = ({
 
     const minVal = Math.min(...data);
     const maxVal = Math.max(...data);
-    const range = maxVal - minVal || 1;
+    const range = maxVal - minVal;
 
-    // Normalize data points to SVG coordinates
     const points = data.map((val, i) => ({
       x: (i / (data.length - 1)) * 200,
-      y: 60 - ((val - minVal) / range) * 50,
+      y: range === 0 ? 30 : 55 - ((val - minVal) / range) * 45,
     }));
 
     // Build Catmull-Rom spline path
@@ -76,10 +75,8 @@ export const SparklineChart = ({
           </LinearGradient>
         </Defs>
 
-        {/* Area fill */}
         <Path d={areaPath} fill={`url(#gradient-${color})`} />
 
-        {/* Spline line */}
         <Path
           d={splinePath}
           fill="none"
@@ -90,7 +87,6 @@ export const SparklineChart = ({
           opacity={0.8}
         />
 
-        {/* End point */}
         {showEndPoint && <Circle cx="200" cy={endPointY} r="4" fill={color} />}
       </Svg>
     </View>

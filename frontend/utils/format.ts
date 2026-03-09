@@ -1,3 +1,5 @@
+import { Contact } from "@/stores/useContactStore";
+
 export const formatCurrency = (
   value: number,
   decimals: number = 2,
@@ -137,9 +139,47 @@ export const buildTransactionName = (
     return { name: `@${counterparty.handle}`, showAddress: true };
   }
 
-  if (!isInApp && nickname) {
+  if (nickname) {
     return { name: `@${nickname}`, showAddress: true };
   }
 
   return { name: truncateAddress(counterparty.address), showAddress: false };
 };
+
+/**
+ * Returns up to 2 uppercase initials from a display name or handle.
+ * Strips leading @ from names/handles before extracting characters.
+ */
+export const getInitials = (
+  displayName: string | null,
+  handle: string,
+): string => {
+  const clean = (s: string) => s.replace(/^@/, "").trim();
+
+  if (displayName) {
+    const initials = displayName
+      .trim()
+      .split(" ")
+      .map((p) => clean(p)[0] ?? "")
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+    if (initials.length > 0) return initials;
+  }
+
+  return clean(handle).slice(0, 2).toUpperCase();
+};
+
+export function buildAddressContact(
+  address: string,
+  nickname?: string,
+): Contact {
+  const addr = address.trim();
+  return {
+    id: addr.toLowerCase(),
+    handle: nickname || truncateAddress(addr),
+    name: nickname || undefined,
+    smartAccountAddress: addr,
+    isLocalContact: true,
+  };
+}

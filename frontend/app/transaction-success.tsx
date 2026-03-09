@@ -1,19 +1,16 @@
 import { ActionButtons } from "@/components/transaction/ActionButtons";
-import { ProofCardModal } from "@/components/transaction/ProofCardModal";
 import { ShieldIcon } from "@/components/transaction/ShieldIcon";
 import { TransactionReceipt } from "@/components/transaction/TransactionReceipt";
 import { useTransactionStore } from "@/stores/useTransactionStore";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
-import { useState, useEffect, useCallback } from "react";
+import { useCallback } from "react";
 import { ScrollView, Share, View, Text, BackHandler } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { COLORS } from "@/utils/constants";
 
 export default function TransactionSuccess() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { getTransactionById } = useTransactionStore();
-  const [isProofModalOpen, setIsProofModalOpen] = useState(false);
 
   const transactionId = params.transactionId as string;
   const transaction = transactionId ? getTransactionById(transactionId) : null;
@@ -30,6 +27,7 @@ export default function TransactionSuccess() {
           handle: transaction.recipientHandle || "",
           avatar: transaction.recipientName?.slice(0, 2).toUpperCase() || "UN",
         },
+        recipientAddress: transaction.recipientAddress || "",
         usdValue: transaction.usdValue?.replace("$", "") || "0.00",
         txHash: transaction.hash || (params.hash as string) || "",
         networkFee: transaction.gasFee || "0.00",
@@ -48,6 +46,7 @@ export default function TransactionSuccess() {
         usdValue: "0.00",
         txHash: (params.hash as string) || "",
         networkFee: "0.00",
+        recipientAddress: "",
         timestamp: new Date().toISOString(),
         status: "pending" as const,
       };
@@ -60,17 +59,12 @@ export default function TransactionSuccess() {
     );
   }
 
-  const handleShareProof = () => {
-    setIsProofModalOpen(true);
-  };
-
-  const handleShareImage = async () => {
+  const handleShareProof = async () => {
     try {
       await Share.share({
         title: "Transaction Proof",
-        message: `I just sent ${transactionData.amount} ${transactionData.coin} to ${transactionData.recipient.handle} on Astrâ! 🚀`,
+        message: `I just sent ${transactionData.amount} ${transactionData.coin} to ${transactionData.recipient.handle || transactionData.recipientAddress} on ATARA! 🚀`,
       });
-      setIsProofModalOpen(false);
     } catch (error) {
       console.error("Share failed:", error);
     }
@@ -112,6 +106,7 @@ export default function TransactionSuccess() {
           amount={transactionData.amount}
           coin={transactionData.coin}
           recipient={transactionData.recipient}
+          recipientAddress={transactionData.recipientAddress}
           usdValue={transactionData.usdValue}
           txHash={transactionData.txHash}
           networkFee={transactionData.networkFee}
@@ -122,18 +117,6 @@ export default function TransactionSuccess() {
           onBackToDashboard={handleBackToDashboard}
         />
       </ScrollView>
-
-      <ProofCardModal
-        isOpen={isProofModalOpen}
-        onClose={() => setIsProofModalOpen(false)}
-        onShare={handleShareImage}
-        amount={transactionData.amount}
-        coin={transactionData.coin}
-        recipientHandle={
-          transactionData.recipient.handle || transactionData.recipient.name
-        }
-        transactionId={transactionData.txHash}
-      />
     </SafeAreaView>
   );
 }

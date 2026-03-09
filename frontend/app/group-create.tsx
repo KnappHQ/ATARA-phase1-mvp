@@ -1,9 +1,13 @@
-import { View, ScrollView, Platform } from "react-native";
+import { View, ScrollView, Platform, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { useState, useMemo } from "react";
-import { useGroups, GroupMember } from "@/hooks/useGroups";
-import { SAMPLE_CONTACTS } from "@/components/groupCreate/groupContacts";
+import { useState, useEffect, useRef } from "react";
+import {
+  useGroupStore,
+  GroupMember,
+  mapContactToMember,
+} from "@/stores/useGroupStore";
+import { useContactStore } from "@/stores/useContactStore";
 import { GroupCreateHeader } from "@/components/groupCreate/GroupCreateHeader";
 import { GroupNameInput } from "@/components/groupCreate/GroupNameInput";
 import { GroupMemberPills } from "@/components/groupCreate/GroupMemberPills";
@@ -16,20 +20,38 @@ import { COLORS } from "@/utils/constants";
 
 export default function GroupCreateScreen() {
   const router = useRouter();
-  const { createGroup } = useGroups();
+  const { createGroup } = useGroupStore();
+  const {
+    recentContacts,
+    searchResults: contactSearchResults,
+    isLoadingSearch,
+    searchContacts,
+  } = useContactStore();
 
   const [groupName, setGroupName] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedMembers, setSelectedMembers] = useState<GroupMember[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const filteredContacts = useMemo(
-    () =>
-      SAMPLE_CONTACTS.filter(
-        (c) =>
-          c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          c.address.toLowerCase().includes(searchQuery.toLowerCase()),
-      ),
-    [searchQuery],
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      if (searchQuery.trim().length >= 2) {
+        searchContacts(searchQuery.trim());
+      }
+    }, 400);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [searchQuery]);
+
+  const isSearchMode = searchQuery.trim().length > 0;
+  const allResults = isSearchMode
+    ? contactSearchResults.map(mapContactToMember)
+    : recentContacts.map(mapContactToMember);
+  const displayList = allResults.filter(
+    (r) => !selectedMembers.some((m) => m.id === r.id),
   );
 
   const toggleMember = (member: GroupMember) => {
@@ -40,23 +62,22 @@ export default function GroupCreateScreen() {
     );
   };
 
-  const handleCreate = () => {
-    if (!groupName.trim() || selectedMembers.length === 0) return;
-    const allMembers: GroupMember[] = [
-      {
-        id: "self",
-        name: "You",
-        address: "0x000000000000000000000000000000000000000",
-        avatar: "YO",
-      },
-      ...selectedMembers,
-    ];
-    createGroup(groupName.trim(), allMembers);
-    if (Platform.OS === "ios") navigator.vibrate?.([10, 30, 10]);
-    router.back();
+  const handleCreate = async () => {
+    if (!groupName.trim() || selectedMembers.length === 0 || isCreating) return;
+    setIsCreating(true);
+    try {
+      const handles = selectedMembers.map((m) => m.handle);
+      await createGroup(groupName.trim(), handles);
+      router.back();
+    } catch (err: any) {
+      console.error("Failed to create group:", err);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
-  const isValid = groupName.trim().length > 0 && selectedMembers.length > 0;
+  const isValid =
+    groupName.trim().length > 0 && selectedMembers.length > 0 && !isCreating;
 
   return (
     <SafeAreaView className="flex-1 bg-black">
@@ -76,24 +97,48 @@ export default function GroupCreateScreen() {
             onChange={setSearchQuery}
           />
 
-          {filteredContacts.map((contact, index) => (
-            <GroupContactRow
-              key={contact.id}
-              contact={contact}
-              index={index}
-              isSelected={selectedMembers.some((m) => m.id === contact.id)}
-              onToggle={toggleMember}
-            />
-          ))}
+          {isLoadingSearch && (
+            <View className="items-center py-6">
+              <ActivityIndicator
+                size="small"
+                color="rgba(255, 255, 255, 0.4)"
+              />
+            </View>
+          )}
 
-          {filteredContacts.length === 0 && searchQuery.length > 0 && (
-            <View className="items-center py-8">
-              <Users size={40} color={`${COLORS.white}33`} />
+          {!isLoadingSearch &&
+            displayList.map((contact, index) => (
+              <GroupContactRow
+                key={contact.id}
+                contact={contact}
+                index={index}
+                isSelected={selectedMembers.some((m) => m.id === contact.id)}
+                onToggle={toggleMember}
+              />
+            ))}
+
+          {!isLoadingSearch &&
+            isSearchMode &&
+            displayList.length === 0 &&
+            searchQuery.trim().length >= 2 && (
+              <View className="items-center py-8">
+                <Users size={40} color={`${COLORS.white}33`} />
+                <Text
+                  className="text-sm mt-3"
+                  style={{ color: `${COLORS.white}66` }}
+                >
+                  No users found for "{searchQuery}"
+                </Text>
+              </View>
+            )}
+
+          {isSearchMode && searchQuery.trim().length < 2 && (
+            <View className="items-center py-6">
               <Text
-                className="text-sm mt-3"
-                style={{ color: `${COLORS.white}66` }}
+                className="text-xs font-mono"
+                style={{ color: `${COLORS.white}4d` }}
               >
-                No contacts found
+                Type at least 2 characters to search
               </Text>
             </View>
           )}

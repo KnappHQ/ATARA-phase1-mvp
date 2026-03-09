@@ -23,5 +23,13 @@ router.post("/e/:expenseId/settle", groupController.settleMyShare);
 
 router.get("/:groupId/settle/:memberId", groupController.getSettleAllAmount);
 router.post("/:groupId/settle/:memberId", groupController.settleAllWithMember);
+router.post(
+  "/:groupId/settle/:memberId/manual",
+  groupController.markAsSettledManually,
+);
+router.post(
+  "/:groupId/settle/:memberId/by-tx",
+  groupController.settleByInternalTx,
+);
 
 export default router;

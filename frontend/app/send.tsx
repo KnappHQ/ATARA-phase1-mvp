@@ -19,7 +19,6 @@ export default function Send() {
         id: params.contactId as string,
         handle: params.contactHandle as string,
         name: params.contactName as string | undefined,
-        publicAddress: params.contactAddress as string,
         smartAccountAddress: params.contactSmartAddress as string,
         profilePicUrl: params.contactProfilePic as string | undefined,
       }

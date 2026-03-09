@@ -3,104 +3,105 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Plus } from "lucide-react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { COLORS } from "@/utils/constants";
-import { useGroups, Group } from "@/hooks/useGroups";
-import { useState } from "react";
+import { useGroupStore } from "@/stores/useGroupStore";
+import type { GroupMemberBalance } from "@/stores/useGroupStore";
+import { useState, useEffect } from "react";
 import { GroupDetailsHeader } from "@/components/groupDetails/GroupDetailsHeader";
-import { GroupBalanceCard } from "@/components/groupDetails/GroupBalanceCard";
+import { MemberBalanceList } from "@/components/groupDetails/MemberBalanceList";
+import { SettleBottomSheet } from "@/components/groupDetails/SettleBottomSheet";
 import { GroupExpenseList } from "@/components/groupDetails/GroupExpenseList";
 import { AddExpenseModal } from "@/components/groupDetails/AddExpenseModal";
+import { GroupDetailsSkeleton } from "@/components/groupDetails/GroupDetailsSkeleton";
 
 export default function GroupDetailsScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams();
-  const { groups, addExpense, getUserBalance } = useGroups();
+  const { id, name, memberCount } = useLocalSearchParams<{
+    id: string;
+    name: string;
+    memberCount: string;
+  }>();
+  const {
+    groupDetail,
+    isLoadingDetail,
+    detailError,
+    fetchGroupDetail,
+    clearDetail,
+  } = useGroupStore();
   const [showAddExpense, setShowAddExpense] = useState(false);
+  const [settleMember, setSettleMember] = useState<GroupMemberBalance | null>(
+    null,
+  );
 
-  // Parse group from params
-  let group: Group | undefined;
-
-  try {
-    const groupId = params.id as string;
-    const name = params.name as string;
-    const membersStr = params.members as string;
-    const expensesStr = params.expenses as string;
-    const createdAt = params.createdAt as string;
-
-    if (groupId && name && membersStr && expensesStr) {
-      group = {
-        id: groupId,
-        name,
-        members: JSON.parse(membersStr),
-        expenses: JSON.parse(expensesStr),
-        createdAt,
-      };
-    }
-  } catch (error) {
-    console.error("Error parsing group params:", error);
-    const groupId = params.id as string;
-    group = groupId ? groups.find((g) => g.id === groupId) : undefined;
-  }
-
-  if (!group) {
-    return (
-      <SafeAreaView className="flex-1 bg-black">
-        <View className="flex-1 items-center justify-center">
-          <Text className="text-white/40">Group not found</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  const balance = getUserBalance(group);
-
-  const handleSettleUp = () => {
-    if (!group || balance.youOwe <= 0) return;
-    router.push({
-      pathname: "/send",
-      params: {
-        preselectedName: group.members[1]?.name || "Group Member",
-        preselectedAddress: group.members[1]?.address,
-        amount: balance.youOwe.toFixed(2),
-        note: `Settlement: ${group.name}`,
-      },
-    });
-  };
-
-  const handleAddExpense = (
-    paidById: string,
-    paidByName: string,
-    amount: number,
-    description: string,
-  ) => {
-    if (!group) return;
-    addExpense(group.id, paidById, paidByName, amount, description);
-  };
+  useEffect(() => {
+    if (id) fetchGroupDetail(id);
+    return () => clearDetail();
+  }, [id]);
 
   return (
     <SafeAreaView className="flex-1 bg-black">
       <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
         <GroupDetailsHeader
-          name={group.name}
-          members={group.members}
+          name={name ?? ""}
+          members={groupDetail?.members ?? []}
+          memberCount={
+            parseInt(memberCount ?? "0", 10) || groupDetail?.members.length
+          }
           onBack={() => router.back()}
         />
 
-        <GroupBalanceCard balance={balance} onSettleUp={handleSettleUp} />
+        {groupDetail && (
+          <MemberBalanceList
+            memberBalances={groupDetail.memberBalances}
+            onSettle={(member) => setSettleMember(member)}
+          />
+        )}
 
-        <GroupExpenseList
-          expenses={group.expenses}
-          memberCount={group.members.length}
-        />
+        {isLoadingDetail ? (
+          <GroupDetailsSkeleton />
+        ) : detailError ? (
+          <View className="py-12 items-center gap-2 px-6">
+            <Text className="text-white/40 text-center">{detailError}</Text>
+            <Pressable
+              onPress={() => id && fetchGroupDetail(id)}
+              className="mt-2"
+            >
+              <Text
+                className="text-xs font-mono"
+                style={{ color: COLORS.accent }}
+              >
+                Retry
+              </Text>
+            </Pressable>
+          </View>
+        ) : groupDetail ? (
+          <GroupExpenseList
+            expenses={groupDetail.expenses}
+            memberCount={groupDetail.members.length}
+          />
+        ) : null}
       </ScrollView>
 
       <AddExpenseModal
         isOpen={showAddExpense}
         onClose={() => setShowAddExpense(false)}
-        members={group.members}
-        onAdd={handleAddExpense}
+        groupId={id ?? ""}
+        memberCount={
+          groupDetail?.members.length ?? parseInt(memberCount ?? "0", 10)
+        }
       />
 
-      {/* Floating Add Expense Button */}
+      <SettleBottomSheet
+        isOpen={settleMember !== null}
+        onClose={() => setSettleMember(null)}
+        member={settleMember}
+        groupId={id ?? ""}
+        groupName={name ?? ""}
+        onSettled={() => {
+          setSettleMember(null);
+          if (id) fetchGroupDetail(id);
+        }}
+      />
+
       <Pressable
         onPress={() => setShowAddExpense(true)}
         className="absolute bottom-6 right-6 w-14 h-14 rounded-full items-center justify-center active:opacity-80"

@@ -11,6 +11,8 @@ class UserService {
         email: true,
         profilePicUrl: true,
         displayName: true,
+        smartAccountAddress: true,
+        authProvider: true,
         createdAt: true,
       },
     });
@@ -70,7 +72,9 @@ class UserService {
         handle: true,
         email: true,
         profilePicUrl: true,
-        updatedAt: true,
+        displayName: true,
+        smartAccountAddress: true,
+        authProvider: true,
       },
     });
 
@@ -85,6 +89,9 @@ class UserService {
         OR: [
           { handle: { contains: cleanQuery, mode: "insensitive" } },
           { displayName: { contains: cleanQuery, mode: "insensitive" } },
+          {
+            smartAccountAddress: { contains: cleanQuery, mode: "insensitive" },
+          },
         ],
       },
       take: 5,
@@ -104,11 +111,25 @@ class UserService {
   public async getRecentContacts(userId: string, limit: number = 8) {
     const recentTx = await prisma.transaction.findMany({
       where: {
-        senderId: userId,
-        receiverId: { not: null },
+        OR: [
+          { senderId: userId, receiverId: { not: null } },
+          { receiverId: userId },
+        ],
       },
       orderBy: { createdAt: "desc" },
       select: {
+        senderId: true,
+        receiverId: true,
+        sender: {
+          select: {
+            id: true,
+            handle: true,
+            displayName: true,
+            profilePicUrl: true,
+            publicAddress: true,
+            smartAccountAddress: true,
+          },
+        },
         receiver: {
           select: {
             id: true,
@@ -120,11 +141,21 @@ class UserService {
           },
         },
       },
-      distinct: ["receiverId"],
-      take: limit,
+      take: limit * 4,
     });
 
-    return recentTx.map((tx) => tx.receiver!);
+    const seen = new Set<string>();
+    const contacts = [];
+
+    for (const tx of recentTx) {
+      const counterparty = tx.senderId === userId ? tx.receiver : tx.sender;
+      if (!counterparty || seen.has(counterparty.id)) continue;
+      seen.add(counterparty.id);
+      contacts.push(counterparty);
+      if (contacts.length === limit) break;
+    }
+
+    return contacts;
   }
 
   public async getUserByHandle(

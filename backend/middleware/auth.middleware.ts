@@ -4,7 +4,6 @@ import { ErrorHandler } from "../utils/errorHandler";
 import prisma from "../config/prisma";
 import { JWT_SECRET } from "../utils/constants";
 
-// Extend Express Request type to include user
 declare global {
   namespace Express {
     interface Request {
@@ -28,7 +27,6 @@ export const authentication = async (
   }
 
   if (!token) {
-    console.log("No token found in request headers");
     return next(new ErrorHandler("Not authorized to access this route", 401));
   }
 

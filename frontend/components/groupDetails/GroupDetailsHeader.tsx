@@ -1,21 +1,24 @@
 import { View, Text, Pressable } from "react-native";
 import { ArrowLeft } from "lucide-react-native";
 import { COLORS } from "@/utils/constants";
-import { GroupMember } from "@/hooks/useGroups";
+import { GroupMember } from "@/stores/useGroupStore";
 
 interface GroupDetailsHeaderProps {
   name: string;
   members: GroupMember[];
+  memberCount?: number;
   onBack: () => void;
 }
 
 export const GroupDetailsHeader = ({
   name,
   members,
+  memberCount,
   onBack,
 }: GroupDetailsHeaderProps) => {
   const visible = members.slice(0, 4);
   const overflow = members.length - visible.length;
+  const displayCount = memberCount ?? members.length;
 
   return (
     <View className="flex-row items-center gap-3 px-6 pt-4 pb-6">
@@ -37,7 +40,7 @@ export const GroupDetailsHeader = ({
           className="text-xs font-mono mt-0.5"
           style={{ color: `${COLORS.white}66` }}
         >
-          {members.length} members · Base Network
+          {displayCount} members · Base Network
         </Text>
       </View>
 

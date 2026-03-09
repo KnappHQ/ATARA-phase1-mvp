@@ -46,7 +46,6 @@ export const QuickSendBar = () => {
         contactId: contact.id,
         contactHandle: contact.handle,
         contactName: contact.name ?? "",
-        contactAddress: contact.publicAddress,
         contactSmartAddress: contact.smartAccountAddress,
         contactProfilePic: contact.profilePicUrl ?? "",
       },

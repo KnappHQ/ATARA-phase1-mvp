@@ -7,57 +7,56 @@ import {
   Pressable,
   TouchableOpacity,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { MotiView } from "moti";
-import { X, DollarSign, FileText, User } from "lucide-react-native";
+import { X, DollarSign, FileText } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { COLORS } from "@/utils/constants";
-import { GroupMember } from "@/hooks/useGroups";
+import { useGroupStore } from "@/stores/useGroupStore";
 
 interface AddExpenseModalProps {
   isOpen: boolean;
   onClose: () => void;
-  members: GroupMember[];
-  onAdd: (
-    paidById: string,
-    paidByName: string,
-    amount: number,
-    description: string,
-  ) => void;
+  groupId: string;
+  memberCount: number;
 }
 
 export const AddExpenseModal = ({
   isOpen,
   onClose,
-  members,
-  onAdd,
+  groupId,
+  memberCount,
 }: AddExpenseModalProps) => {
+  const { addExpense } = useGroupStore();
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
-  const [paidById, setPaidById] = useState(members[0]?.id ?? "");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isValid =
-    description.trim().length > 0 &&
-    parseFloat(amount) > 0 &&
-    paidById.length > 0;
+    description.trim().length > 0 && parseFloat(amount) > 0 && !isSubmitting;
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!isValid) return;
-    const member = members.find((m) => m.id === paidById);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    onAdd(paidById, member?.name ?? "", parseFloat(amount), description.trim());
-    // reset
-    setDescription("");
-    setAmount("");
-    setPaidById(members[0]?.id ?? "");
-    onClose();
+    setIsSubmitting(true);
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await addExpense(groupId, description.trim(), parseFloat(amount));
+      setDescription("");
+      setAmount("");
+      onClose();
+    } catch (err: any) {
+      console.error("Failed to add expense:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleClose = () => {
+    if (isSubmitting) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setDescription("");
     setAmount("");
-    setPaidById(members[0]?.id ?? "");
     onClose();
   };
 
@@ -143,8 +142,10 @@ export const AddExpenseModal = ({
                       backgroundColor: `${COLORS.white}06`,
                       borderWidth: 1,
                       borderColor: `${COLORS.white}15`,
+                      opacity: isSubmitting ? 0.5 : 1,
                     }}
                     autoFocus
+                    editable={!isSubmitting}
                   />
                 </View>
 
@@ -179,67 +180,13 @@ export const AddExpenseModal = ({
                       placeholderTextColor={`${COLORS.white}30`}
                       keyboardType="decimal-pad"
                       className="flex-1 px-2 py-4 text-xl font-mono text-white"
+                      editable={!isSubmitting}
+                      style={{ opacity: isSubmitting ? 0.5 : 1 }}
                     />
                   </View>
                 </View>
 
-                <View>
-                  <View className="flex-row items-center gap-1.5 mb-2">
-                    <User size={12} color={`${COLORS.white}66`} />
-                    <Text
-                      className="text-xs font-mono uppercase tracking-wide"
-                      style={{ color: `${COLORS.white}66` }}
-                    >
-                      Paid By
-                    </Text>
-                  </View>
-                  <View className="flex-row flex-wrap gap-2">
-                    {members.map((member) => {
-                      const active = paidById === member.id;
-                      return (
-                        <Pressable
-                          key={member.id}
-                          onPress={() => setPaidById(member.id)}
-                          className="flex-row items-center gap-2 px-3 py-2.5 rounded-2xl"
-                          style={{
-                            backgroundColor: active
-                              ? `${COLORS.platinum}22`
-                              : `${COLORS.white}06`,
-                            borderWidth: 1,
-                            borderColor: active
-                              ? `${COLORS.platinum}66`
-                              : `${COLORS.white}15`,
-                          }}
-                        >
-                          <View
-                            className="w-6 h-6 rounded-full items-center justify-center"
-                            style={{
-                              backgroundColor: active
-                                ? `${COLORS.platinum}44`
-                                : `${COLORS.white}10`,
-                            }}
-                          >
-                            <Text className="text-[9px] font-semibold text-white">
-                              {member.avatar}
-                            </Text>
-                          </View>
-                          <Text
-                            className="text-sm font-medium"
-                            style={{
-                              color: active
-                                ? COLORS.platinum
-                                : `${COLORS.white}80`,
-                            }}
-                          >
-                            {member.name.split(" ")[0]}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-
-                {parseFloat(amount) > 0 && members.length > 0 && (
+                {parseFloat(amount) > 0 && memberCount > 0 && (
                   <MotiView
                     from={{ opacity: 0, translateY: 4 }}
                     animate={{ opacity: 1, translateY: 0 }}
@@ -257,9 +204,9 @@ export const AddExpenseModal = ({
                     >
                       Split equally ·{" "}
                       <Text style={{ color: `${COLORS.white}80` }}>
-                        ${(parseFloat(amount) / members.length).toFixed(2)} each
+                        ${(parseFloat(amount) / memberCount).toFixed(2)} each
                       </Text>{" "}
-                      across {members.length} members
+                      across {memberCount} members
                     </Text>
                   </MotiView>
                 )}
@@ -291,9 +238,13 @@ export const AddExpenseModal = ({
                         : `${COLORS.platinum}40`,
                     }}
                   >
-                    <Text className="text-sm font-mono font-semibold text-black">
-                      Add Expense
-                    </Text>
+                    {isSubmitting ? (
+                      <ActivityIndicator size="small" color="#000" />
+                    ) : (
+                      <Text className="text-sm font-mono font-semibold text-black">
+                        Add Expense
+                      </Text>
+                    )}
                   </Pressable>
                 </View>
               </View>

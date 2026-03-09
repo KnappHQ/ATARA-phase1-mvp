@@ -18,7 +18,6 @@ export const authController = {
         throw new ErrorHandler("Please provide handle and signerAddress", 400);
       }
 
-      // Validate handle format
       if (handle.length < 3 || handle.length > 20) {
         throw new ErrorHandler(
           "Handle must be between 3 and 20 characters",

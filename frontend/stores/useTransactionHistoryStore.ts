@@ -57,6 +57,7 @@ export interface ContactThread {
   lastDate: string;
   lastTime: string;
   lastTimestamp: string;
+  lastCategory: string | null;
   totalReceived: number;
   totalSent: number;
   transactionCount: number;
@@ -93,6 +94,7 @@ const groupTransactionsByContact = (
         lastDate: tx.displayDateShort,
         lastTime: tx.displayTime,
         lastTimestamp: tx.timestamp,
+        lastCategory: null,
         totalReceived: 0,
         totalSent: 0,
         transactionCount: 0,
@@ -125,6 +127,7 @@ const groupTransactionsByContact = (
     thread.lastDate = lastTx.displayDateShort;
     thread.lastTime = lastTx.displayTime;
     thread.lastTimestamp = lastTx.timestamp;
+    thread.lastCategory = lastTx.category || null;
     thread.totalReceived = parseFloat(thread.totalReceived.toFixed(2));
     thread.totalSent = parseFloat(thread.totalSent.toFixed(2));
   });
@@ -143,11 +146,10 @@ const transformTransaction = (tx: HistoryTransaction): DisplayTransaction => {
   let displayName = tx.counterparty.displayName;
   let nickname: string | null = null;
 
-  if (!tx.isInApp && tx.counterparty.address) {
+  if (!tx.counterparty.handle && tx.counterparty.address) {
     const { hasNickname, getDisplayName } = useAddressBookStore.getState();
     if (hasNickname(tx.counterparty.address)) {
       nickname = getDisplayName(tx.counterparty.address);
-      handle = nickname;
       displayName = nickname;
     }
   }
@@ -285,6 +287,10 @@ interface HistoryState {
 
   fetchHistory: () => Promise<void>;
   rebuildDisplayHistory: () => void;
+  updateLocalTransaction: (
+    id: string,
+    changes: { category?: string; userNote?: string | null },
+  ) => void;
   clearError: () => void;
 }
 
@@ -323,6 +329,22 @@ export const useTransactionHistoryStore = create<HistoryState>((set, get) => ({
     const contactThreads = groupTransactionsByContact(displayHistory);
     const weeklyInsights = computeWeeklyInsights(displayHistory);
     set({ displayHistory, contactThreads, weeklyInsights });
+  },
+
+  updateLocalTransaction: (id, changes) => {
+    const { rawHistory } = get();
+    const updated = rawHistory.map((tx) =>
+      tx.id === id ? { ...tx, ...changes } : tx,
+    );
+    const displayHistory = updated.map(transformTransaction);
+    const contactThreads = groupTransactionsByContact(displayHistory);
+    const weeklyInsights = computeWeeklyInsights(displayHistory);
+    set({
+      rawHistory: updated,
+      displayHistory,
+      contactThreads,
+      weeklyInsights,
+    });
   },
 
   clearError: () => {

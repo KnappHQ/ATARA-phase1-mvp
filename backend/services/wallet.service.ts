@@ -158,15 +158,14 @@ class WalletService {
   public async getUserPortfolio(userId: string) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { smartAccountAddress: true, publicAddress: true },
+      select: { smartAccountAddress: true },
     });
 
     if (!user) {
       throw new ErrorHandler("User not found", 404);
     }
 
-    // Use smart account address (where funds actually live)
-    const walletAddress = user.smartAccountAddress || user.publicAddress;
+    const walletAddress = user.smartAccountAddress;
 
     if (!walletAddress) {
       throw new ErrorHandler("Wallet address not found", 404);
@@ -199,6 +198,7 @@ class WalletService {
         name: "Ethereum",
         balance: ethBalanceNum.toFixed(6),
         usdValue: ethUSDValue,
+        usdPrice: ethCurrentPrice,
         change24h: ethUSDValue - ethUSDValue24hAgo,
         percentChange24h:
           ethPrice24hAgo > 0
@@ -217,24 +217,23 @@ class WalletService {
       const usdtUSDValue = usdtBalance * usdtCurrentPrice;
       const usdtUSDValue24hAgo = usdtBalance * usdtPrice24hAgo;
 
-      if (usdtBalance > 0) {
-        tokens.push({
-          symbol: "USDT",
-          name: "Tether USD",
-          balance: usdtBalance.toFixed(2),
-          usdValue: usdtUSDValue,
-          change24h: usdtUSDValue - usdtUSDValue24hAgo,
-          percentChange24h:
-            usdtPrice24hAgo > 0
-              ? ((usdtCurrentPrice - usdtPrice24hAgo) / usdtPrice24hAgo) * 100
-              : 0,
-          decimals: 6,
-          contractAddress: KNOWN_TOKENS.USDT.address,
-        });
+      tokens.push({
+        symbol: "USDT",
+        name: "Tether USD",
+        balance: usdtBalance.toFixed(2),
+        usdValue: usdtUSDValue,
+        usdPrice: usdtCurrentPrice,
+        change24h: usdtUSDValue - usdtUSDValue24hAgo,
+        percentChange24h:
+          usdtPrice24hAgo > 0
+            ? ((usdtCurrentPrice - usdtPrice24hAgo) / usdtPrice24hAgo) * 100
+            : 0,
+        decimals: 6,
+        contractAddress: KNOWN_TOKENS.USDT.address,
+      });
 
-        totalUSD += usdtUSDValue;
-        totalUSD24hAgo += usdtUSDValue24hAgo;
-      }
+      totalUSD += usdtUSDValue;
+      totalUSD24hAgo += usdtUSDValue24hAgo;
 
       // USDC
       const usdcBalance = parseFloat(tokenBalances.USDC);
@@ -243,34 +242,34 @@ class WalletService {
       const usdcUSDValue = usdcBalance * usdcCurrentPrice;
       const usdcUSDValue24hAgo = usdcBalance * usdcPrice24hAgo;
 
-      if (usdcBalance > 0) {
-        tokens.push({
-          symbol: "USDC",
-          name: "USD Coin",
-          balance: usdcBalance.toFixed(2),
-          usdValue: usdcUSDValue,
-          change24h: usdcUSDValue - usdcUSDValue24hAgo,
-          percentChange24h:
-            usdcPrice24hAgo > 0
-              ? ((usdcCurrentPrice - usdcPrice24hAgo) / usdcPrice24hAgo) * 100
-              : 0,
-          decimals: 6,
-          contractAddress: KNOWN_TOKENS.USDC.address,
-        });
+      tokens.push({
+        symbol: "USDC",
+        name: "USD Coin",
+        balance: usdcBalance.toFixed(2),
+        usdValue: usdcUSDValue,
+        usdPrice: usdcCurrentPrice,
+        change24h: usdcUSDValue - usdcUSDValue24hAgo,
+        percentChange24h:
+          usdcPrice24hAgo > 0
+            ? ((usdcCurrentPrice - usdcPrice24hAgo) / usdcPrice24hAgo) * 100
+            : 0,
+        decimals: 6,
+        contractAddress: KNOWN_TOKENS.USDC.address,
+      });
 
-        totalUSD += usdcUSDValue;
-        totalUSD24hAgo += usdcUSDValue24hAgo;
-      }
+      totalUSD += usdcUSDValue;
+      totalUSD24hAgo += usdcUSDValue24hAgo;
 
       const change24h = totalUSD - totalUSD24hAgo;
       const percentChange24h =
         totalUSD24hAgo > 0 ? (change24h / totalUSD24hAgo) * 100 : 0;
 
+      console.log("karan", tokens);
+
       return {
         totalUSD: parseFloat(totalUSD.toFixed(2)),
         change24h: parseFloat(change24h.toFixed(2)),
         percentChange24h: parseFloat(percentChange24h.toFixed(2)),
-        tokenPrices: currentPrices,
         tokens,
       };
     } catch (error: any) {

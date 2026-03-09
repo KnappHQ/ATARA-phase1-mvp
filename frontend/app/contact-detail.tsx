@@ -1,28 +1,64 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { View, Text, Pressable, ScrollView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, Send } from "lucide-react-native";
+import {
+  ArrowLeft,
+  Send,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Wine,
+  Utensils,
+  ShoppingBag,
+  ArrowLeftRight,
+  MoreHorizontal,
+  Wifi,
+} from "lucide-react-native";
 import { MotiView } from "moti";
 import { FinancialSummary } from "@/components/activity/FinancialSummary";
 import { COLORS } from "@/utils/constants";
-import { DisplayTransaction } from "@/stores/useTransactionHistoryStore";
+import {
+  DisplayTransaction,
+  useTransactionHistoryStore,
+} from "@/stores/useTransactionHistoryStore";
 
 const truncateAddress = (address: string) => {
   if (!address || address.length < 12) return address;
   return `${address.slice(0, 10)}...${address.slice(-8)}`;
 };
 
+const CATEGORY_ICONS: Record<string, any> = {
+  drinks: Wine,
+  food: Utensils,
+  shopping: ShoppingBag,
+  transfer: ArrowLeftRight,
+  other: MoreHorizontal,
+  // legacy aliases
+  native: ArrowLeftRight,
+  erc20: ArrowLeftRight,
+};
+
+const getCategoryLabel = (category: string | null) => {
+  if (!category || category === "native" || category === "erc20")
+    return "Transfer";
+  return category.charAt(0).toUpperCase() + category.slice(1);
+};
+
 export default function ContactDetail() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
-  const contact = params.address
+  const contactThreads = useTransactionHistoryStore((s) => s.contactThreads);
+
+  const address = params.address as string;
+  const thread = contactThreads.find((t) => t.address === address);
+
+  const contact = address
     ? {
-        address: params.address as string,
-        displayName: params.displayName as string,
-        totalReceived: parseFloat(params.totalReceived as string) || 0,
-        totalSent: parseFloat(params.totalSent as string) || 0,
-        transactions: JSON.parse((params.transactions as string) || "[]"),
+        address,
+        displayName: (thread?.displayName ?? params.displayName) as string,
+        totalReceived: thread?.totalReceived ?? 0,
+        totalSent: thread?.totalSent ?? 0,
+        transactions: thread?.transactions ?? [],
       }
     : null;
 
@@ -32,11 +68,16 @@ export default function ContactDetail() {
 
   const handleSendToContact = () => {
     if (!contact) return;
+    const handle = contact.displayName.startsWith("@")
+      ? contact.displayName.slice(1)
+      : contact.displayName;
     router.push({
       pathname: "/send",
       params: {
-        preselectedName: contact.displayName,
-        preselectedAddress: contact.address,
+        contactId: contact.address,
+        contactHandle: handle,
+        contactName: handle,
+        contactSmartAddress: contact.address,
       },
     });
   };
@@ -48,6 +89,7 @@ export default function ContactDetail() {
         id: tx.id,
         name: tx.counterparty.name,
         address: tx.counterparty.address,
+        handle: tx.counterparty.handle || "",
         amount: tx.formattedAmount,
         date: tx.displayDate,
         type: tx.type,
@@ -95,16 +137,43 @@ export default function ContactDetail() {
                   className="text-sm font-semibold"
                   style={{ color: COLORS.white }}
                 >
-                  {contact.displayName.charAt(0).toUpperCase()}
+                  {contact.displayName
+                    .replace(/^@/, "")
+                    .charAt(0)
+                    .toUpperCase()}
                 </Text>
               </View>
               <View>
-                <Text
-                  className="text-xl font-semibold"
-                  style={{ color: COLORS.white }}
-                >
-                  {contact.displayName.toLowerCase().replace(/\s/g, "")}
-                </Text>
+                <View className="flex-row items-center gap-2">
+                  <Text
+                    className="text-xl font-semibold"
+                    style={{ color: COLORS.white }}
+                  >
+                    {contact.displayName}
+                  </Text>
+                  {contact.transactions[0] &&
+                    !contact.transactions[0].isInApp && (
+                      <View
+                        className="flex-row items-center gap-1 px-2 py-0.5 rounded-full"
+                        style={{
+                          backgroundColor: "rgba(250,204,21,0.08)",
+                          borderWidth: 1,
+                          borderColor: "rgba(250,204,21,0.2)",
+                        }}
+                      >
+                        <Wifi size={9} color="rgba(250,204,21,0.7)" />
+                        <Text
+                          className="text-[9px] uppercase font-medium"
+                          style={{
+                            color: "rgba(250,204,21,0.7)",
+                            letterSpacing: 0.8,
+                          }}
+                        >
+                          External
+                        </Text>
+                      </View>
+                    )}
+                </View>
                 <Text
                   className="text-sm font-mono"
                   style={{ color: "rgba(255, 255, 255, 0.4)" }}
@@ -123,55 +192,119 @@ export default function ContactDetail() {
             />
           </View>
 
-          {/* Transaction Chat Bubbles */}
           <View className="mb-24 px-6">
             {contact.transactions.map(
               (tx: DisplayTransaction, index: number) => {
                 const isReceive = tx.type === "receive";
+                const CategoryIcon =
+                  CATEGORY_ICONS[(tx.category || "other").toLowerCase()] ??
+                  MoreHorizontal;
+                const categoryLabel = getCategoryLabel(tx.category);
 
                 return (
                   <MotiView
                     key={tx.id}
-                    from={{ opacity: 0, translateY: 10 }}
+                    from={{ opacity: 0, translateY: 8 }}
                     animate={{ opacity: 1, translateY: 0 }}
                     transition={{
                       type: "timing",
                       duration: 150,
                       delay: index * 30,
                     }}
-                    className={`mb-3 ${isReceive ? "items-start" : "items-end"}`}
+                    className="mb-3"
                   >
                     <Pressable
                       onPress={() => handleTransactionClick(tx)}
-                      className="p-4 rounded-2xl active:opacity-70"
+                      className="rounded-2xl active:opacity-70"
                       style={{
-                        width: 180,
-                        backgroundColor: isReceive
-                          ? `${COLORS.accent}1A`
-                          : "rgba(255, 255, 255, 0.05)",
+                        backgroundColor: "rgba(255, 255, 255, 0.04)",
                         borderWidth: 1,
                         borderColor: isReceive
-                          ? `${COLORS.accent}33`
-                          : "rgba(255, 255, 255, 0.15)",
+                          ? `${COLORS.emarald}25`
+                          : "rgba(255, 255, 255, 0.09)",
                       }}
                     >
-                      <Text
-                        className="font-mono text-lg font-medium mb-1"
-                        style={{
-                          color: isReceive
-                            ? COLORS.accent
-                            : "rgba(255, 255, 255, 0.6)",
-                        }}
-                      >
-                        {tx.formattedAmount}
-                      </Text>
+                      <View className="flex-row items-center gap-3 px-4 pt-4 pb-3">
+                        <View
+                          className="w-10 h-10 rounded-full items-center justify-center"
+                          style={{
+                            backgroundColor: isReceive
+                              ? `${COLORS.emarald}15`
+                              : "rgba(255,255,255,0.06)",
+                            borderWidth: 1,
+                            borderColor: isReceive
+                              ? `${COLORS.emarald}30`
+                              : "rgba(255,255,255,0.1)",
+                          }}
+                        >
+                          {isReceive ? (
+                            <ArrowDownLeft size={16} color={COLORS.emarald} />
+                          ) : (
+                            <ArrowUpRight
+                              size={16}
+                              color="rgba(255,255,255,0.5)"
+                            />
+                          )}
+                        </View>
 
-                      <Text
-                        className="text-[10px]"
-                        style={{ color: "rgba(255, 255, 255, 0.3)" }}
-                      >
-                        {tx.displayDateShort} • {tx.displayTime}
-                      </Text>
+                        <View className="flex-1">
+                          <Text
+                            className="text-base font-semibold mb-0.5"
+                            style={{
+                              color: isReceive
+                                ? COLORS.emarald
+                                : COLORS.platinum,
+                            }}
+                          >
+                            {tx.formattedAmount}
+                          </Text>
+                          <Text
+                            className="text-xs"
+                            style={{ color: "rgba(255,255,255,0.35)" }}
+                          >
+                            {tx.displayDateShort} · {tx.displayTime}
+                          </Text>
+                        </View>
+
+                        <View
+                          className="flex-row items-center gap-1 px-2 py-1 rounded-full"
+                          style={{
+                            backgroundColor: "rgba(255,255,255,0.06)",
+                            borderWidth: 1,
+                            borderColor: "rgba(255,255,255,0.1)",
+                          }}
+                        >
+                          <CategoryIcon
+                            size={10}
+                            color="rgba(255,255,255,0.4)"
+                          />
+                          <Text
+                            className="text-[9px] uppercase font-medium"
+                            style={{
+                              color: "rgba(255,255,255,0.4)",
+                              letterSpacing: 0.8,
+                            }}
+                          >
+                            {categoryLabel}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Note row — only if note exists */}
+                      {!!tx.userNote && (
+                        <View
+                          className="mx-4 mb-3 px-3 py-2 rounded-xl"
+                          style={{ backgroundColor: "rgba(255,255,255,0.04)" }}
+                        >
+                          <Text
+                            className="text-xs italic"
+                            style={{ color: "rgba(255,255,255,0.4)" }}
+                            numberOfLines={2}
+                          >
+                            "{tx.userNote}"
+                          </Text>
+                        </View>
+                      )}
                     </Pressable>
                   </MotiView>
                 );
@@ -180,7 +313,6 @@ export default function ContactDetail() {
           </View>
         </ScrollView>
 
-        {/* Fixed Send Button at Bottom */}
         <View
           className="absolute bottom-0 left-0 right-0 px-6 pb-6"
           style={{

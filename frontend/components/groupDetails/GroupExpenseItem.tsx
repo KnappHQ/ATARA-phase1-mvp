@@ -1,10 +1,11 @@
 import { View, Text } from "react-native";
 import { MotiView } from "moti";
 import { COLORS } from "@/utils/constants";
-import { GroupExpense } from "@/hooks/useGroups";
+import { GroupExpenseDetail } from "@/stores/useGroupStore";
+import { getInitials } from "@/utils/format";
 
 interface GroupExpenseItemProps {
-  expense: GroupExpense;
+  expense: GroupExpenseDetail;
   index: number;
   memberCount: number;
 }
@@ -38,7 +39,10 @@ export const GroupExpenseItem = ({
           }}
         >
           <Text className="text-xs font-semibold text-white">
-            {expense.paidByName.charAt(0).toUpperCase()}
+            {getInitials(
+              expense.paidByName.startsWith("@") ? null : expense.paidByName,
+              expense.paidByName,
+            )}
           </Text>
         </View>
         <View className="flex-1">

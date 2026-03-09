@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { MotiView } from "moti";
 import { ArrowUpRight, ArrowDownLeft } from "lucide-react-native";
@@ -6,37 +6,65 @@ import * as Haptics from "expo-haptics";
 import { SparklineChart } from "./SparklineChart";
 import { COLORS } from "@/utils/constants";
 import { useTransactionHistoryStore } from "@/stores/useTransactionHistoryStore";
+import { useWalletStore } from "@/stores/useWalletStore";
 
 export const WeeklyInsights = () => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { weeklyInsights } = useTransactionHistoryStore();
+  const { weeklyInsights, rebuildDisplayHistory, rawHistory } =
+    useTransactionHistoryStore();
+  const { assets } = useWalletStore();
+
+  useEffect(() => {
+    if (assets.length > 0 && rawHistory.length > 0) {
+      rebuildDisplayHistory();
+    }
+  }, [assets]);
+
+  const usdAvailable = useMemo(() => {
+    if (!weeklyInsights) return false;
+    return (
+      weeklyInsights.totalReceivedUSD > 0 || weeklyInsights.totalSentUSD > 0
+    );
+  }, [weeklyInsights]);
 
   const weeklyFlow = useMemo(() => {
     if (!weeklyInsights) return 0;
-    const { totalReceivedUSD, totalSentUSD } = weeklyInsights;
-    if (totalReceivedUSD === 0 && totalSentUSD === 0) return 0;
-    const diff = totalReceivedUSD - totalSentUSD;
-    const total = Math.max(totalReceivedUSD, totalSentUSD);
-    return total > 0 ? (diff / total) * 100 : 0;
-  }, [weeklyInsights]);
+    if (usdAvailable) {
+      const { totalReceivedUSD, totalSentUSD } = weeklyInsights;
+      const diff = totalReceivedUSD - totalSentUSD;
+      const total = Math.max(totalReceivedUSD, totalSentUSD);
+      return total > 0 ? (diff / total) * 100 : 0;
+    }
+    const totalReceived = weeklyInsights.days.reduce(
+      (s, d) => s + d.transactionCount,
+      0,
+    );
+    return totalReceived > 0 ? 100 : 0;
+  }, [weeklyInsights, usdAvailable]);
 
   const isFlowPositive = weeklyFlow >= 0;
 
-  // Drive the sparkline from daily received - sent USD values
   const splineData = useMemo(() => {
-    if (weeklyInsights?.days?.length) {
+    if (!weeklyInsights?.days?.length) {
+      const trend = isFlowPositive ? 1 : -1;
+      return Array.from({ length: 25 }, (_, i) => {
+        const noise = Math.sin(i * 0.6) * 6 + Math.cos(i * 0.9) * 4;
+        const trendComponent = (i / 24) * Math.abs(weeklyFlow) * 0.4 * trend;
+        return 50 + noise + trendComponent;
+      });
+    }
+    if (usdAvailable) {
       return weeklyInsights.days.map(
         (d) => 50 + (d.totalReceivedUSD - d.totalSentUSD),
       );
     }
-    // Fallback synthetic curve
-    const trend = isFlowPositive ? 1 : -1;
-    return Array.from({ length: 25 }, (_, i) => {
-      const noise = Math.sin(i * 0.6) * 6 + Math.cos(i * 0.9) * 4;
-      const trendComponent = (i / 24) * Math.abs(weeklyFlow) * 0.4 * trend;
-      return 50 + noise + trendComponent;
-    });
-  }, [weeklyInsights, weeklyFlow, isFlowPositive]);
+    const counts = weeklyInsights.days.map((d) => d.transactionCount);
+    const hasActivity = counts.some((c) => c > 0);
+    if (!hasActivity) {
+      return Array.from({ length: 7 }, () => 50);
+    }
+    return counts.map((c) => 50 + c * 5);
+  }, [weeklyInsights, weeklyFlow, isFlowPositive, usdAvailable]);
 
   const handleTap = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

@@ -3,6 +3,7 @@ import { transactionService } from "../services/transaction.service";
 import { catchAsync } from "../utils/catchAsync";
 import { ErrorHandler } from "../utils/errorHandler";
 import { TxStatus } from "../generated/prisma";
+import { TRANSACTION_CATEGORIES } from "../utils/constants";
 
 export const transactionController = {
   resolveHandle: catchAsync(
@@ -102,6 +103,16 @@ export const transactionController = {
       if (!category && !userNote && !status) {
         throw new ErrorHandler(
           "Please provide category, userNote, or status to update",
+          400,
+        );
+      }
+
+      if (
+        category &&
+        !(TRANSACTION_CATEGORIES as readonly string[]).includes(category)
+      ) {
+        throw new ErrorHandler(
+          `Invalid category. Must be one of: ${TRANSACTION_CATEGORIES.join(", ")}`,
           400,
         );
       }
