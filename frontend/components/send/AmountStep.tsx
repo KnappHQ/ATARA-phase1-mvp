@@ -16,6 +16,7 @@ import {
   SendTransactionRequest,
 } from "@/services/transaction.service";
 import { GroupService } from "@/services/group.service";
+import { analyticsEvents } from "@/services/analytics.service";
 import { COLORS } from "@/utils/constants";
 import {
   formatTokenAmount,
@@ -56,8 +57,6 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
   const smartAccountService = useSmartAccountService();
   const transactionService = useTransactionService(smartAccountService);
 
-  /** Convert a USD amount to token units using the current token's usdPrice.
-   * Falls back to the raw USD string if price is unavailable (e.g. stablecoins where price ≈ 1). */
   const usdToTokenAmount = (usdAmt: number, token: Token): string => {
     if (!token.usdPrice || token.usdPrice <= 0) return usdAmt.toFixed(2);
     const tokenAmt = usdAmt / token.usdPrice;
@@ -177,6 +176,16 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
         await transactionService.sendTransaction(transactionRequest);
 
       if (result.success) {
+        analyticsEvents.transactionSent({
+          token: selectedToken.symbol,
+          amountUsd:
+            selectedToken.usdPrice > 0
+              ? amountValue * selectedToken.usdPrice
+              : amountValue,
+          isInApp: true,
+          hasNote: !!note,
+          isSettlement: !!settlementGroupId,
+        });
         router.push({
           pathname: "/transaction-success",
           params: {
@@ -191,6 +200,10 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
         throw new Error(result.error || "Transaction failed");
       }
     } catch (error: any) {
+      analyticsEvents.transactionFailed({
+        token: selectedToken.symbol,
+        errorMessage: error?.message ?? "unknown error",
+      });
       // Error is stored in transaction store
     } finally {
       setIsSending(false);

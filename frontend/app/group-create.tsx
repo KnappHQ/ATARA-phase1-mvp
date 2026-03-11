@@ -8,6 +8,8 @@ import {
   mapContactToMember,
 } from "@/stores/useGroupStore";
 import { useContactStore } from "@/stores/useContactStore";
+import { useAlertStore } from "@/stores/useAlertStore";
+import { analyticsEvents } from "@/services/analytics.service";
 import { GroupCreateHeader } from "@/components/groupCreate/GroupCreateHeader";
 import { GroupNameInput } from "@/components/groupCreate/GroupNameInput";
 import { GroupMemberPills } from "@/components/groupCreate/GroupMemberPills";
@@ -68,9 +70,15 @@ export default function GroupCreateScreen() {
     try {
       const handles = selectedMembers.map((m) => m.handle);
       await createGroup(groupName.trim(), handles);
+      analyticsEvents.groupCreated({ memberCount: selectedMembers.length });
       router.back();
     } catch (err: any) {
-      console.error("Failed to create group:", err);
+      useAlertStore
+        .getState()
+        .error(
+          "Couldn't create group",
+          err?.response?.data?.message || "Please try again",
+        );
     } finally {
       setIsCreating(false);
     }

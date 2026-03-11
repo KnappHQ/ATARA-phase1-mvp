@@ -6,7 +6,6 @@ import {
   Modal,
   Pressable,
   TouchableOpacity,
-  Alert,
   ActivityIndicator,
 } from "react-native";
 import { MotiView } from "moti";
@@ -14,6 +13,7 @@ import { X, Send, Check } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { COLORS } from "@/utils/constants";
 import { FeedbackService } from "@/services/feedback.service";
+import { useAlertStore } from "@/stores/useAlertStore";
 
 interface FeedbackModalProps {
   isOpen: boolean;
@@ -39,10 +39,12 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
         onClose();
       }, 2000);
     } catch (err) {
-      Alert.alert(
-        "Failed to send feedback",
-        "Please try again or contact us at support@atara.app",
-      );
+      useAlertStore
+        .getState()
+        .error(
+          "Failed to send feedback",
+          "Please try again or contact us at support@atara.app",
+        );
     } finally {
       setIsLoading(false);
     }

@@ -1,5 +1,6 @@
 import { useAuthStore } from "../stores/useAuthStore";
 import { api } from "./api";
+import { analyticsEvents } from "./analytics.service";
 
 interface RegisterParams {
   handle: string;
@@ -15,6 +16,11 @@ export const AuthService = {
 
     const { user, token } = response.data;
     await useAuthStore.getState().setAuth(user, token);
+
+    analyticsEvents.userSignedUp({
+      handle: user.handle,
+      authProvider: params.authProvider,
+    });
 
     return user;
   },

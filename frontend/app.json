@@ -48,12 +48,15 @@
             "deploymentTarget": "17.0"
           }
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "extra": {
       "EXPO_PUBLIC_ALCHEMY_API_KEY": "",
       "EXPO_PUBLIC_ALCHEMY_GAS_POLICY_ID": "",
-      "router": { "origin": false }
+      "router": {
+        "origin": false
+      }
     },
     "experiments": {
       "typedRoutes": true,

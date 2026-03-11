@@ -2,11 +2,13 @@ import { useState } from "react";
 import { View, Text, Pressable, Modal, ActivityIndicator } from "react-native";
 import * as Haptics from "expo-haptics";
 import { MotiView } from "moti";
-import { X, ArrowRight, CheckCircle, AlertCircle } from "lucide-react-native";
+import { X, ArrowRight, CheckCircle } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/utils/constants";
 import { GroupMemberBalance } from "@/stores/useGroupStore";
 import { GroupService } from "@/services/group.service";
+import { useAlertStore } from "@/stores/useAlertStore";
+import { analyticsEvents } from "@/services/analytics.service";
 
 interface SettleBottomSheetProps {
   isOpen: boolean;
@@ -29,7 +31,6 @@ export const SettleBottomSheet = ({
   const router = useRouter();
   const [confirmManual, setConfirmManual] = useState(false);
   const [isMarkingSettled, setIsMarkingSettled] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   if (!member) return null;
 
@@ -39,13 +40,13 @@ export const SettleBottomSheet = ({
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setConfirmManual(false);
-    setError(null);
     onClose();
   };
 
   const handleSendAndSettle = () => {
     if (!member.smartAccountAddress) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    analyticsEvents.groupSettled({ settleType: "on_chain" });
     handleClose();
     router.push({
       pathname: "/send",
@@ -65,16 +66,19 @@ export const SettleBottomSheet = ({
   const handleManualSettle = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsMarkingSettled(true);
-    setError(null);
     try {
       await GroupService.markAsSettledManually(groupId, member.userId);
+      analyticsEvents.groupSettled({ settleType: "manual" });
       handleClose();
       onSettled();
     } catch (err: any) {
-      setError(
-        err.response?.data?.message ||
-          "Failed to mark as settled. Please try again.",
-      );
+      useAlertStore
+        .getState()
+        .error(
+          "Couldn't mark as settled",
+          err.response?.data?.message || "Please try again.",
+        );
+      handleClose();
     } finally {
       setIsMarkingSettled(false);
     }
@@ -179,7 +183,10 @@ export const SettleBottomSheet = ({
               {/* Option 2 — Mark as Settled */}
               {!confirmManual ? (
                 <Pressable
-                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setConfirmManual(true); }}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setConfirmManual(true);
+                  }}
                   className="flex-row items-center gap-4 p-4 rounded-2xl active:opacity-80"
                   style={{
                     backgroundColor: "rgba(255,255,255,0.05)",
@@ -230,24 +237,11 @@ export const SettleBottomSheet = ({
                     outside the app?
                   </Text>
 
-                  {error && (
-                    <View className="flex-row items-center gap-2 mb-3">
-                      <AlertCircle size={14} color="#FF6B6B" />
-                      <Text
-                        className="text-xs flex-1"
-                        style={{ color: "#FF6B6B" }}
-                      >
-                        {error}
-                      </Text>
-                    </View>
-                  )}
-
                   <View className="flex-row gap-3">
                     <Pressable
                       onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         setConfirmManual(false);
-                        setError(null);
                       }}
                       className="flex-1 py-3 rounded-xl items-center active:opacity-70"
                       style={{ backgroundColor: "rgba(255,255,255,0.08)" }}

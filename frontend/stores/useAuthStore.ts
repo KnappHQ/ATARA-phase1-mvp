@@ -2,6 +2,10 @@ import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 import { useWalletStore } from "./useWalletStore";
 import { UserService } from "@/services/user.service";
+import {
+  analyticsIdentify,
+  analyticsReset,
+} from "@/services/analytics.service";
 
 interface UserProfile {
   id: string;
@@ -38,6 +42,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     set({ user, token, isAuthenticated: true });
 
+    analyticsIdentify(user.id, {
+      handle: user.handle,
+      email: user.email,
+      authProvider: user.authProvider,
+      displayName: user.displayName,
+    });
+
     // Initialize wallet address after login
     if (user.smartAccountAddress) {
       useWalletStore.getState().setWalletAddress(user.smartAccountAddress);
@@ -48,6 +59,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await SecureStore.deleteItemAsync("auth_token");
     await SecureStore.deleteItemAsync("user_profile");
 
+    analyticsReset();
     set({ user: null, token: null, isAuthenticated: false });
   },
 
@@ -62,6 +74,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           token,
           user,
           isAuthenticated: true,
+        });
+
+        analyticsIdentify(user.id, {
+          handle: user.handle,
+          email: user.email,
+          authProvider: user.authProvider,
+          displayName: user.displayName,
         });
 
         // Initialize wallet address on session restore

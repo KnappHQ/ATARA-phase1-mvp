@@ -4,7 +4,7 @@ import "@account-kit/react-native";
 
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack, useRouter, useSegments, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -13,6 +13,9 @@ import { AlchemySignerStatus } from "@account-kit/signer";
 
 import { AlchemyProvider } from "../providers/AlchemyProvider";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useAlertStore } from "@/stores/useAlertStore";
+import { AppAlert } from "@/components/alert/AppAlert";
+import { analyticsScreen } from "@/services/analytics.service";
 
 import "./global.css";
 
@@ -44,6 +47,8 @@ export default function RootLayout() {
 function RootLayoutInner() {
   const router = useRouter();
   const segments = useSegments();
+  const pathname = usePathname();
+  const { alert, visible, dismiss } = useAlertStore();
 
   const {
     isAuthenticated,
@@ -61,6 +66,11 @@ function RootLayoutInner() {
   useEffect(() => {
     loadSession();
   }, []);
+
+  // Manual screen tracking — expo-router + React Navigation v7 blocks autocapture
+  useEffect(() => {
+    analyticsScreen(pathname);
+  }, [pathname]);
 
   useEffect(() => {
     if (!isReady) return;
@@ -166,6 +176,15 @@ function RootLayoutInner() {
           }}
         />
       </Stack>
+      {alert && (
+        <AppAlert
+          type={alert.type}
+          title={alert.title}
+          message={alert.message}
+          visible={visible}
+          onDismiss={dismiss}
+        />
+      )}
     </>
   );
 }
