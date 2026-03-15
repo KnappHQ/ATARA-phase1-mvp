@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "astra",
+    "name": "ATARA",
     "slug": "astra",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -36,9 +36,13 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
+          "imageWidth": 148,
           "resizeMode": "contain",
-          "backgroundColor": "#070609"
+          "backgroundColor": "#070609",
+          "dark": {
+            "image": "./assets/images/splash-icon.png",
+            "backgroundColor": "#070609"
+          }
         }
       ],
       [
