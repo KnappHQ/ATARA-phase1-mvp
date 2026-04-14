@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 import prisma from "../config/prisma";
-import { TxStatus } from "../generated/prisma";
+import type { TxStatus } from "@prisma/client";
 import { ErrorHandler } from "../utils/errorHandler";
 import {
   ALCHEMY_URL,

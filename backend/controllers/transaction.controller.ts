@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { transactionService } from "../services/transaction.service";
 import { catchAsync } from "../utils/catchAsync";
 import { ErrorHandler } from "../utils/errorHandler";
-import { TxStatus } from "../generated/prisma";
+import type { TxStatus } from "@prisma/client";
 import { TRANSACTION_CATEGORIES } from "../utils/constants";
 
 export const transactionController = {

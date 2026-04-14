@@ -8,11 +8,6 @@ export const CORS_ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || "")
   .map((origin) => origin.trim())
   .filter(Boolean);
 
-// 0x API Constants
-export const ZEROX_API_KEY = process.env.ZEROX_API_KEY || "";
-export const ZEROX_BASE_URL = "https://api.0x.org";
-export const ZEROX_CHAIN_ID = 8453; // Base Mainnet
-
 //auth constants
 export const JWT_SECRET = process.env.JWT_SECRET || "";
 export const JWT_EXPIRES_IN = "7d";

@@ -15,6 +15,8 @@ import { ErrorHandler } from "./utils/errorHandler";
 
 const app: Application = express();
 
+app.set("trust proxy", 1);
+
 const validateRequiredEnv = () => {
   if (!JWT_SECRET.trim()) {
     console.error(
