@@ -4,6 +4,9 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { isProd } from "../utils/constants";
 import fs from "fs";
 
+console.log(
+  isProd ? "Running in production mode" : "Running in development mode",
+);
 const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
   ssl: isProd
