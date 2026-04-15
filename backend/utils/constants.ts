@@ -2,6 +2,7 @@
 export const PORT = Number(process.env.PORT || 4000);
 export const NODE_ENV = process.env.NODE_ENV || "development";
 export const DB_CONNECTION_STRING = process.env.DATABASE_URL || "";
+export const isProd = process.env.NODE_ENV === "production";
 
 export const CORS_ALLOWED_ORIGINS = (process.env.CORS_ALLOWED_ORIGINS || "")
   .split(",")
