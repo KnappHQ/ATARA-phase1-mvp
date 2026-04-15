@@ -8,7 +8,7 @@ const adapter = new PrismaPg({
   connectionString: process.env.DATABASE_URL!,
   ssl: isProd
     ? {
-        ca: fs.readFileSync("certs/supabase-ca.pem", "utf-8"),
+        ca: fs.readFileSync("certs/supabase-ca.crt", "utf-8"),
         rejectUnauthorized: true,
       }
     : false,
