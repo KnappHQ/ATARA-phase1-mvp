@@ -3,19 +3,10 @@ import { ErrorHandler } from "../utils/errorHandler";
 import prisma from "../config/prisma";
 import { ethers } from "ethers";
 import { ALCHEMY_URL, ALCHEMY_KEY } from "../utils/constants";
+import { NETWORK } from "../utils/constants";
+import { getKnownTokens } from "../utils/tokenConfig";
 
-const KNOWN_TOKENS = {
-  USDT: {
-    address: "0x7c6b91D9Be155A6Db01f749217d76fF02A7227F2",
-    symbol: "USDT",
-    decimals: 6,
-  },
-  USDC: {
-    address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-    symbol: "USDC",
-    decimals: 6,
-  },
-};
+const KNOWN_TOKENS = getKnownTokens(NETWORK as "base-sepolia" | "base-mainnet");
 
 const provider = new ethers.providers.JsonRpcProvider(ALCHEMY_URL);
 
@@ -164,14 +155,19 @@ class WalletService {
     address: string,
   ): Promise<{ USDT: string; USDC: string }> {
     try {
+      const trackedTokens = Object.values(KNOWN_TOKENS).filter(
+        (token) => token.address,
+      );
+
+      if (trackedTokens.length === 0) {
+        return { USDT: "0", USDC: "0" };
+      }
+
       const response = await axios.post(ALCHEMY_URL, {
         id: 1,
         jsonrpc: "2.0",
         method: "alchemy_getTokenBalances",
-        params: [
-          address,
-          [KNOWN_TOKENS.USDT.address, KNOWN_TOKENS.USDC.address],
-        ],
+        params: [address, trackedTokens.map((token) => token.address)],
       });
 
       if (response.data.error) {
@@ -180,26 +176,27 @@ class WalletService {
 
       const tokenBalances = response.data.result?.tokenBalances || [];
 
-      const usdtBalance = tokenBalances.find(
-        (t: any) =>
-          t.contractAddress.toLowerCase() ===
-          KNOWN_TOKENS.USDT.address.toLowerCase(),
-      );
-      const usdcBalance = tokenBalances.find(
-        (t: any) =>
-          t.contractAddress.toLowerCase() ===
-          KNOWN_TOKENS.USDC.address.toLowerCase(),
-      );
+      const getBalance = (symbol: keyof typeof KNOWN_TOKENS) => {
+        const token = KNOWN_TOKENS[symbol];
+
+        if (!token.address) {
+          return "0";
+        }
+
+        const balance = tokenBalances.find(
+          (t: any) =>
+            t.contractAddress?.toLowerCase() === token.address.toLowerCase(),
+        );
+
+        return ethers.utils.formatUnits(
+          balance?.tokenBalance || "0",
+          token.decimals,
+        );
+      };
 
       return {
-        USDT: ethers.utils.formatUnits(
-          usdtBalance?.tokenBalance || "0",
-          KNOWN_TOKENS.USDT.decimals,
-        ),
-        USDC: ethers.utils.formatUnits(
-          usdcBalance?.tokenBalance || "0",
-          KNOWN_TOKENS.USDC.decimals,
-        ),
+        USDT: getBalance("USDT"),
+        USDC: getBalance("USDC"),
       };
     } catch (error) {
       console.error("Failed to get token balances:", error);

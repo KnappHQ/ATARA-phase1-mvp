@@ -45,6 +45,7 @@ export default function Onboarding() {
     const checkExistingUser = async () => {
       setIsCheckingBackend(true);
       try {
+        console.log("hello", user);
         await AuthService.loginWithSigner(user.address);
         goToTabs();
       } catch (err: any) {

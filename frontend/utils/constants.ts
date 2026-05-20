@@ -7,6 +7,7 @@ import {
   Wine,
 } from "lucide-react-native";
 import { truncateAddress } from "./format";
+import { getDefaultAssets } from "./tokenConfig";
 
 export type AppNetwork = "base-sepolia" | "base-mainnet";
 
@@ -20,6 +21,8 @@ export const CHAIN_ID = IS_MAINNET ? 8453 : 84532;
 export const NETWORK_NAME = IS_MAINNET ? "Base Mainnet" : "Base Sepolia";
 
 export const API_URL = `${process.env.EXPO_PUBLIC_API_URL}/api/v1`;
+export const NOTION_LEGAL_URL =
+  "https://www.notion.so/ATARA-L-gal-7e2600d5ec90443fb86748254be86885?source=copy_link";
 export const TX_EXPLORER_BASE_URL = IS_MAINNET
   ? "https://basescan.org/tx"
   : "https://sepolia.basescan.org/tx";
@@ -56,34 +59,4 @@ export const COLORS = {
   emarald: "#10b981",
 };
 
-export const DEFAULT_ASSETS = [
-  {
-    symbol: "ETH" as const,
-    name: "Ethereum",
-    balance: "0.0",
-    balanceWei: "0",
-    usdValue: "$0.00",
-    usdPrice: 0,
-    decimals: 18,
-  },
-  {
-    symbol: "USDC" as const,
-    name: "USD Coin",
-    contractAddress: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-    balance: "0.00",
-    balanceWei: "0",
-    usdValue: "$0.00",
-    usdPrice: 0,
-    decimals: 6,
-  },
-  {
-    symbol: "USDT" as const,
-    name: "Tether USD",
-    contractAddress: "0x7c6b91D9Be155A6Db01f749217d76fF02A7227F2",
-    balance: "0.00",
-    balanceWei: "0",
-    usdValue: "$0.00",
-    usdPrice: 0,
-    decimals: 6,
-  },
-];
+export const DEFAULT_ASSETS = getDefaultAssets(APP_NETWORK);

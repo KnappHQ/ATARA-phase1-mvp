@@ -2,6 +2,7 @@ import {
   View,
   Text,
   TextInput,
+  Pressable,
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
@@ -9,11 +10,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MotiView } from "moti";
 import { Check, ChevronRight, AlertCircle } from "lucide-react-native";
 import { CrownIcon } from "./CrownIcon";
-import { COLORS } from "@/utils/constants";
+import { COLORS, NOTION_LEGAL_URL } from "@/utils/constants";
 import { useState, useEffect, useCallback } from "react";
 import { useUser, useSmartAccountClient } from "@account-kit/react-native";
 import { AuthService } from "@/services/auth.service";
 import debounce from "@/utils/debounce";
+import * as Linking from "expo-linking";
 
 interface IdentityScreenProps {
   handle: string;
@@ -31,6 +33,7 @@ export const IdentityScreen = ({
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [acceptedLegalTerms, setAcceptedLegalTerms] = useState(false);
 
   const user = useUser();
   const { client } = useSmartAccountClient({
@@ -65,8 +68,16 @@ export const IdentityScreen = ({
     }
   }, [handle]);
 
+  const openLegalLink = async () => {
+    try {
+      await Linking.openURL(NOTION_LEGAL_URL);
+    } catch {
+      setError("Unable to open legal terms right now.");
+    }
+  };
+
   const handleFinish = async () => {
-    if (!isValid || !isAvailable) return;
+    if (!isValid || !isAvailable || !acceptedLegalTerms) return;
 
     setIsRegistering(true);
     setError(null);
@@ -101,7 +112,8 @@ export const IdentityScreen = ({
     }
   };
 
-  const canSubmit = isValid && isAvailable === true && !isRegistering;
+  const canSubmit =
+    isValid && isAvailable === true && acceptedLegalTerms && !isRegistering;
 
   return (
     <SafeAreaView className="flex-1 items-center justify-center px-8">
@@ -159,6 +171,45 @@ export const IdentityScreen = ({
 
         {error && (
           <Text className="text-red-400 text-xs mt-2 px-1">{error}</Text>
+        )}
+
+        <View className="mt-5 flex-row items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
+          <Pressable
+            onPress={() => setAcceptedLegalTerms((value) => !value)}
+            className={`mt-0.5 h-5 w-5 items-center justify-center rounded-[6px] border ${
+              acceptedLegalTerms
+                ? "border-white bg-white"
+                : "border-white/30 bg-transparent"
+            }`}
+          >
+            {acceptedLegalTerms && (
+              <Check size={13} color={COLORS.black} strokeWidth={3} />
+            )}
+          </Pressable>
+
+          <Text className="flex-1 text-[12px] leading-5 text-white/75">
+            I agree to the{` `}
+            <Text
+              onPress={openLegalLink}
+              className="font-semibold text-white underline underline-offset-2"
+            >
+              Terms of Service
+            </Text>
+            {` `}and{` `}
+            <Text
+              onPress={openLegalLink}
+              className="font-semibold text-white underline underline-offset-2"
+            >
+              Privacy Policy
+            </Text>
+            .
+          </Text>
+        </View>
+
+        {!acceptedLegalTerms && (
+          <Text className="mt-2 px-1 text-[11px] text-white/35">
+            Please accept the terms to continue.
+          </Text>
         )}
       </MotiView>
 

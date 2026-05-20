@@ -57,6 +57,9 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
   const smartAccountService = useSmartAccountService();
   const transactionService = useTransactionService(smartAccountService);
 
+  const defaultToken =
+    assets.find((asset) => asset.symbol === "USDC") ?? assets[0];
+
   const usdToTokenAmount = (usdAmt: number, token: Token): string => {
     if (!token.usdPrice || token.usdPrice <= 0) return usdAmt.toFixed(2);
     const tokenAmt = usdAmt / token.usdPrice;
@@ -66,12 +69,12 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
   };
 
   const [amount, setAmount] = useState(() =>
-    settlementUsdAmount !== null && assets[0]
-      ? usdToTokenAmount(settlementUsdAmount, assets[0])
+    settlementUsdAmount !== null && defaultToken
+      ? usdToTokenAmount(settlementUsdAmount, defaultToken)
       : "",
   );
   const [note, setNote] = useState(prefilledNote);
-  const [selectedToken, setSelectedToken] = useState<Token>(assets[0]);
+  const [selectedToken, setSelectedToken] = useState<Token>(defaultToken);
   const [isSending, setIsSending] = useState(false);
 
   const truncateAddress = (address: string) => {
