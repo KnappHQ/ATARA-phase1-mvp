@@ -1,7 +1,3 @@
-import {
-  TransactionService,
-  SendTransactionRequest,
-} from "./transaction.service";
 import { api } from "./api";
 
 interface PortfolioResponse {
@@ -25,17 +21,5 @@ export const WalletService = {
   getPortfolio: async (): Promise<PortfolioResponse> => {
     const response = await api.get("/wallet/portfolio");
     return response.data.portfolio;
-  },
-
-  sendTransaction: async (
-    transactionData: SendTransactionRequest,
-    smartAccountService: any,
-  ) => {
-    if (!smartAccountService) {
-      throw new Error("Smart account service not available");
-    }
-
-    const transactionService = new TransactionService(smartAccountService);
-    return await transactionService.sendTransaction(transactionData);
   },
 };

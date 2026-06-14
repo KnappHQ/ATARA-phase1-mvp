@@ -6,6 +6,7 @@ import {
   analyticsIdentify,
   analyticsReset,
 } from "@/services/analytics.service";
+import * as Sentry from "@sentry/react-native";
 
 const isJwtExpired = (token: string): boolean => {
   try {
@@ -51,6 +52,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     set({ user, token, isAuthenticated: true });
 
+    try {
+      Sentry.setUser({
+        id: user.id,
+        email: user.email || undefined,
+        username: user.handle || undefined,
+      });
+    } catch (e) {
+      // Non-fatal: ensure Sentry calls don't break auth flow
+      console.error("Sentry.setUser failed:", e);
+    }
+
     analyticsIdentify(user.id, {
       handle: user.handle,
       email: user.email,
@@ -67,6 +79,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     await SecureStore.deleteItemAsync("auth_token");
     await SecureStore.deleteItemAsync("user_profile");
+
+    try {
+      Sentry.setUser(null);
+    } catch (e) {
+      console.error("Sentry.clearUser failed:", e);
+    }
 
     analyticsReset();
     set({ user: null, token: null, isAuthenticated: false });
@@ -98,6 +116,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     } catch (e) {
       console.error("Failed to load session", e);
+      Sentry.captureException(e);
     } finally {
       set({ isLoading: false });
     }
@@ -117,6 +136,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       );
     } catch (e) {
       console.error("Failed to update profile", e);
+      Sentry.captureException(e);
       throw e;
     }
   },

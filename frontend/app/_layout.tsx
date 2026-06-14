@@ -1,6 +1,7 @@
 import "node-libs-react-native/globals.js";
 import "react-native-get-random-values";
 import "@account-kit/react-native";
+import * as Sentry from "@sentry/react-native";
 
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -20,6 +21,14 @@ import { registerUnauthorizedHandler } from "@/services/api";
 
 import "./global.css";
 
+// Initialize Sentry as early as possible to capture startup errors.
+Sentry.init({
+  dsn:
+    process.env.EXPO_PUBLIC_SENTRY_DSN ||
+    "https://examplePublicKey@o0.ingest.sentry.io/0",
+  sendDefaultPii: false,
+});
+
 SplashScreen.preventAutoHideAsync();
 
 // Routes that are part of the onboarding flow
@@ -35,7 +44,7 @@ const PROTECTED_ROUTES = [
   "group-details",
 ];
 
-export default function RootLayout() {
+function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#000000" }}>
       <AlchemyProvider>
@@ -190,3 +199,5 @@ function RootLayoutInner() {
     </>
   );
 }
+
+export default Sentry.wrap(RootLayout);

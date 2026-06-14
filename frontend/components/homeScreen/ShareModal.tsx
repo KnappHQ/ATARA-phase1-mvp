@@ -4,6 +4,8 @@ import { BlurView } from "expo-blur";
 import * as Clipboard from "expo-clipboard";
 import { Check, Copy, ExternalLink, Share2, X } from "lucide-react-native";
 import React, { useState } from "react";
+import { useAlertStore } from "@/stores/useAlertStore";
+import * as Sentry from "@sentry/react-native";
 import { Modal, Pressable, Share, Text, View } from "react-native";
 import { MotiView } from "moti";
 import { COLORS } from "@/utils/constants";
@@ -47,8 +49,12 @@ export function ShareModal({ isOpen, onClose }: ShareModalProps) {
         title: "Pay me on ATARA",
         message: `Send me instantly via ATARA. https://${VANITY_URL}`,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Share failed:", error);
+      useAlertStore
+        .getState()
+        .error("Share failed", error?.message || "Unable to share right now");
+      Sentry.captureException(error);
     }
   };
 

@@ -38,8 +38,10 @@ export const AuthService = {
     try {
       const response = await api.get(`/auth/check-handle/${handle}`);
       return response.data.available;
-    } catch {
-      return false;
+    } catch (error: any) {
+      throw new Error(
+        error?.response?.data?.message || "Unable to check handle",
+      );
     }
   },
 

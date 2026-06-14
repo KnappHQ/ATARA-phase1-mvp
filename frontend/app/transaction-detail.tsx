@@ -14,6 +14,8 @@ import { Check, Pencil, ArrowLeft, Info } from "lucide-react-native";
 import { COLORS, CATEGORIES } from "@/utils/constants";
 import * as Haptics from "expo-haptics";
 import { useAddressBookStore } from "@/stores/useAddressBookStore";
+import { useAlertStore } from "@/stores/useAlertStore";
+import * as Sentry from "@sentry/react-native";
 import { NicknameEditModal } from "@/components/transaction/NicknameEditModal";
 import { HistoryService } from "@/services/history.service";
 import { useTransactionHistoryStore } from "@/stores/useTransactionHistoryStore";
@@ -94,7 +96,13 @@ export default function TransactionDetail() {
       router.back();
     } catch (error: any) {
       console.error("Failed to update transaction:", error);
-      // TODO: Show error toast
+      useAlertStore
+        .getState()
+        .error(
+          "Update failed",
+          error?.message || "Unable to update transaction",
+        );
+      Sentry.captureException(error);
     } finally {
       setIsSaving(false);
     }

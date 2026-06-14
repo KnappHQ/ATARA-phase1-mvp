@@ -1,11 +1,20 @@
 // Learn more https://docs.expo.io/guides/customizing-metro
 const { getDefaultConfig } = require("expo/metro-config");
 const { withNativeWind } = require("nativewind/metro");
+// Integrate Sentry's Expo Metro config to ensure sourcemap/debug-id metadata
+// is present for release uploads when building with EAS.
+let getSentryExpoConfig;
+try {
+  getSentryExpoConfig =
+    require("@sentry/react-native/metro").getSentryExpoConfig;
+} catch (e) {
+  // If @sentry/react-native isn't installed yet, fall back to the default config.
+  getSentryExpoConfig = undefined;
+}
 const path = require("path");
 const fs = require("fs");
-const projectRoot = __dirname; // <-- Adjust this as fits your project setup
+const projectRoot = __dirname;
 
-// Add aliases for file-system import based modules
 const ALIASES = {
   "@noble/hashes/crypto": path.resolve(
     projectRoot,
@@ -18,10 +27,10 @@ const ALIASES = {
 };
 
 /** @type {import('expo/metro-config').MetroConfig} */
-const config = getDefaultConfig(projectRoot);
-// [!code focus:9]
-// The following code ensures we have the necessary
-// shims for crypto built into our project
+const config = getSentryExpoConfig
+  ? getSentryExpoConfig(projectRoot)
+  : getDefaultConfig(projectRoot);
+
 config.resolver.extraNodeModules = {
   ...config.resolver.extraNodeModules,
   ...require("node-libs-react-native"),
@@ -37,7 +46,6 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     };
   }
 
-  // Handle .js/.jsx extensions on TypeScript files
   if (
     (moduleName.startsWith(".") || moduleName.startsWith("/")) &&
     (moduleName.endsWith(".js") || moduleName.endsWith(".jsx"))
@@ -48,7 +56,6 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
       moduleName,
     );
 
-    // if the file exists, we won't remove extension, and we'll fall back to normal resolution.
     if (!fs.existsSync(moduleFilePath)) {
       return context.resolveRequest(
         context,
@@ -61,8 +68,6 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   return context.resolveRequest(context, moduleName, platform);
 };
 
-// The `account-kit/react-native` and it's supoorting packages leverages package.json `exports` which is not (yet) suported by default in Metro.
-// we can enable this support using:
 config.resolver.unstable_enablePackageExports = true;
 config.resolver.unstable_conditionNames = [
   "browser",

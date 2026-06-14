@@ -7,6 +7,7 @@ import {
 } from "@/utils/format";
 import { useAddressBookStore } from "@/stores/useAddressBookStore";
 import { useWalletStore } from "@/stores/useWalletStore";
+import * as Sentry from "@sentry/react-native";
 
 export interface WeeklyDayData {
   day: string;
@@ -316,6 +317,7 @@ export const useTransactionHistoryStore = create<HistoryState>((set, get) => ({
       set({ rawHistory, displayHistory, contactThreads, weeklyInsights });
     } catch (error: any) {
       console.error("Failed to fetch transaction history:", error);
+      Sentry.captureException(error);
       set({ error: error.message || "Failed to load history" });
     } finally {
       set({ isLoading: false });

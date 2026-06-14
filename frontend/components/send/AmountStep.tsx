@@ -1,5 +1,12 @@
 import { useState, useEffect } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import {
+  Modal,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import * as Haptics from "expo-haptics";
 import { MotiView } from "moti";
 import { AlertCircle } from "lucide-react-native";
@@ -31,6 +38,7 @@ interface AmountStepProps {
 }
 
 const QUICK_AMOUNTS = ["25%", "50%", "75%", "MAX"];
+const STANDARD_GAS_DISPLAY = "0.0002";
 
 export const AmountStep = ({ recipient }: AmountStepProps) => {
   const router = useRouter();
@@ -76,6 +84,11 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
   const [note, setNote] = useState(prefilledNote);
   const [selectedToken, setSelectedToken] = useState<Token>(defaultToken);
   const [isSending, setIsSending] = useState(false);
+  const [pendingRetryRequest, setPendingRetryRequest] =
+    useState<SendTransactionRequest | null>(null);
+  const [isRetryingWithGas, setIsRetryingWithGas] = useState(false);
+  const [canRetryWithGas, setCanRetryWithGas] = useState(false);
+  const [isGasDialogOpen, setIsGasDialogOpen] = useState(false);
 
   const truncateAddress = (address: string) => {
     if (!address || address.length < 12) return address;
@@ -136,49 +149,58 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
 
   const isValidAmount = amountValue > 0 && balanceValidation.isValid;
   const canSend =
-    isValidAmount && !isSending && smartAccountService && transactionService;
+    isValidAmount &&
+    !isSending &&
+    !isRetryingWithGas &&
+    smartAccountService &&
+    transactionService;
+
+  const buildTransactionRequest = (
+    forceGasPayment = false,
+  ): SendTransactionRequest => ({
+    recipientAddress: recipient.smartAccountAddress!!,
+    recipientHandle: recipient.handle,
+    recipientName: recipient.name,
+    amount: amountValue.toString(),
+    tokenSymbol: selectedToken.symbol,
+    tokenAddress: selectedToken.contractAddress,
+    decimals: selectedToken.decimals,
+    usdValue:
+      selectedToken.usdPrice > 0
+        ? `$${(amountValue * selectedToken.usdPrice).toFixed(2)}`
+        : selectedToken.usdValue,
+    note: note || undefined,
+    forceGasPayment,
+    onSynced:
+      settlementGroupId && settlementMemberId
+        ? (txId) =>
+            GroupService.settleByInternalTx(
+              settlementGroupId,
+              settlementMemberId,
+              txId,
+            ).catch((err) =>
+              console.warn("Settlement sync failed (non-blocking):", err),
+            )
+        : undefined,
+  });
 
   const handleSendComplete = async () => {
     if (!canSend) return;
 
     clearError();
     setIsSending(true);
+    setCanRetryWithGas(false);
+    setIsGasDialogOpen(false);
 
     try {
-      const recipientAddr = recipient.smartAccountAddress!!;
-
-      const transactionRequest: SendTransactionRequest = {
-        recipientAddress: recipientAddr,
-        recipientHandle: recipient.handle,
-        recipientName: recipient.name,
-        amount: amountValue.toString(),
-        tokenSymbol: selectedToken.symbol,
-        tokenAddress: selectedToken.contractAddress,
-        decimals: selectedToken.decimals,
-        usdValue:
-          selectedToken.usdPrice > 0
-            ? `$${(amountValue * selectedToken.usdPrice).toFixed(2)}`
-            : selectedToken.usdValue,
-        note: note || undefined,
-        // If this is a settle-and-send flow, mark splits settled once the
-        // transaction record is confirmed in the backend DB (after sync).
-        onSynced:
-          settlementGroupId && settlementMemberId
-            ? (txId) =>
-                GroupService.settleByInternalTx(
-                  settlementGroupId,
-                  settlementMemberId,
-                  txId,
-                ).catch((err) =>
-                  console.warn("Settlement sync failed (non-blocking):", err),
-                )
-            : undefined,
-      };
+      const transactionRequest = buildTransactionRequest();
+      setPendingRetryRequest(transactionRequest);
 
       const result =
         await transactionService.sendTransaction(transactionRequest);
 
       if (result.success) {
+        setPendingRetryRequest(null);
         analyticsEvents.transactionSent({
           token: selectedToken.symbol,
           amountUsd:
@@ -197,9 +219,16 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
             recipient: recipient.handle,
             amount: amountValue.toString(),
             token: selectedToken.symbol,
+            gasPaidDisplay: "0.00",
           },
         });
       } else {
+        setPendingRetryRequest({
+          ...transactionRequest,
+          transactionId: result.transactionId,
+        });
+        setCanRetryWithGas(!!result.isPaymasterFailure);
+        setIsGasDialogOpen(!!result.isPaymasterFailure);
         throw new Error(result.error || "Transaction failed");
       }
     } catch (error: any) {
@@ -210,6 +239,56 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
       // Error is stored in transaction store
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleRetryWithGas = async () => {
+    if (!transactionService || !pendingRetryRequest) {
+      return;
+    }
+
+    clearError();
+    setIsGasDialogOpen(false);
+    setIsRetryingWithGas(true);
+
+    try {
+      const result = await transactionService.sendTransaction({
+        ...pendingRetryRequest,
+        forceGasPayment: true,
+        transactionId: pendingRetryRequest.transactionId,
+      });
+
+      if (!result.success) {
+        throw new Error(result.error || "Gas-funded retry failed");
+      }
+
+      setPendingRetryRequest(null);
+      setCanRetryWithGas(false);
+
+      analyticsEvents.transactionSent({
+        token: selectedToken.symbol,
+        amountUsd:
+          selectedToken.usdPrice > 0
+            ? amountValue * selectedToken.usdPrice
+            : amountValue,
+        isInApp: true,
+        hasNote: !!note,
+        isSettlement: !!settlementGroupId,
+      });
+
+      router.push({
+        pathname: "/transaction-success",
+        params: {
+          transactionId: result.transactionId,
+          hash: result.hash || "",
+          recipient: recipient.handle,
+          amount: amountValue.toString(),
+          token: selectedToken.symbol,
+          gasPaidDisplay: STANDARD_GAS_DISPLAY,
+        },
+      });
+    } finally {
+      setIsRetryingWithGas(false);
     }
   };
 
@@ -408,18 +487,93 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
         />
       </MotiView>
 
-      {transactionError && (
+      {transactionError && !isGasDialogOpen && !canRetryWithGas && (
         <MotiView
           from={{ opacity: 0, translateY: -5 }}
           animate={{ opacity: 1, translateY: 0 }}
-          className="flex-row items-center justify-center gap-2 mb-4 p-3 rounded-2xl bg-bitcoin/10 border border-bitcoin/30"
+          className="mb-4 p-3 rounded-2xl bg-bitcoin/10 border border-bitcoin/30"
         >
-          <AlertCircle size={16} color={COLORS.bitcoinOrange} />
-          <Text className="text-sm text-bitcoin flex-1">
-            {transactionError}
-          </Text>
+          <View className="flex-row items-start gap-2">
+            <AlertCircle size={16} color={COLORS.bitcoinOrange} />
+            <Text className="text-sm text-bitcoin flex-1">
+              {transactionError}
+            </Text>
+          </View>
+          {canRetryWithGas && pendingRetryRequest && (
+            <Pressable
+              onPress={handleRetryWithGas}
+              disabled={isRetryingWithGas}
+              className="mt-3 self-start px-4 py-2 rounded-2xl bg-white"
+              style={{ opacity: isRetryingWithGas ? 0.7 : 1 }}
+            >
+              <Text className="text-sm font-semibold text-black">
+                {isRetryingWithGas ? "Retrying..." : "Send with gas"}
+              </Text>
+            </Pressable>
+          )}
         </MotiView>
       )}
+
+      <Modal
+        visible={isGasDialogOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setIsGasDialogOpen(false);
+          setCanRetryWithGas(false);
+          setPendingRetryRequest(null);
+          clearError();
+        }}
+      >
+        <View className="flex-1 bg-black/70 items-center justify-center px-6">
+          <View className="w-full max-w-[340px] rounded-3xl border border-white/10 bg-[#111111] p-5">
+            <Text className="text-lg font-semibold text-white mb-2">
+              Paymaster limit reached
+            </Text>
+            <Text className="text-sm leading-6 text-white/70 mb-4">
+              {transactionError ||
+                "The gas sponsor could not cover this transaction right now."}
+            </Text>
+            <View className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-4">
+              <Text className="text-xs uppercase tracking-widest text-muted mb-1">
+                Continue with gas
+              </Text>
+              <Text className="text-base font-medium text-white">
+                Estimated fee: ~{STANDARD_GAS_DISPLAY} ETH
+              </Text>
+              <Text className="text-xs text-white/50 mt-1">
+                You will approve a self-funded transaction instead of a
+                sponsored one.
+              </Text>
+            </View>
+            <View className="flex-row gap-3">
+              <Pressable
+                onPress={() => {
+                  setIsGasDialogOpen(false);
+                  setCanRetryWithGas(false);
+                  setPendingRetryRequest(null);
+                  clearError();
+                }}
+                className="flex-1 items-center justify-center rounded-2xl border border-white/15 py-3"
+              >
+                <Text className="text-sm font-semibold text-white">
+                  Not now
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleRetryWithGas}
+                disabled={isRetryingWithGas}
+                className="flex-1 items-center justify-center rounded-2xl bg-white py-3"
+                style={{ opacity: isRetryingWithGas ? 0.7 : 1 }}
+              >
+                <Text className="text-sm font-semibold text-black">
+                  {isRetryingWithGas ? "Sending..." : "Continue with gas"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {!balanceValidation.isValid && amountValue > 0 && (
         <MotiView
@@ -458,7 +612,7 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
           onComplete={handleSendComplete}
           disabled={!canSend || isLoadingBalances}
           label={
-            isSending
+            isSending || isRetryingWithGas
               ? "Sending Transaction..."
               : !smartAccountService
                 ? "Wallet Not Connected"

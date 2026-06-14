@@ -55,12 +55,15 @@
           }
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      "@sentry/react-native/expo",
+      "@sentry/react-native"
     ],
     "extra": {
       "router": {
         "origin": false
-      }
+      },
+      "eas": {}
     },
     "experiments": {
       "typedRoutes": true,

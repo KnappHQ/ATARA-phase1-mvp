@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import * as Sentry from "@sentry/react-native";
 import { ContactService } from "@/services/contact.service";
 import { truncateAddress } from "@/utils/format";
 
@@ -20,6 +21,7 @@ interface ContactState {
   searchQuery: string;
   isSearching: boolean;
   searchError: string | null;
+  recentContactsError: string | null;
   isLoadingRecents: boolean;
   isLoadingSearch: boolean;
   setSearchQuery: (query: string) => void;
@@ -37,6 +39,7 @@ export const useContactStore = create<ContactState>((set, get) => ({
   searchQuery: "",
   isSearching: false,
   searchError: null,
+  recentContactsError: null,
   isLoadingRecents: false,
   isLoadingSearch: false,
 
@@ -57,6 +60,7 @@ export const useContactStore = create<ContactState>((set, get) => ({
       set({ searchResults: results, isSearching: false });
     } catch (error: any) {
       console.error("Search contacts failed:", error);
+      Sentry.captureException(error);
       set({
         searchError: error.message || "Failed to search contacts",
         searchResults: [],
@@ -68,14 +72,18 @@ export const useContactStore = create<ContactState>((set, get) => ({
   },
 
   getRecentContacts: async () => {
-    set({ isLoadingRecents: true });
+    set({ isLoadingRecents: true, recentContactsError: null });
 
     try {
       const contacts = await ContactService.getRecentContacts();
       set({ recentContacts: contacts });
     } catch (error: any) {
       console.error("Failed to load recent contacts:", error);
-      set({ recentContacts: [] });
+      Sentry.captureException(error);
+      set({
+        recentContacts: [],
+        recentContactsError: error?.message || "Failed to load recent contacts",
+      });
     } finally {
       set({ isLoadingRecents: false });
     }
