@@ -3,63 +3,41 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MotiView } from "moti";
 import { CrownIcon } from "./CrownIcon";
 import { COLORS } from "@/utils/constants";
-import { useAuthenticate } from "@account-kit/react-native";
 import { useState } from "react";
 import * as Haptics from "expo-haptics";
-import * as Linking from "expo-linking";
+import { useOAuthFlow } from "@privy-io/expo";
 
 interface GateScreenProps {
   isCheckingBackend?: boolean;
 }
 
 export const GateScreen = ({ isCheckingBackend = false }: GateScreenProps) => {
-  const { authenticate } = useAuthenticate();
+  const { start, state } = useOAuthFlow();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const showLoading = isLoading || isCheckingBackend;
+  const showLoading =
+    isLoading || isCheckingBackend || state.status === "loading";
 
   const handleAuthSuccess = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
 
   const handleSocialAuth = async (provider: "google" | "apple") => {
-    const redirectUrl = Linking.createURL("oauth-callback");
     setIsLoading(true);
     setError(null);
 
-    const authParams =
-      provider === "apple"
-        ? {
-            type: "oauth" as const,
-            authProviderId: "auth0" as const,
-            auth0Connection: "apple",
-            mode: "redirect" as const,
-            redirectUrl,
-          }
-        : {
-            type: "oauth" as const,
-            authProviderId: "google" as const,
-            mode: "redirect" as const,
-            redirectUrl,
-          };
-
     try {
-      authenticate(authParams, {
-        onSuccess: () => {
-          setIsLoading(false);
-          handleAuthSuccess();
-        },
-        onError: (err) => {
-          setIsLoading(false);
-          const msg = err instanceof Error ? err.message : String(err);
-          setError(msg);
-        },
+      await start({
+        provider,
+        redirectUri: "/oauth-callback",
       });
+      handleAuthSuccess();
     } catch (err) {
-      setIsLoading(false);
       const msg = err instanceof Error ? err.message : String(err);
       setError(msg);
+    } finally {
+      setIsLoading(false);
     }
   };
 

@@ -10,8 +10,8 @@ model User {
   id                  String   @id @default(uuid())
   handle              String   @unique
   email               String?  @unique
-  publicAddress       String   @unique // Alchemy signer address (EOA)
-  smartAccountAddress String?  @unique // ERC-4337 smart account on Base
+  publicAddress       String   @unique // Privy embedded owner wallet address (EOA)
+  smartAccountAddress String?  @unique // Alchemy ERC-4337 smart account on Base
   authProvider        String?  // google, apple
   profilePicUrl       String?
   displayName         String?

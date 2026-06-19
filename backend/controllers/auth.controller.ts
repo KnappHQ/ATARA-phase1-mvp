@@ -14,8 +14,11 @@ export const authController = {
         authProvider,
       } = req.body;
 
-      if (!handle || !signerAddress) {
-        throw new ErrorHandler("Please provide handle and signerAddress", 400);
+      if (!handle || !signerAddress || !smartAccountAddress) {
+        throw new ErrorHandler(
+          "Please provide handle, signerAddress, and smartAccountAddress",
+          400,
+        );
       }
 
       if (handle.length < 3 || handle.length > 20) {
