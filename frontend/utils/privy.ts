@@ -27,14 +27,30 @@ export const getPrimaryEmbeddedEthereumWalletAddress = (
 export const getPrimaryEmailAddress = (
   user?: User | null,
 ): string | undefined => {
-  const email = user?.linked_accounts.find(
+  // First check for direct email account
+  const emailAccount = user?.linked_accounts.find(
     (
       account,
     ): account is Extract<User["linked_accounts"][number], { type: "email" }> =>
       account.type === "email",
   );
 
-  return email?.address;
+  if (emailAccount?.address) {
+    return emailAccount.address;
+  }
+
+  // If no direct email, check OAuth accounts (Google, Apple)
+  const oauthAccount = user?.linked_accounts.find(
+    (account) =>
+      account.type === "google_oauth" || account.type === "apple_oauth",
+  ) as any;
+
+  // OAuth accounts have email field at top level
+  if (oauthAccount?.email) {
+    return oauthAccount.email;
+  }
+
+  return undefined;
 };
 
 export const getPrimaryOAuthProvider = (
@@ -50,4 +66,35 @@ export const getPrimaryOAuthProvider = (
   }
 
   return provider.type === "apple_oauth" ? "apple" : "google";
+};
+
+const generateOwnershipMessage = (
+  action: "Login" | "Register",
+  address: string,
+): string => {
+  const timestamp = Date.now();
+  return `${action} to KNAPP\nWallet: ${address}\nTimestamp: ${timestamp}`;
+};
+
+/**
+ * Generate a message to be signed for login authentication
+ * This ensures the user owns the wallet address
+ */
+export const generateLoginMessage = (address: string): string => {
+  return generateOwnershipMessage("Login", address);
+};
+
+/**
+ * Generate a message to be signed for registration ownership proof
+ */
+export const generateRegistrationMessage = (address: string): string => {
+  return generateOwnershipMessage("Register", address);
+};
+
+/**
+ * Extract timestamp from a login message
+ */
+export const extractTimestampFromMessage = (message: string): number | null => {
+  const match = message.match(/Timestamp: (\d+)/);
+  return match ? parseInt(match[1], 10) : null;
 };

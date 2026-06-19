@@ -1,18 +1,44 @@
-import { View, Text, Modal, Pressable, TouchableOpacity } from "react-native";
+import {
+  View,
+  Text,
+  Modal,
+  Pressable,
+  TouchableOpacity,
+  ActivityIndicator,
+} from "react-native";
 import { MotiView } from "moti";
 import { LogOut } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { COLORS } from "@/utils/constants";
+import { useState } from "react";
 
 interface LogoutModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onConfirm?: () => Promise<void>;
 }
 
-export const LogoutModal = ({ isOpen, onClose }: LogoutModalProps) => {
-  const handleLogout = () => {
+export const LogoutModal = ({
+  isOpen,
+  onClose,
+  onConfirm,
+}: LogoutModalProps) => {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogout = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    onClose();
+    setIsLoading(true);
+    try {
+      if (onConfirm) {
+        await onConfirm();
+      }
+    } catch (err) {
+      console.error("Logout failed:", err);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } finally {
+      setIsLoading(false);
+      onClose();
+    }
   };
 
   const handleCancel = () => {
@@ -66,16 +92,30 @@ export const LogoutModal = ({ isOpen, onClose }: LogoutModalProps) => {
 
             <Pressable
               onPress={handleLogout}
+              disabled={isLoading}
               className="w-full h-12 rounded-xl items-center justify-center mb-3"
-              style={{ backgroundColor: "#ef4444" }}
+              style={{
+                backgroundColor: "#ef4444",
+                opacity: isLoading ? 0.7 : 1,
+              }}
             >
-              <Text className="text-white font-semibold text-sm">Sign Out</Text>
+              {isLoading ? (
+                <ActivityIndicator size="small" color={COLORS.white} />
+              ) : (
+                <Text className="text-white font-semibold text-sm">
+                  Sign Out
+                </Text>
+              )}
             </Pressable>
 
             <Pressable
               onPress={handleCancel}
+              disabled={isLoading}
               className="w-full h-12 rounded-xl items-center justify-center border border-white/10"
-              style={{ backgroundColor: `${COLORS.white}05` }}
+              style={{
+                backgroundColor: `${COLORS.white}05`,
+                opacity: isLoading ? 0.7 : 1,
+              }}
             >
               <Text
                 className="font-semibold text-sm"

@@ -7,6 +7,7 @@ import {
   SMTP_USER,
   SMTP_PASS,
   FEEDBACK_RECIPIENT_EMAIL,
+  NODE_ENV,
 } from "../utils/constants";
 import { feedbackEmailHtml, feedbackEmailText } from "../utils/emailTemplates";
 
@@ -39,7 +40,11 @@ class FeedbackService {
       data.handle,
       data.message,
       feedback.createdAt,
-    ).catch((err) => console.error("[Feedback] Email send failed:", err));
+    ).catch((err) => {
+      if (NODE_ENV !== "production") {
+        console.error("[Feedback] Email send failed:", err);
+      }
+    });
 
     return feedback;
   }

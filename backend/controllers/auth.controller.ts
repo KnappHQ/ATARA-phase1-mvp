@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { authService } from "../services/auth.service";
 import { catchAsync } from "../utils/catchAsync";
 import { ErrorHandler } from "../utils/errorHandler";
+import { verifyLoginSignature } from "../utils/signatureVerifier";
 
 export const authController = {
   register: catchAsync(
@@ -12,6 +13,8 @@ export const authController = {
         smartAccountAddress,
         email,
         authProvider,
+        message,
+        signature,
       } = req.body;
 
       if (!handle || !signerAddress || !smartAccountAddress) {
@@ -20,6 +23,15 @@ export const authController = {
           400,
         );
       }
+
+      if (!message || !signature) {
+        throw new ErrorHandler(
+          "Please sign the registration message to prove wallet ownership",
+          400,
+        );
+      }
+
+      verifyLoginSignature(signerAddress, message, signature);
 
       if (handle.length < 3 || handle.length > 20) {
         throw new ErrorHandler(
@@ -53,11 +65,18 @@ export const authController = {
   ),
 
   login: catchAsync(async (req: Request, res: Response, next: NextFunction) => {
-    const { signerAddress } = req.body;
+    const { signerAddress, message, signature } = req.body;
 
-    if (!signerAddress) {
-      throw new ErrorHandler("Please provide signerAddress", 400);
+    if (!signerAddress || !message || !signature) {
+      throw new ErrorHandler(
+        "Please provide signerAddress, message, and signature",
+        400,
+      );
     }
+
+    // Verify signature for security
+    // This ensures only the wallet owner can log in
+    verifyLoginSignature(signerAddress, message, signature);
 
     const { user, token } = await authService.login(signerAddress);
 

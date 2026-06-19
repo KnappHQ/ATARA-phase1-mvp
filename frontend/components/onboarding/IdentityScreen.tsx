@@ -21,6 +21,7 @@ import {
   getPrimaryEmbeddedEthereumWalletAddress,
   getPrimaryEmailAddress,
   getPrimaryOAuthProvider,
+  generateRegistrationMessage,
 } from "@/utils/privy";
 
 interface IdentityScreenProps {
@@ -128,12 +129,27 @@ export const IdentityScreen = ({
         return;
       }
 
+      const registrationMessage = generateRegistrationMessage(signerAddress);
+      const provider = await signerWallet.getProvider();
+      const registrationSignature = await provider.request({
+        method: "personal_sign",
+        params: [registrationMessage, signerWallet.address],
+      });
+
+      if (!registrationSignature) {
+        setError("Failed to verify wallet ownership. Please try again.");
+        setIsRegistering(false);
+        return;
+      }
+
       await AuthService.register({
         handle,
         smartAccountAddress,
         signerAddress,
         email: email || undefined,
         authProvider,
+        message: registrationMessage,
+        signature: registrationSignature,
       });
 
       onFinish();

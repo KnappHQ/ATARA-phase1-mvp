@@ -5,7 +5,7 @@ import * as Haptics from "expo-haptics";
 import { GateScreen } from "../components/onboarding/GateScreen";
 import { IdentityScreen } from "../components/onboarding/IdentityScreen";
 import { VaultOpeningAnimation } from "../components/onboarding/VaultOpeningAnimation";
-import { usePrivy } from "@privy-io/expo";
+import { usePrivy, useEmbeddedEthereumWallet } from "@privy-io/expo";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useAlertStore } from "@/stores/useAlertStore";
 import { AuthService } from "@/services/auth.service";
@@ -21,7 +21,8 @@ export default function Onboarding() {
   const [isCheckingBackend, setIsCheckingBackend] = useState(false);
 
   const { user, isReady } = usePrivy();
-  const { isAuthenticated } = useAuthStore();
+  const { wallets } = useEmbeddedEthereumWallet();
+  const { isAuthenticated, justLoggedOut } = useAuthStore();
 
   const goToTabs = () => {
     setIsVaultOpening(true);
@@ -31,6 +32,13 @@ export default function Onboarding() {
 
   useEffect(() => {
     if (!isReady || !user) return;
+
+    // If user just logged out, don't auto-login — wait for manual action
+    if (justLoggedOut) {
+      // Clear the persisted flag after checking so future loads work normally
+      useAuthStore.getState().clearJustLoggedOut();
+      return;
+    }
 
     // Already have a valid session (e.g. re-auth after JWT expiry)
     if (isAuthenticated) {
@@ -50,7 +58,33 @@ export default function Onboarding() {
     const checkExistingUser = async () => {
       setIsCheckingBackend(true);
       try {
-        await AuthService.loginWithSigner(signerAddress);
+        // Find the wallet that matches the signer address
+        const wallet = wallets?.find(
+          (w) => w.address.toLowerCase() === signerAddress.toLowerCase(),
+        );
+
+        // If we don't have a wallet to sign with, treat as new user
+        if (!wallet) {
+          setStep("identity");
+          return;
+        }
+
+        // Create sign function for wallet message signing using Privy's provider
+        const signFunction = async (message: string) => {
+          try {
+            const provider = await wallet.getProvider();
+            const signature = await provider.request({
+              method: "personal_sign",
+              params: [message, wallet.address],
+            });
+            return signature;
+          } catch (err) {
+            console.error("Failed to sign login message:", err);
+            return "";
+          }
+        };
+
+        await AuthService.loginWithSigner(signerAddress, signFunction);
         goToTabs();
       } catch (err: any) {
         if (err?.response?.status === 404) {
@@ -71,7 +105,7 @@ export default function Onboarding() {
     };
 
     checkExistingUser();
-  }, [isReady, user, isAuthenticated, step]);
+  }, [isReady, user, isAuthenticated, step, wallets]);
 
   const handleFinish = () => {
     setIsVaultOpening(true);
