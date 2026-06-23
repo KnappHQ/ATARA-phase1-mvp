@@ -3,6 +3,8 @@ import { create } from "zustand";
 export interface Transaction {
   id: string;
   hash?: string;
+  userOpHash?: string;
+  onSynced?: (transactionId: string) => Promise<void> | void;
   recipientAddress: string;
   recipientHandle?: string;
   recipientName?: string;
@@ -31,6 +33,7 @@ interface TransactionState {
     tx: Omit<Transaction, "id" | "timestamp" | "status">,
   ) => string;
   updateTransaction: (id: string, updates: Partial<Transaction>) => void;
+  markTransactionPending: (id: string) => void;
   markTransactionConfirmed: (id: string, hash: string, receipt?: any) => void;
   markTransactionFailed: (id: string, error: string) => void;
   getTransactionById: (id: string) => Transaction | undefined;
@@ -72,6 +75,38 @@ export const useTransactionStore = create<TransactionState>((set, get) => ({
     }));
   },
 
+  markTransactionPending: (id) => {
+    const currentTransaction = get().transactions.find((tx) => tx.id === id);
+
+    if (!currentTransaction) {
+      return;
+    }
+
+    const updatedTransaction: Transaction = {
+      ...currentTransaction,
+      status: "pending",
+      error: undefined,
+    };
+
+    set((state) => {
+      const hasPendingTransaction = state.pendingTransactions.some(
+        (tx) => tx.id === id,
+      );
+
+      return {
+        error: null,
+        transactions: state.transactions.map((tx) =>
+          tx.id === id ? updatedTransaction : tx,
+        ),
+        pendingTransactions: hasPendingTransaction
+          ? state.pendingTransactions.map((tx) =>
+              tx.id === id ? updatedTransaction : tx,
+            )
+          : [updatedTransaction, ...state.pendingTransactions],
+      };
+    });
+  },
+
   markTransactionConfirmed: (id, hash, receipt) => {
     const updates: Partial<Transaction> = {
       status: "confirmed" as const,
@@ -81,6 +116,7 @@ export const useTransactionStore = create<TransactionState>((set, get) => ({
     };
 
     set((state) => ({
+      error: null,
       transactions: state.transactions.map((tx) =>
         tx.id === id ? { ...tx, ...updates } : tx,
       ),
@@ -97,6 +133,7 @@ export const useTransactionStore = create<TransactionState>((set, get) => ({
     };
 
     set((state) => ({
+      error,
       transactions: state.transactions.map((tx) =>
         tx.id === id ? { ...tx, ...updates } : tx,
       ),

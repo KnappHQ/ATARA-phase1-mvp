@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { catchAsync } from "../utils/catchAsync";
 import prisma from "../config/prisma";
+import { NODE_ENV } from "../utils/constants";
 
 export const healthController = {
   backendHealth: catchAsync(
@@ -9,7 +10,7 @@ export const healthController = {
         status: "success",
         message: "Backend is healthy",
       });
-    }
+    },
   ),
 
   dbHealth: catchAsync(
@@ -21,13 +22,15 @@ export const healthController = {
           db_status: "connected",
         });
       } catch (error) {
-        console.error("DB Health Error:", error);
+        if (NODE_ENV !== "production") {
+          console.error("DB Health Error:", error);
+        }
 
         return res.status(500).json({
           db_status: "disconnected",
           error: "Database connection failed",
         });
       }
-    }
+    },
   ),
 };

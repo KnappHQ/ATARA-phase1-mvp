@@ -1,6 +1,6 @@
 import "node-libs-react-native/globals.js";
 import "react-native-get-random-values";
-import "@account-kit/react-native";
+import * as Sentry from "@sentry/react-native";
 
 import { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -8,10 +8,9 @@ import { Stack, useRouter, useSegments, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { useSignerStatus } from "@account-kit/react-native";
-import { AlchemySignerStatus } from "@account-kit/signer";
+import { usePrivy } from "@privy-io/expo";
 
-import { AlchemyProvider } from "../providers/AlchemyProvider";
+import { PrivyProvider } from "../providers/PrivyProvider";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useAlertStore } from "@/stores/useAlertStore";
 import { AppAlert } from "@/components/alert/AppAlert";
@@ -19,6 +18,14 @@ import { analyticsScreen } from "@/services/analytics.service";
 import { registerUnauthorizedHandler } from "@/services/api";
 
 import "./global.css";
+
+// Initialize Sentry as early as possible to capture startup errors.
+Sentry.init({
+  dsn:
+    process.env.EXPO_PUBLIC_SENTRY_DSN ||
+    "https://examplePublicKey@o0.ingest.sentry.io/0",
+  sendDefaultPii: false,
+});
 
 SplashScreen.preventAutoHideAsync();
 
@@ -35,12 +42,12 @@ const PROTECTED_ROUTES = [
   "group-details",
 ];
 
-export default function RootLayout() {
+function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#000000" }}>
-      <AlchemyProvider>
+      <PrivyProvider>
         <RootLayoutInner />
-      </AlchemyProvider>
+      </PrivyProvider>
     </GestureHandlerRootView>
   );
 }
@@ -50,24 +57,28 @@ function RootLayoutInner() {
   const segments = useSegments();
   const pathname = usePathname();
   const { alert, visible, dismiss } = useAlertStore();
+  const { user, isReady: isPrivyReady, logout } = usePrivy();
 
   const {
     isAuthenticated,
     isLoading: isAuthLoading,
     loadSession,
   } = useAuthStore();
-  const { status: signerStatus } = useSignerStatus();
 
-  const isSignerConnected = signerStatus === AlchemySignerStatus.CONNECTED;
-  const isFullyAuthenticated = isSignerConnected && isAuthenticated;
-  const isReady = !isAuthLoading;
+  const isFullyAuthenticated = isPrivyReady && !!user && isAuthenticated;
+  const isReady = isPrivyReady && !isAuthLoading;
 
   const [navigationReady, setNavigationReady] = useState(false);
 
   useEffect(() => {
-    registerUnauthorizedHandler(() => useAuthStore.getState().logout());
+    registerUnauthorizedHandler(() =>
+      (async () => {
+        await logout();
+        await useAuthStore.getState().logout();
+      })(),
+    );
     loadSession();
-  }, []);
+  }, [loadSession, logout]);
 
   // Manual screen tracking — expo-router + React Navigation v7 blocks autocapture
   useEffect(() => {
@@ -92,7 +103,7 @@ function RootLayoutInner() {
 
     setNavigationReady(true);
     setTimeout(() => SplashScreen.hideAsync(), 50);
-  }, [isReady, isFullyAuthenticated, segments]);
+  }, [isReady, isFullyAuthenticated, segments, router]);
 
   if (!isReady || !navigationReady) {
     return (
@@ -190,3 +201,5 @@ function RootLayoutInner() {
     </>
   );
 }
+
+export default Sentry.wrap(RootLayout);

@@ -1,7 +1,7 @@
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AmountStep } from "../components/send/AmountStep";
@@ -31,8 +31,15 @@ export default function Send() {
   const [selectedRecipient, setSelectedRecipient] = useState<Contact | null>(
     prefilledContact,
   );
+  const [isTransactionInProgress, setIsTransactionInProgress] = useState(false);
+
+  const handleTransactionStateChange = useCallback((inProgress: boolean) => {
+    setIsTransactionInProgress(inProgress);
+  }, []);
 
   const handleBack = () => {
+    if (isTransactionInProgress) return;
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (step === "recipient") {
       router.back();
@@ -43,6 +50,8 @@ export default function Send() {
   };
 
   const handleClose = () => {
+    if (isTransactionInProgress) return;
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.back();
   };
@@ -73,11 +82,13 @@ export default function Send() {
         <View className="flex-row items-center gap-3">
           <Pressable
             onPress={handleBack}
+            disabled={isTransactionInProgress}
             className="w-12 h-12 rounded-full items-center justify-center active:opacity-70"
             style={{
               backgroundColor: "rgba(255, 255, 255, 0.1)",
               borderWidth: 1,
               borderColor: "rgba(255, 255, 255, 0.1)",
+              opacity: isTransactionInProgress ? 0.7 : 1,
             }}
           >
             <ArrowLeft size={20} color={COLORS.white} />
@@ -91,11 +102,13 @@ export default function Send() {
         </View>
         <Pressable
           onPress={handleClose}
+          disabled={isTransactionInProgress}
           className="w-12 h-12 rounded-full items-center justify-center active:opacity-70"
           style={{
             backgroundColor: "rgba(255, 255, 255, 0.03)",
             borderWidth: 1,
             borderColor: "rgba(255, 255, 255, 0.1)",
+            opacity: isTransactionInProgress ? 0.7 : 1,
           }}
         >
           <X size={20} color={COLORS.white} />
@@ -107,7 +120,10 @@ export default function Send() {
           <RecipientStep onSelectRecipient={handleSelectRecipient} />
         )}
         {step === "amount" && selectedRecipient && (
-          <AmountStep recipient={selectedRecipient} />
+          <AmountStep
+            recipient={selectedRecipient}
+            onTransactionStateChange={handleTransactionStateChange}
+          />
         )}
       </View>
     </SafeAreaView>

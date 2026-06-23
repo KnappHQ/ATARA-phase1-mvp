@@ -29,6 +29,7 @@ export const transactionController = {
       const {
         receiverAddress,
         txHash,
+        userOpHash,
         amount,
         rawAmountWei,
         assetSymbol,

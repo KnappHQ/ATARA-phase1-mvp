@@ -2,8 +2,10 @@ import { useTransactionStore } from "../stores/useTransactionStore";
 import { useTransactionHistoryStore } from "../stores/useTransactionHistoryStore";
 import { SmartAccountService } from "./smartAccount.service";
 import { api } from "./api";
+import * as Sentry from "@sentry/react-native";
 
 export interface SendTransactionRequest {
+  transactionId?: string;
   recipientAddress: string;
   recipientHandle?: string;
   recipientName?: string;
@@ -13,6 +15,7 @@ export interface SendTransactionRequest {
   decimals?: number;
   usdValue?: string;
   note?: string;
+  forceGasPayment?: boolean;
   /** Called after the transaction is synced to the backend DB. Safe to call backend endpoints that depend on the transaction record existing. */
   onSynced?: (transactionId: string) => Promise<void> | void;
 }
@@ -22,6 +25,7 @@ export interface TransactionResponse {
   hash?: string;
   success: boolean;
   error?: string;
+  isPaymasterFailure?: boolean;
 }
 
 export class TransactionService {
@@ -36,6 +40,7 @@ export class TransactionService {
   ): Promise<TransactionResponse> {
     const {
       addTransaction,
+      markTransactionPending,
       updateTransaction,
       markTransactionConfirmed,
       markTransactionFailed,
@@ -47,31 +52,59 @@ export class TransactionService {
       parseFloat(request.amount) * Math.pow(10, decimals)
     ).toFixed(0);
 
-    const transactionId = addTransaction({
-      recipientAddress: request.recipientAddress,
-      recipientHandle: request.recipientHandle,
-      recipientName: request.recipientName,
-      amount: request.amount,
-      rawAmountWei: rawAmountWei,
-      tokenSymbol: request.tokenSymbol,
-      tokenAddress: request.tokenAddress,
-      decimals: decimals,
-      usdValue: request.usdValue,
-      note: request.note,
-    });
+    const transactionId =
+      request.transactionId ??
+      addTransaction({
+        recipientAddress: request.recipientAddress,
+        recipientHandle: request.recipientHandle,
+        recipientName: request.recipientName,
+        amount: request.amount,
+        rawAmountWei: rawAmountWei,
+        tokenSymbol: request.tokenSymbol,
+        tokenAddress: request.tokenAddress,
+        decimals: decimals,
+        usdValue: request.usdValue,
+        note: request.note,
+        onSynced: request.onSynced,
+      });
+
+    if (request.transactionId) {
+      markTransactionPending(transactionId);
+      updateTransaction(transactionId, {
+        recipientAddress: request.recipientAddress,
+        recipientHandle: request.recipientHandle,
+        recipientName: request.recipientName,
+        amount: request.amount,
+        rawAmountWei,
+        tokenSymbol: request.tokenSymbol,
+        tokenAddress: request.tokenAddress,
+        decimals,
+        usdValue: request.usdValue,
+        note: request.note,
+        onSynced: request.onSynced,
+      });
+    }
 
     try {
       // SmartAccountService.sendTransaction now internally:
       // 1. Sends the UserOperation (gas-sponsored via policy)
       // 2. Waits for it to be bundled into a real transaction
       // 3. Returns the actual mined transaction hash
-      const result = await this.smartAccountService.sendTransaction({
-        recipientAddress: request.recipientAddress,
-        amount: request.amount,
-        tokenSymbol: request.tokenSymbol,
-        tokenAddress: request.tokenAddress,
-        decimals: request.decimals,
-      });
+      const result = request.forceGasPayment
+        ? await this.smartAccountService.sendTransactionWithGas({
+            recipientAddress: request.recipientAddress,
+            amount: request.amount,
+            tokenSymbol: request.tokenSymbol,
+            tokenAddress: request.tokenAddress,
+            decimals: request.decimals,
+          })
+        : await this.smartAccountService.sendTransaction({
+            recipientAddress: request.recipientAddress,
+            amount: request.amount,
+            tokenSymbol: request.tokenSymbol,
+            tokenAddress: request.tokenAddress,
+            decimals: request.decimals,
+          });
 
       if (!result.success || !result.hash) {
         throw new Error("Transaction failed to execute");
@@ -79,6 +112,9 @@ export class TransactionService {
 
       // The hash is now a real on-chain tx hash (already mined)
       markTransactionConfirmed(transactionId, result.hash);
+      if (result.userOpHash) {
+        updateTransaction(transactionId, { userOpHash: result.userOpHash });
+      }
 
       // Sync with backend in background (don't block the UI)
       this.syncTransactionWithBackend(transactionId)
@@ -103,12 +139,18 @@ export class TransactionService {
     } catch (error: any) {
       console.error("Transaction failed:", error);
 
-      markTransactionFailed(transactionId, error.message);
+      const isPaymasterFailure = !!error?.isPaymasterFailure;
+      const failureMessage = isPaymasterFailure
+        ? "Paymaster error or limit reached. Retry with gas to continue."
+        : error.message;
+
+      markTransactionFailed(transactionId, failureMessage);
 
       return {
         transactionId,
         success: false,
-        error: error.message,
+        error: failureMessage,
+        isPaymasterFailure,
       };
     }
   }
@@ -134,6 +176,7 @@ export class TransactionService {
       const response = await api.post("/transaction/sync", {
         receiverAddress: transaction.recipientAddress,
         txHash: transaction.hash,
+        userOpHash: transaction.userOpHash,
         amount: parseFloat(transaction.amount),
         rawAmountWei: rawAmountWei,
         assetSymbol: transaction.tokenSymbol,
@@ -148,6 +191,7 @@ export class TransactionService {
       // 409 = already synced, not a real error
       if (error.response?.status !== 409) {
         console.error("Failed to sync transaction with backend:", error);
+        Sentry.captureException(error);
       }
       return null;
     }

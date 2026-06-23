@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import * as Sentry from "@sentry/react-native";
 import {
   GroupService,
   GroupSummaryResponse,
@@ -174,6 +175,7 @@ export const useGroupStore = create<GroupState>((set, get) => ({
       set({ groups: data.map(mapSummaryToGroup) });
     } catch (err: any) {
       console.error("Failed to fetch groups:", err);
+      Sentry.captureException(err);
       set({ error: err.response?.data?.message || "Failed to load groups" });
     } finally {
       set({ isLoading: false });

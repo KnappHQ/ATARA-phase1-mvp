@@ -1,4 +1,6 @@
+import "react-native-get-random-values";
 import { useState } from "react";
+import { useRouter } from "expo-router";
 import {
   View,
   Text,
@@ -33,7 +35,10 @@ import { IdentityCard } from "@/components/profile/IdentityCard";
 import { FeedbackModal } from "@/components/profile/FeedbackModal";
 import { LogoutModal } from "@/components/profile/LogoutModal";
 import { TermsOfServiceScreen } from "@/components/profile/TermsOfServiceScreen";
+import { PrivacyPolicyScreen } from "@/components/profile/PrivacyPolicyScreen";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { usePrivy } from "@privy-io/expo";
+import { AuthService } from "@/services/auth.service";
 import { getInitials } from "@/utils/format";
 
 interface PillOption {
@@ -137,7 +142,9 @@ const SectionHeader = ({
 );
 
 export default function ProfileTab() {
+  const router = useRouter();
   const { user, updateProfile } = useAuthStore();
+  const { logout: privyLogout } = usePrivy();
 
   const [faceId, setFaceId] = useState(true);
   const [stealthMode, setStealthMode] = useState(false);
@@ -147,6 +154,7 @@ export default function ProfileTab() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
 
   const [editOpen, setEditOpen] = useState(false);
   const [editValue, setEditValue] = useState("");
@@ -155,6 +163,22 @@ export default function ProfileTab() {
   const [editSuccess, setEditSuccess] = useState(false);
 
   const initials = getInitials(user?.displayName ?? null, user?.handle ?? "");
+
+  const handleLogout = async () => {
+    try {
+      // First, clear Privy session
+      try {
+        await privyLogout();
+      } catch (e) {
+        // Non-fatal: continue to clear local state even if Privy logout fails
+        console.warn("Privy logout failed:", e);
+      }
+
+      await AuthService.logout();
+    } catch (err) {
+      console.error("Logout failed:", err);
+    }
+  };
 
   const openEditName = () => {
     setEditValue(user?.displayName ?? "");
@@ -332,8 +356,11 @@ export default function ProfileTab() {
             icon={ShieldCheck}
             label="Privacy Policy"
             delay={420}
-            disabled
-            right={<ChevronRight size={16} color={`${COLORS.white}15`} />}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setPrivacyOpen(true);
+            }}
+            right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
           />
 
           <MotiView
@@ -483,10 +510,18 @@ export default function ProfileTab() {
         isOpen={feedbackOpen}
         onClose={() => setFeedbackOpen(false)}
       />
-      <LogoutModal isOpen={logoutOpen} onClose={() => setLogoutOpen(false)} />
+      <LogoutModal
+        isOpen={logoutOpen}
+        onClose={() => setLogoutOpen(false)}
+        onConfirm={handleLogout}
+      />
       <TermsOfServiceScreen
         isOpen={termsOpen}
         onBack={() => setTermsOpen(false)}
+      />
+      <PrivacyPolicyScreen
+        isOpen={privacyOpen}
+        onBack={() => setPrivacyOpen(false)}
       />
     </View>
   );

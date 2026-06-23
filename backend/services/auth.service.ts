@@ -24,21 +24,26 @@ class AuthService {
   public async register(
     handle: string,
     signerAddress: string,
-    smartAccountAddress?: string,
+    smartAccountAddress: string,
     email?: string,
     authProvider?: string,
   ) {
     const normalizedSigner = signerAddress.toLowerCase();
-    const normalizedSmart = smartAccountAddress?.toLowerCase();
+    const normalizedSmart = smartAccountAddress.toLowerCase();
+
+    if (normalizedSigner === normalizedSmart) {
+      throw new ErrorHandler(
+        "Smart account address must be different from signer address",
+        400,
+      );
+    }
 
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
           { handle },
           { publicAddress: normalizedSigner },
-          ...(normalizedSmart
-            ? [{ smartAccountAddress: normalizedSmart }]
-            : []),
+          { smartAccountAddress: normalizedSmart },
         ],
       },
     });
@@ -48,10 +53,7 @@ class AuthService {
         throw new ErrorHandler("Handle already taken", 409);
       if (existingUser.publicAddress === normalizedSigner)
         throw new ErrorHandler("This account is already registered", 409);
-      if (
-        normalizedSmart &&
-        existingUser.smartAccountAddress === normalizedSmart
-      )
+      if (existingUser.smartAccountAddress === normalizedSmart)
         throw new ErrorHandler("Smart account already registered", 409);
     }
 

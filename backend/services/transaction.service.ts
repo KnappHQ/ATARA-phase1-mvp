@@ -1,4 +1,5 @@
 import { ethers } from "ethers";
+import axios from "axios";
 import prisma from "../config/prisma";
 import type { TxStatus } from "@prisma/client";
 import { ErrorHandler } from "../utils/errorHandler";
@@ -6,8 +7,9 @@ import {
   ALCHEMY_URL,
   TRANSACTION_CATEGORIES,
   DEFAULT_CATEGORY,
+  NETWORK,
 } from "../utils/constants";
-import axios from "axios";
+import { getKnownTokens, type AppNetwork } from "../utils/tokenConfig";
 
 interface AlchemyTransfer {
   blockNum: string;
@@ -88,11 +90,72 @@ class TransactionService {
       throw new ErrorHandler("Transaction failed on-chain", 400);
     }
 
-    // For ERC-4337 smart account txs via Alchemy Bundler, tx.from is the bundler
-    // and tx.to is the EntryPoint — not the actual sender/receiver. receipt.status === 1
-    // is sufficient to confirm the UserOperation executed successfully.
+    const expectedSender = (
+      data.senderProfile.smartAccountAddress ||
+      data.senderProfile.publicAddress ||
+      ""
+    ).toLowerCase();
 
-    // Validate that rawAmountWei and amount are consistent
+    const transfer = await this.findTransferByHash(
+      expectedSender,
+      normalizedTxHash,
+    );
+
+    if (data.assetSymbol === "ETH") {
+      if (transfer) {
+        if (transfer.to.toLowerCase() !== normalizedReceiverAddress) {
+          throw new ErrorHandler("ETH transfer target mismatch", 400);
+        }
+
+        const expectedWei = ethers.BigNumber.from(data.rawAmountWei);
+        const actualWei = this.getNativeTransferWei(transfer);
+
+        if (!expectedWei.eq(actualWei)) {
+          throw new ErrorHandler("ETH transfer amount mismatch", 400);
+        }
+      } else {
+        console.warn(
+          `[Alchemy] ETH transfer ${normalizedTxHash} not yet indexed for ${expectedSender}; syncing from receipt only.`,
+        );
+      }
+    } else {
+      if (!transfer) {
+        throw new ErrorHandler(
+          "Transaction not yet indexed for sync. Retry in a few moments.",
+          202,
+        );
+      }
+
+      const tokenConfig =
+        data.assetSymbol === "USDC" || data.assetSymbol === "USDT"
+          ? getKnownTokens(NETWORK as AppNetwork)[data.assetSymbol]
+          : undefined;
+
+      if (!tokenConfig?.address) {
+        throw new ErrorHandler(
+          "Unknown token configuration for this network",
+          400,
+        );
+      }
+
+      if (transfer.asset !== data.assetSymbol) {
+        throw new ErrorHandler("Token asset mismatch", 400);
+      }
+
+      if (transfer.to.toLowerCase() !== normalizedReceiverAddress) {
+        throw new ErrorHandler("Token transfer recipient mismatch", 400);
+      }
+
+      const expectedWei = ethers.BigNumber.from(data.rawAmountWei);
+      const actualWei = ethers.BigNumber.from(
+        transfer.rawContract?.value || "0x0",
+      );
+
+      if (!expectedWei.eq(actualWei)) {
+        throw new ErrorHandler("Token transfer amount mismatch", 400);
+      }
+    }
+
     const calculatedDecimal = ethers.utils.formatEther(data.rawAmountWei);
     if (
       data.assetSymbol === "ETH" &&
@@ -136,65 +199,6 @@ class TransactionService {
     return transaction;
   }
 
-  private async fetchAlchemyHistory(
-    address: string,
-  ): Promise<AlchemyTransfer[]> {
-    const commonParams = {
-      fromBlock: "0x0",
-      category: ["external"],
-      withMetadata: true,
-      excludeZeroValue: true,
-      maxCount: "0x64",
-    };
-
-    const makeRequest = (params: any) => ({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "alchemy_getAssetTransfers",
-      params: [params],
-    });
-
-    try {
-      const [sentRes, receivedRes] = await Promise.all([
-        axios.post(
-          ALCHEMY_URL,
-          makeRequest({ ...commonParams, fromAddress: address }),
-        ),
-        axios.post(
-          ALCHEMY_URL,
-          makeRequest({ ...commonParams, toAddress: address }),
-        ),
-      ]);
-
-      const sent = sentRes.data.result?.transfers || [];
-      const received = receivedRes.data.result?.transfers || [];
-
-      if (sentRes.data.error) {
-        console.error("[Alchemy] Sent request error:", sentRes.data.error);
-      }
-      if (receivedRes.data.error) {
-        console.error(
-          "[Alchemy] Received request error:",
-          receivedRes.data.error,
-        );
-      }
-
-      const seen = new Set<string>();
-      const all: AlchemyTransfer[] = [];
-      for (const tx of [...sent, ...received]) {
-        if (!seen.has(tx.uniqueId)) {
-          seen.add(tx.uniqueId);
-          all.push(tx);
-        }
-      }
-
-      return all;
-    } catch (error) {
-      console.error("[Alchemy] Fetch Error:", error);
-      return [];
-    }
-  }
-
   public async getHistory(userId: string) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -236,7 +240,6 @@ class TransactionService {
           },
         },
       }),
-
       this.fetchAlchemyHistory(walletAddress),
     ]);
 
@@ -253,7 +256,7 @@ class TransactionService {
       assetSymbol: tx.assetSymbol,
       category: tx.category,
       userNote: tx.userNote,
-      type: tx.senderId === userId ? "send" : "receive",
+      type: tx.senderId === userId ? ("send" as const) : ("receive" as const),
       isInApp: true,
       counterparty: {
         address:
@@ -289,7 +292,7 @@ class TransactionService {
           assetSymbol: tx.asset || "ETH",
           category: tx.category,
           userNote: null,
-          type: isSend ? "send" : "receive",
+          type: isSend ? ("send" as const) : ("receive" as const),
           isInApp: false,
           counterparty: {
             address: isSend ? tx.to : tx.from,
@@ -300,12 +303,10 @@ class TransactionService {
         };
       });
 
-    const unifiedHistory = [...inAppTransactions, ...externalTransactions].sort(
+    return [...inAppTransactions, ...externalTransactions].sort(
       (a, b) =>
         new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
     );
-
-    return unifiedHistory;
   }
 
   public async getTransactionById(transactionId: string, userId: string) {
@@ -347,7 +348,7 @@ class TransactionService {
       throw new ErrorHandler("Not authorized to edit this transaction", 403);
     }
 
-    const updatedTx = await prisma.transaction.update({
+    return prisma.transaction.update({
       where: { id: transactionId },
       data: {
         status,
@@ -355,8 +356,140 @@ class TransactionService {
         userNote,
       },
     });
+  }
 
-    return updatedTx;
+  private async fetchAlchemyHistory(
+    address: string,
+  ): Promise<AlchemyTransfer[]> {
+    const externalParams = {
+      fromBlock: "0x0",
+      category: ["external", "erc20"],
+      withMetadata: true,
+      excludeZeroValue: true,
+      maxCount: "0x64",
+    };
+
+    const internalParams = {
+      fromBlock: "0x0",
+      category: ["internal"],
+      withMetadata: true,
+      excludeZeroValue: true,
+      maxCount: "0x64",
+    };
+
+    const makeRequest = (params: Record<string, unknown>) => ({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "alchemy_getAssetTransfers",
+      params: [params],
+    });
+
+    try {
+      const [sentRes, receivedRes, sentInternalRes, receivedInternalRes] =
+        await Promise.all([
+          axios.post(
+            ALCHEMY_URL,
+            makeRequest({ ...externalParams, fromAddress: address }),
+          ),
+          axios.post(
+            ALCHEMY_URL,
+            makeRequest({ ...externalParams, toAddress: address }),
+          ),
+          axios
+            .post(
+              ALCHEMY_URL,
+              makeRequest({ ...internalParams, fromAddress: address }),
+            )
+            .catch((error) => {
+              console.warn(
+                "[Alchemy] Internal sent request unavailable:",
+                error?.response?.data?.error?.message ||
+                  error?.message ||
+                  error,
+              );
+              return { data: { result: { transfers: [] } } };
+            }),
+          axios
+            .post(
+              ALCHEMY_URL,
+              makeRequest({ ...internalParams, toAddress: address }),
+            )
+            .catch((error) => {
+              console.warn(
+                "[Alchemy] Internal received request unavailable:",
+                error?.response?.data?.error?.message ||
+                  error?.message ||
+                  error,
+              );
+              return { data: { result: { transfers: [] } } };
+            }),
+        ]);
+
+      const sent = sentRes.data.result?.transfers || [];
+      const received = receivedRes.data.result?.transfers || [];
+      const sentInternal = sentInternalRes.data.result?.transfers || [];
+      const receivedInternal = receivedInternalRes.data.result?.transfers || [];
+
+      if (sentRes.data.error) {
+        console.error("[Alchemy] Sent request error:", sentRes.data.error);
+      }
+      if (receivedRes.data.error) {
+        console.error(
+          "[Alchemy] Received request error:",
+          receivedRes.data.error,
+        );
+      }
+
+      const seen = new Set<string>();
+      const all: AlchemyTransfer[] = [];
+
+      for (const tx of [
+        ...sent,
+        ...received,
+        ...sentInternal,
+        ...receivedInternal,
+      ]) {
+        if (!seen.has(tx.uniqueId)) {
+          seen.add(tx.uniqueId);
+          all.push(tx);
+        }
+      }
+
+      return all;
+    } catch (error) {
+      console.error("[Alchemy] Fetch Error:", error);
+      return [];
+    }
+  }
+
+  private async findTransferByHash(
+    address: string,
+    txHash: string,
+  ): Promise<AlchemyTransfer | null> {
+    const history = await this.fetchAlchemyHistory(address);
+    const normalizedTxHash = txHash.toLowerCase();
+
+    return (
+      history.find(
+        (transfer) => transfer.hash.toLowerCase() === normalizedTxHash,
+      ) ?? null
+    );
+  }
+
+  private getNativeTransferWei(transfer: AlchemyTransfer) {
+    const rawValue = transfer.rawContract?.value;
+
+    if (rawValue) {
+      return ethers.BigNumber.from(rawValue);
+    }
+
+    const humanValue = transfer.value != null ? transfer.value.toString() : "0";
+
+    try {
+      return ethers.utils.parseEther(humanValue);
+    } catch {
+      return ethers.BigNumber.from(humanValue);
+    }
   }
 }
 

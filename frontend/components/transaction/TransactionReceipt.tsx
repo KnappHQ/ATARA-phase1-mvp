@@ -16,7 +16,7 @@ interface TransactionReceiptProps {
   recipientAddress?: string;
   usdValue: string;
   txHash?: string;
-  networkFee?: string;
+  gasPaidDisplay?: string;
 }
 
 const truncateAddress = (address: string) => {
@@ -31,7 +31,7 @@ export const TransactionReceipt = ({
   recipientAddress,
   usdValue,
   txHash,
-  networkFee = "0.0001",
+  gasPaidDisplay = "0.00",
 }: TransactionReceiptProps) => {
   const formatHash = (hash?: string) => {
     if (!hash) return "#PENDING";
@@ -129,12 +129,12 @@ export const TransactionReceipt = ({
             </View>
           </Pressable>
           <View className="flex-row items-center justify-between">
-            <Text className="text-sm font-medium text-muted">Network Fee</Text>
+            <Text className="text-sm font-medium text-muted">Gas Paid</Text>
             <View className="flex-row items-center gap-2">
               <View className="flex-row items-center gap-1 px-2 py-0.5 rounded-full bg-emarald/10 border border-emarald/20">
                 <Zap size={12} color={COLORS.emarald} />
                 <Text className="text-xs font-semibold text-emarald">
-                  ${networkFee}
+                  {gasPaidDisplay}
                 </Text>
               </View>
             </View>

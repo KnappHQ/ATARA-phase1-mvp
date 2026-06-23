@@ -66,5 +66,7 @@ app.use("/api/v1", rootRouter);
 app.use(errorMiddleware);
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on port ${PORT}`);
+  if (NODE_ENV !== "production") {
+    console.log(`Server running on port ${PORT}`);
+  }
 });

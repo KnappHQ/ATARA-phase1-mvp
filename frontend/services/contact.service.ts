@@ -26,8 +26,11 @@ export const ContactService = {
         return [];
       }
 
+      // For non-auth errors, surface to caller so UI can show an error state.
       console.error("Failed to get recent contacts:", error);
-      return []; // Return empty array instead of throwing
+      throw new Error(
+        error.response?.data?.message || "Failed to get recent contacts",
+      );
     }
   },
 };

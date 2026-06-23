@@ -5,6 +5,8 @@ import { useTransactionStore } from "@/stores/useTransactionStore";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import { ScrollView, Share, View, Text, BackHandler } from "react-native";
+import { useAlertStore } from "@/stores/useAlertStore";
+import * as Sentry from "@sentry/react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function TransactionSuccess() {
@@ -30,7 +32,8 @@ export default function TransactionSuccess() {
         recipientAddress: transaction.recipientAddress || "",
         usdValue: transaction.usdValue?.replace("$", "") || "0.00",
         txHash: transaction.hash || (params.hash as string) || "",
-        networkFee: transaction.gasFee || "0.00",
+        gasPaidDisplay:
+          (params.gasPaidDisplay as string) || transaction.gasFee || "0.00",
         timestamp: transaction.timestamp.toISOString(),
         status: transaction.status,
       }
@@ -45,7 +48,7 @@ export default function TransactionSuccess() {
         },
         usdValue: "0.00",
         txHash: (params.hash as string) || "",
-        networkFee: "0.00",
+        gasPaidDisplay: (params.gasPaidDisplay as string) || "0.00",
         recipientAddress: "",
         timestamp: new Date().toISOString(),
         status: "pending" as const,
@@ -67,6 +70,10 @@ export default function TransactionSuccess() {
       });
     } catch (error) {
       console.error("Share failed:", error);
+      useAlertStore
+        .getState()
+        .error("Share failed", (error as any)?.message || "Unable to share");
+      Sentry.captureException(error);
     }
   };
 
@@ -109,7 +116,7 @@ export default function TransactionSuccess() {
           recipientAddress={transactionData.recipientAddress}
           usdValue={transactionData.usdValue}
           txHash={transactionData.txHash}
-          networkFee={transactionData.networkFee}
+          gasPaidDisplay={transactionData.gasPaidDisplay}
         />
 
         <ActionButtons

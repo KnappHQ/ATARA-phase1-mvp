@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import * as Sentry from "@sentry/react-native";
 import { CHAIN_ID, DEFAULT_ASSETS, NETWORK_NAME } from "@/utils/constants";
 import { WalletService } from "@/services/wallet.service";
 
@@ -109,6 +110,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
       });
     } catch (error: any) {
       console.error("Failed to refresh balances:", error);
+      Sentry.captureException(error);
       set({
         balanceError: error.message || "Failed to load portfolio",
         isLoadingBalances: false,

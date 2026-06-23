@@ -1,6 +1,7 @@
 import { useAuthStore } from "../stores/useAuthStore";
 import { api } from "./api";
 import { analyticsEvents } from "./analytics.service";
+import { generateLoginMessage } from "../utils/privy";
 
 interface RegisterParams {
   handle: string;
@@ -8,6 +9,8 @@ interface RegisterParams {
   signerAddress: string;
   email?: string;
   authProvider: string;
+  message: string;
+  signature: string;
 }
 
 export const AuthService = {
@@ -25,8 +28,34 @@ export const AuthService = {
     return user;
   },
 
-  loginWithSigner: async (signerAddress: string) => {
-    const response = await api.post("/auth/login", { signerAddress });
+  /**
+   * Sign a message with the wallet and send to backend for verification
+   * This ensures only the wallet owner can log in
+   */
+  loginWithSigner: async (
+    signerAddress: string,
+    walletSignFunction?: (message: string) => Promise<string>,
+  ) => {
+    // Generate a message to sign (includes timestamp for replay protection)
+    const message = generateLoginMessage(signerAddress);
+
+    let signature: string;
+    if (!walletSignFunction) {
+      throw new Error("Wallet signing is required for login");
+    }
+
+    // Use provided sign function (from wallet context)
+    signature = await walletSignFunction(message);
+
+    if (!signature) {
+      throw new Error("Failed to obtain wallet signature for login");
+    }
+
+    const response = await api.post("/auth/login", {
+      signerAddress,
+      message,
+      signature,
+    });
 
     const { user, token } = response.data;
     await useAuthStore.getState().setAuth(user, token);
@@ -38,8 +67,10 @@ export const AuthService = {
     try {
       const response = await api.get(`/auth/check-handle/${handle}`);
       return response.data.available;
-    } catch {
-      return false;
+    } catch (error: any) {
+      throw new Error(
+        error?.response?.data?.message || "Unable to check handle",
+      );
     }
   },
 

@@ -14,6 +14,8 @@ import { X, DollarSign, FileText } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { COLORS } from "@/utils/constants";
 import { useGroupStore } from "@/stores/useGroupStore";
+import { useAlertStore } from "@/stores/useAlertStore";
+import * as Sentry from "@sentry/react-native";
 
 interface AddExpenseModalProps {
   isOpen: boolean;
@@ -47,6 +49,13 @@ export const AddExpenseModal = ({
       onClose();
     } catch (err: any) {
       console.error("Failed to add expense:", err);
+      useAlertStore
+        .getState()
+        .error(
+          "Add expense failed",
+          err?.message || "Unable to add expense. Please try again.",
+        );
+      Sentry.captureException(err);
     } finally {
       setIsSubmitting(false);
     }

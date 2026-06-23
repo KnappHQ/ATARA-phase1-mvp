@@ -1,12 +1,13 @@
 import { Request, Response, NextFunction } from "express";
 import { ErrorHandler } from "../utils/errorHandler";
+import { NODE_ENV } from "../utils/constants";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const errorMiddleware = (
   err: Error | ErrorHandler,
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ): void => {
   let statusCode = 500;
   let message = "Internal Server Error";
@@ -15,7 +16,9 @@ export const errorMiddleware = (
     statusCode = err.statusCode;
     message = err.message;
   } else {
-    console.error("UNEXPECTED ERROR:", err);
+    if (NODE_ENV !== "production") {
+      console.error("UNEXPECTED ERROR:", err);
+    }
   }
 
   res.status(statusCode).json({

@@ -2,6 +2,7 @@ import {
   View,
   Text,
   TextInput,
+  Pressable,
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
@@ -11,9 +12,18 @@ import { Check, ChevronRight, AlertCircle } from "lucide-react-native";
 import { CrownIcon } from "./CrownIcon";
 import { COLORS } from "@/utils/constants";
 import { useState, useEffect, useCallback } from "react";
-import { useUser, useSmartAccountClient } from "@account-kit/react-native";
+import { useEmbeddedEthereumWallet, usePrivy } from "@privy-io/expo";
 import { AuthService } from "@/services/auth.service";
+import { createAlchemySmartAccountService } from "@/services/smartAccount.service";
 import debounce from "@/utils/debounce";
+import { TermsOfServiceScreen } from "@/components/profile/TermsOfServiceScreen";
+import { PrivacyPolicyScreen } from "@/components/profile/PrivacyPolicyScreen";
+import {
+  getPrimaryEmbeddedEthereumWalletAddress,
+  getPrimaryEmailAddress,
+  getPrimaryOAuthProvider,
+  generateRegistrationMessage,
+} from "@/utils/privy";
 
 interface IdentityScreenProps {
   handle: string;
@@ -31,11 +41,12 @@ export const IdentityScreen = ({
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [acceptedLegalTerms, setAcceptedLegalTerms] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
 
-  const user = useUser();
-  const { client } = useSmartAccountClient({
-    type: "ModularAccountV2",
-  });
+  const { user } = usePrivy();
+  const { wallets, create } = useEmbeddedEthereumWallet();
 
   // Debounced handle availability check
   const checkHandleAvailability = useCallback(
@@ -66,15 +77,29 @@ export const IdentityScreen = ({
   }, [handle]);
 
   const handleFinish = async () => {
-    if (!isValid || !isAvailable) return;
+    if (!isValid || !isAvailable || !acceptedLegalTerms) return;
 
     setIsRegistering(true);
     setError(null);
 
     try {
-      const smartAccountAddress = client?.account?.address;
-      const signerAddress = user?.address;
-      const email = user?.email;
+      let signerWallet: (typeof wallets)[number] | undefined = wallets[0];
+      let signerAddress =
+        signerWallet?.address || getPrimaryEmbeddedEthereumWalletAddress(user);
+
+      if (!signerAddress) {
+        const result = await create({ createAdditional: false });
+        signerAddress =
+          getPrimaryEmbeddedEthereumWalletAddress(result.user) ||
+          getPrimaryEmbeddedEthereumWalletAddress(user);
+        signerWallet = wallets.find(
+          (wallet) =>
+            wallet.address.toLowerCase() === signerAddress?.toLowerCase(),
+        );
+      }
+
+      const email = getPrimaryEmailAddress(user);
+      const authProvider = getPrimaryOAuthProvider(user) ?? "privy";
 
       if (!signerAddress) {
         setError("Wallet not ready. Please wait...");
@@ -82,12 +107,44 @@ export const IdentityScreen = ({
         return;
       }
 
+      if (!signerWallet) {
+        setError("Wallet provider not ready. Please try again in a moment.");
+        setIsRegistering(false);
+        return;
+      }
+
+      const smartAccountService = await createAlchemySmartAccountService({
+        wallet: signerWallet,
+      });
+      const smartAccountAddress = smartAccountService.getSmartAccountAddress();
+
+      if (!smartAccountAddress) {
+        setError("Smart account not ready. Please try again.");
+        setIsRegistering(false);
+        return;
+      }
+
+      const registrationMessage = generateRegistrationMessage(signerAddress);
+      const provider = await signerWallet.getProvider();
+      const registrationSignature = await provider.request({
+        method: "personal_sign",
+        params: [registrationMessage, signerWallet.address],
+      });
+
+      if (!registrationSignature) {
+        setError("Failed to verify wallet ownership. Please try again.");
+        setIsRegistering(false);
+        return;
+      }
+
       await AuthService.register({
         handle,
-        smartAccountAddress: smartAccountAddress || undefined,
+        smartAccountAddress,
         signerAddress,
         email: email || undefined,
-        authProvider: "social",
+        authProvider,
+        message: registrationMessage,
+        signature: registrationSignature,
       });
 
       onFinish();
@@ -101,7 +158,8 @@ export const IdentityScreen = ({
     }
   };
 
-  const canSubmit = isValid && isAvailable === true && !isRegistering;
+  const canSubmit =
+    isValid && isAvailable === true && acceptedLegalTerms && !isRegistering;
 
   return (
     <SafeAreaView className="flex-1 items-center justify-center px-8">
@@ -160,7 +218,55 @@ export const IdentityScreen = ({
         {error && (
           <Text className="text-red-400 text-xs mt-2 px-1">{error}</Text>
         )}
+
+        <View className="mt-5 flex-row items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
+          <Pressable
+            onPress={() => setAcceptedLegalTerms((value) => !value)}
+            className={`mt-0.5 h-5 w-5 items-center justify-center rounded-[6px] border ${
+              acceptedLegalTerms
+                ? "border-white bg-white"
+                : "border-white/30 bg-transparent"
+            }`}
+          >
+            {acceptedLegalTerms && (
+              <Check size={13} color={COLORS.black} strokeWidth={3} />
+            )}
+          </Pressable>
+
+          <Text className="flex-1 text-[12px] leading-5 text-white/75">
+            I agree to the{` `}
+            <Text
+              onPress={() => setTermsOpen(true)}
+              className="font-semibold text-white underline underline-offset-2"
+            >
+              Terms of Service
+            </Text>
+            {` `}and{` `}
+            <Text
+              onPress={() => setPrivacyOpen(true)}
+              className="font-semibold text-white underline underline-offset-2"
+            >
+              Privacy Policy
+            </Text>
+            .
+          </Text>
+        </View>
+
+        {!acceptedLegalTerms && (
+          <Text className="mt-2 px-1 text-[11px] text-white/35">
+            Please accept the terms to continue.
+          </Text>
+        )}
       </MotiView>
+
+      <TermsOfServiceScreen
+        isOpen={termsOpen}
+        onBack={() => setTermsOpen(false)}
+      />
+      <PrivacyPolicyScreen
+        isOpen={privacyOpen}
+        onBack={() => setPrivacyOpen(false)}
+      />
 
       <MotiView
         from={{ opacity: 0 }}
