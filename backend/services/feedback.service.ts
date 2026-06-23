@@ -1,25 +1,14 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 import prisma from "../config/prisma";
 import {
-  SMTP_HOST,
-  SMTP_PORT,
-  SMTP_SECURE,
-  SMTP_USER,
-  SMTP_PASS,
+  FEEDBACK_FROM_EMAIL,
   FEEDBACK_RECIPIENT_EMAIL,
+  RESEND_API_KEY,
   NODE_ENV,
 } from "../utils/constants";
 import { feedbackEmailHtml, feedbackEmailText } from "../utils/emailTemplates";
 
-const transporter = nodemailer.createTransport({
-  host: SMTP_HOST,
-  port: SMTP_PORT,
-  secure: SMTP_SECURE,
-  auth: {
-    user: SMTP_USER,
-    pass: SMTP_PASS,
-  },
-});
+const resend = RESEND_API_KEY ? new Resend(RESEND_API_KEY) : null;
 
 class FeedbackService {
   public async submit(data: {
@@ -55,13 +44,25 @@ class FeedbackService {
     message: string,
     createdAt: Date,
   ) {
-    await transporter.sendMail({
-      from: `"ATARA Feedback" <${SMTP_USER}>`,
-      to: FEEDBACK_RECIPIENT_EMAIL,
+    if (!resend) {
+      throw new Error("Missing RESEND_API_KEY");
+    }
+
+    if (!FEEDBACK_RECIPIENT_EMAIL) {
+      throw new Error("Missing FEEDBACK_RECIPIENT_EMAIL");
+    }
+
+    const { error } = await resend.emails.send({
+      from: `ATARA <${FEEDBACK_FROM_EMAIL}>`,
+      to: [FEEDBACK_RECIPIENT_EMAIL],
       subject: `[Beta Feedback] from ${handle ? `@${handle}` : "anonymous"}`,
       text: feedbackEmailText(id, handle, message),
       html: feedbackEmailHtml(id, handle, message, createdAt),
     });
+
+    if (error) {
+      throw new Error(error.message);
+    }
   }
 }
 

@@ -35,6 +35,7 @@ import { IdentityCard } from "@/components/profile/IdentityCard";
 import { FeedbackModal } from "@/components/profile/FeedbackModal";
 import { LogoutModal } from "@/components/profile/LogoutModal";
 import { TermsOfServiceScreen } from "@/components/profile/TermsOfServiceScreen";
+import { PrivacyPolicyScreen } from "@/components/profile/PrivacyPolicyScreen";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { usePrivy } from "@privy-io/expo";
 import { AuthService } from "@/services/auth.service";
@@ -153,6 +154,7 @@ export default function ProfileTab() {
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
 
   const [editOpen, setEditOpen] = useState(false);
   const [editValue, setEditValue] = useState("");
@@ -354,8 +356,11 @@ export default function ProfileTab() {
             icon={ShieldCheck}
             label="Privacy Policy"
             delay={420}
-            disabled
-            right={<ChevronRight size={16} color={`${COLORS.white}15`} />}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setPrivacyOpen(true);
+            }}
+            right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
           />
 
           <MotiView
@@ -513,6 +518,10 @@ export default function ProfileTab() {
       <TermsOfServiceScreen
         isOpen={termsOpen}
         onBack={() => setTermsOpen(false)}
+      />
+      <PrivacyPolicyScreen
+        isOpen={privacyOpen}
+        onBack={() => setPrivacyOpen(false)}
       />
     </View>
   );

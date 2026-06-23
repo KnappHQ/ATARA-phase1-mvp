@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Text } from "react-native";
 import { MotiView } from "moti";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
@@ -18,6 +18,7 @@ interface SwipeToSendProps {
   onComplete: () => void;
   disabled?: boolean;
   label?: string;
+  resetKey?: number;
 }
 
 const CONTAINER_HEIGHT = 200;
@@ -28,10 +29,16 @@ export const SwipeToSend = ({
   onComplete,
   disabled = false,
   label = "Swipe to Send",
+  resetKey = 0,
 }: SwipeToSendProps) => {
   const [isComplete, setIsComplete] = useState(false);
   const translateY = useSharedValue(0);
   const startY = useSharedValue(0);
+
+  useEffect(() => {
+    setIsComplete(false);
+    translateY.value = withSpring(0);
+  }, [resetKey, translateY]);
 
   const handleComplete = () => {
     setIsComplete(true);

@@ -10,13 +10,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MotiView } from "moti";
 import { Check, ChevronRight, AlertCircle } from "lucide-react-native";
 import { CrownIcon } from "./CrownIcon";
-import { COLORS, NOTION_LEGAL_URL } from "@/utils/constants";
+import { COLORS } from "@/utils/constants";
 import { useState, useEffect, useCallback } from "react";
 import { useEmbeddedEthereumWallet, usePrivy } from "@privy-io/expo";
 import { AuthService } from "@/services/auth.service";
 import { createAlchemySmartAccountService } from "@/services/smartAccount.service";
 import debounce from "@/utils/debounce";
-import * as Linking from "expo-linking";
+import { TermsOfServiceScreen } from "@/components/profile/TermsOfServiceScreen";
+import { PrivacyPolicyScreen } from "@/components/profile/PrivacyPolicyScreen";
 import {
   getPrimaryEmbeddedEthereumWalletAddress,
   getPrimaryEmailAddress,
@@ -41,6 +42,8 @@ export const IdentityScreen = ({
   const [isRegistering, setIsRegistering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [acceptedLegalTerms, setAcceptedLegalTerms] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
 
   const { user } = usePrivy();
   const { wallets, create } = useEmbeddedEthereumWallet();
@@ -72,14 +75,6 @@ export const IdentityScreen = ({
       checkHandleAvailability(handle);
     }
   }, [handle]);
-
-  const openLegalLink = async () => {
-    try {
-      await Linking.openURL(NOTION_LEGAL_URL);
-    } catch {
-      setError("Unable to open legal terms right now.");
-    }
-  };
 
   const handleFinish = async () => {
     if (!isValid || !isAvailable || !acceptedLegalTerms) return;
@@ -241,14 +236,14 @@ export const IdentityScreen = ({
           <Text className="flex-1 text-[12px] leading-5 text-white/75">
             I agree to the{` `}
             <Text
-              onPress={openLegalLink}
+              onPress={() => setTermsOpen(true)}
               className="font-semibold text-white underline underline-offset-2"
             >
               Terms of Service
             </Text>
             {` `}and{` `}
             <Text
-              onPress={openLegalLink}
+              onPress={() => setPrivacyOpen(true)}
               className="font-semibold text-white underline underline-offset-2"
             >
               Privacy Policy
@@ -263,6 +258,15 @@ export const IdentityScreen = ({
           </Text>
         )}
       </MotiView>
+
+      <TermsOfServiceScreen
+        isOpen={termsOpen}
+        onBack={() => setTermsOpen(false)}
+      />
+      <PrivacyPolicyScreen
+        isOpen={privacyOpen}
+        onBack={() => setPrivacyOpen(false)}
+      />
 
       <MotiView
         from={{ opacity: 0 }}

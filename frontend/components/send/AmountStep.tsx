@@ -35,12 +35,16 @@ import {
 
 interface AmountStepProps {
   recipient: Contact;
+  onTransactionStateChange?: (inProgress: boolean) => void;
 }
 
 const QUICK_AMOUNTS = ["25%", "50%", "75%", "MAX"];
 const STANDARD_GAS_DISPLAY = "0.0002";
 
-export const AmountStep = ({ recipient }: AmountStepProps) => {
+export const AmountStep = ({
+  recipient,
+  onTransactionStateChange,
+}: AmountStepProps) => {
   const router = useRouter();
   const params = useLocalSearchParams();
 
@@ -89,6 +93,10 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
   const [isRetryingWithGas, setIsRetryingWithGas] = useState(false);
   const [canRetryWithGas, setCanRetryWithGas] = useState(false);
   const [isGasDialogOpen, setIsGasDialogOpen] = useState(false);
+  const [isAddressReviewOpen, setIsAddressReviewOpen] = useState(false);
+  const [swipeResetKey, setSwipeResetKey] = useState(0);
+  const isTransactionInProgress =
+    isSending || isRetryingWithGas || isTransactionLoading;
 
   const truncateAddress = (address: string) => {
     if (!address || address.length < 12) return address;
@@ -96,6 +104,8 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
   };
 
   const handleAmountChange = (text: string) => {
+    if (isTransactionInProgress) return;
+
     const cleanText = text.replace(/[^0-9.]/g, "");
 
     const parts = cleanText.split(".");
@@ -127,7 +137,19 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
   const amountValue = parseAmount(amount);
   const balanceValidation = validateBalance(amountValue, currentBalance);
 
+  useEffect(() => {
+    onTransactionStateChange?.(isTransactionInProgress);
+  }, [isTransactionInProgress, onTransactionStateChange]);
+
+  useEffect(() => {
+    return () => {
+      onTransactionStateChange?.(false);
+    };
+  }, [onTransactionStateChange]);
+
   const handleQuickAmount = (percentage: string) => {
+    if (isTransactionInProgress || isLoadingBalances) return;
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const calculatedAmount = calculatePercentageAmount(
       percentage,
@@ -138,6 +160,8 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
 
   /** When user manually switches token in a settlement flow, convert to new token units */
   const handleTokenSelect = (token: Token) => {
+    if (isTransactionInProgress || isLoadingBalances) return;
+
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const asset = getAssetBySymbol(token.symbol);
     if (!asset) return;
@@ -150,8 +174,7 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
   const isValidAmount = amountValue > 0 && balanceValidation.isValid;
   const canSend =
     isValidAmount &&
-    !isSending &&
-    !isRetryingWithGas &&
+    !isTransactionInProgress &&
     smartAccountService &&
     transactionService;
 
@@ -184,9 +207,24 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
         : undefined,
   });
 
-  const handleSendComplete = async () => {
-    if (!canSend) return;
+  const handleSendComplete = () => {
+    if (!canSend || isTransactionInProgress) return;
 
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsAddressReviewOpen(true);
+  };
+
+  const closeAddressReview = () => {
+    if (isTransactionInProgress) return;
+
+    setIsAddressReviewOpen(false);
+    setSwipeResetKey((key) => key + 1);
+  };
+
+  const handleConfirmAddressAndSend = async () => {
+    if (!canSend || isTransactionInProgress) return;
+
+    setIsAddressReviewOpen(false);
     clearError();
     setIsSending(true);
     setCanRetryWithGas(false);
@@ -236,6 +274,7 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
         token: selectedToken.symbol,
         errorMessage: error?.message ?? "unknown error",
       });
+      setSwipeResetKey((key) => key + 1);
       // Error is stored in transaction store
     } finally {
       setIsSending(false);
@@ -243,7 +282,11 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
   };
 
   const handleRetryWithGas = async () => {
-    if (!transactionService || !pendingRetryRequest) {
+    if (
+      isTransactionInProgress ||
+      !transactionService ||
+      !pendingRetryRequest
+    ) {
       return;
     }
 
@@ -357,6 +400,7 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
               <Pressable
                 key={token.symbol}
                 onPress={() => handleTokenSelect(token)}
+                disabled={isTransactionInProgress}
                 className="px-5 py-3 rounded-2xl active:opacity-80"
                 style={{
                   backgroundColor:
@@ -406,6 +450,7 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
             keyboardType="decimal-pad"
             inputMode="decimal"
             maxLength={15}
+            editable={!isTransactionInProgress}
             className="text-5xl font-light text-center w-full"
             style={{
               maxWidth: 200,
@@ -457,11 +502,11 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
           <Pressable
             key={pct}
             onPress={() => handleQuickAmount(pct)}
-            disabled={isLoadingBalances}
+            disabled={isLoadingBalances || isTransactionInProgress}
             className="px-4 py-2 rounded-2xl active:opacity-70 border border-muted/40"
             style={{
               backgroundColor: "rgba(255, 255, 255, 0.05)",
-              opacity: isLoadingBalances ? 0.5 : 1,
+              opacity: isLoadingBalances || isTransactionInProgress ? 0.5 : 1,
             }}
           >
             <Text className="text-xs font-medium text-muted">{pct}</Text>
@@ -480,9 +525,11 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
           onChangeText={setNote}
           placeholder="Add a note (optional)"
           placeholderTextColor={COLORS.muted}
+          editable={!isTransactionInProgress}
           className="w-full px-4 py-4 rounded-2xl text-base text-primary border border-muted/40"
           style={{
             backgroundColor: "rgba(255, 255, 255, 0.05)",
+            opacity: isTransactionInProgress ? 0.55 : 1,
           }}
         />
       </MotiView>
@@ -502,9 +549,9 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
           {canRetryWithGas && pendingRetryRequest && (
             <Pressable
               onPress={handleRetryWithGas}
-              disabled={isRetryingWithGas}
+              disabled={isTransactionInProgress}
               className="mt-3 self-start px-4 py-2 rounded-2xl bg-white"
-              style={{ opacity: isRetryingWithGas ? 0.7 : 1 }}
+              style={{ opacity: isTransactionInProgress ? 0.7 : 1 }}
             >
               <Text className="text-sm font-semibold text-black">
                 {isRetryingWithGas ? "Retrying..." : "Send with gas"}
@@ -515,10 +562,95 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
       )}
 
       <Modal
+        visible={isAddressReviewOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!isTransactionInProgress) {
+            closeAddressReview();
+          }
+        }}
+      >
+        <View className="flex-1 bg-black/75 items-center justify-center px-6">
+          <View className="w-full max-w-[360px] rounded-3xl border border-white/10 bg-[#111111] p-5">
+            <View className="mb-4 h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5">
+              <AlertCircle size={18} color={COLORS.white} />
+            </View>
+
+            <Text className="text-xl font-semibold text-white mb-2">
+              Review recipient
+            </Text>
+            <Text className="text-sm leading-6 text-white/65 mb-4">
+              Check this address carefully before transferring any funds.
+              Transfers cannot be reversed after signing.
+            </Text>
+
+            <View className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 mb-4">
+              <Text className="text-xs uppercase tracking-widest text-muted mb-2">
+                Recipient
+              </Text>
+              <Text className="text-base font-semibold text-white mb-2">
+                @{recipient.handle}
+              </Text>
+              <Text
+                className="font-mono text-sm text-white/70"
+                selectable
+                numberOfLines={1}
+              >
+                {recipient.smartAccountAddress}
+              </Text>
+            </View>
+
+            <View className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 mb-5">
+              <View className="flex-row justify-between gap-4">
+                <Text className="text-sm text-muted">Amount</Text>
+                <Text className="text-sm font-semibold text-white">
+                  {amountValue.toString()} {selectedToken.symbol}
+                </Text>
+              </View>
+              {selectedToken.usdPrice > 0 && (
+                <View className="mt-2 flex-row justify-between gap-4">
+                  <Text className="text-sm text-muted">Approx. value</Text>
+                  <Text className="text-sm font-semibold text-white">
+                    ${(amountValue * selectedToken.usdPrice).toFixed(2)}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <View className="flex-row gap-3">
+              <Pressable
+                onPress={closeAddressReview}
+                disabled={isTransactionInProgress}
+                className="flex-1 items-center justify-center rounded-2xl border border-white/15 py-3"
+                style={{ opacity: isTransactionInProgress ? 0.6 : 1 }}
+              >
+                <Text className="text-sm font-semibold text-white">
+                  Review again
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={handleConfirmAddressAndSend}
+                disabled={isTransactionInProgress}
+                className="flex-1 items-center justify-center rounded-2xl bg-white py-3"
+                style={{ opacity: isTransactionInProgress ? 0.7 : 1 }}
+              >
+                <Text className="text-sm font-semibold text-black">
+                  Confirm send
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
         visible={isGasDialogOpen}
         transparent
         animationType="fade"
         onRequestClose={() => {
+          if (isTransactionInProgress) return;
+
           setIsGasDialogOpen(false);
           setCanRetryWithGas(false);
           setPendingRetryRequest(null);
@@ -549,12 +681,16 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
             <View className="flex-row gap-3">
               <Pressable
                 onPress={() => {
+                  if (isTransactionInProgress) return;
+
                   setIsGasDialogOpen(false);
                   setCanRetryWithGas(false);
                   setPendingRetryRequest(null);
                   clearError();
                 }}
+                disabled={isTransactionInProgress}
                 className="flex-1 items-center justify-center rounded-2xl border border-white/15 py-3"
+                style={{ opacity: isTransactionInProgress ? 0.6 : 1 }}
               >
                 <Text className="text-sm font-semibold text-white">
                   Not now
@@ -562,9 +698,9 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
               </Pressable>
               <Pressable
                 onPress={handleRetryWithGas}
-                disabled={isRetryingWithGas}
+                disabled={isTransactionInProgress}
                 className="flex-1 items-center justify-center rounded-2xl bg-white py-3"
-                style={{ opacity: isRetryingWithGas ? 0.7 : 1 }}
+                style={{ opacity: isTransactionInProgress ? 0.7 : 1 }}
               >
                 <Text className="text-sm font-semibold text-black">
                   {isRetryingWithGas ? "Sending..." : "Continue with gas"}
@@ -611,6 +747,7 @@ export const AmountStep = ({ recipient }: AmountStepProps) => {
         <SwipeToSend
           onComplete={handleSendComplete}
           disabled={!canSend || isLoadingBalances}
+          resetKey={swipeResetKey}
           label={
             isSending || isRetryingWithGas
               ? "Sending Transaction..."

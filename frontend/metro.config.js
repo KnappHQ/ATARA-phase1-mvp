@@ -1,8 +1,7 @@
 // Learn more https://docs.expo.io/guides/customizing-metro
 const { getDefaultConfig } = require("expo/metro-config");
 const { withNativeWind } = require("nativewind/metro");
-// Integrate Sentry's Expo Metro config to ensure sourcemap/debug-id metadata
-// is present for release uploads when building with EAS.
+
 let getSentryExpoConfig;
 try {
   getSentryExpoConfig =

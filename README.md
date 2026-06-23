@@ -11,7 +11,7 @@
 - **Contact book** - search and save friends by handle, view threaded conversation history
 - **Transaction history** - full activity feed with categories (drinks, food, shopping, transfer, other), notes, and receipt detail views
 - **Wallet management** - ETH + USDC/USDT balances on Base Sepolia
-- **Feedback** - in-app feedback submissions delivered via email
+- **Feedback** - in-app feedback submissions delivered via Resend
 
 ---
 
@@ -45,7 +45,7 @@
 2. Alchemy SDK handles OAuth → creates / restores an embedded signer (EOA)
 3. Alchemy deploys a ModularAccountV2 smart account (ERC-4337) for the user
 4. Frontend calls `/api/v1/auth/login` (or `/register` for new users) with the signer address
-5. Backend issues a **7-day JWT** - all subsequent API calls use this token
+5. Backend issues a **30-day JWT** - all subsequent API calls use this token
 6. On app restart, `loadSession` checks JWT expiry before trusting the stored token; expired tokens trigger a silent logout
 
 ---
@@ -85,12 +85,12 @@ knapp-phase1-mvp/
 | Express              | HTTP framework           |
 | Prisma               | ORM + migrations         |
 | PostgreSQL           | Primary database         |
-| jsonwebtoken         | JWT auth (HS256, 7d)     |
+| jsonwebtoken         | JWT auth (HS256, 30d)    |
 | ethers.js            | On-chain tx verification |
 | helmet               | HTTP security headers    |
 | express-rate-limit   | 100 req / 15 min         |
 | axios                | External API calls       |
-| nodemailer           | Feedback email delivery  |
+| resend               | Feedback email delivery  |
 
 ### Frontend
 
@@ -236,7 +236,7 @@ Feedback
   - Account Kit (Smart Wallets) enabled
   - OAuth configured for Google and Apple (Apple via Auth0 connection)
 - A [PostHog](https://posthog.com/) project (for frontend analytics)
-- SMTP credentials for feedback email delivery
+- A Resend account with the `atara.finance` domain verified for feedback email delivery
 
 ---
 
@@ -260,12 +260,9 @@ JWT_SECRET=your_jwt_secret_here
 ALCHEMY_API_KEY=your_alchemy_api_key
 ALCHEMY_NETWORK=base-sepolia
 
-# SMTP (for feedback)
-SMTP_HOST=smtp.example.com
-SMTP_PORT=587
-SMTP_SECURE=false
-SMTP_USER=your@email.com
-SMTP_PASS=your_smtp_password
+# Resend (for feedback)
+RESEND_API_KEY=re_your_resend_api_key
+FEEDBACK_FROM_EMAIL=feedback@atara.finance
 FEEDBACK_RECIPIENT_EMAIL=feedback@yourdomain.com
 
 # Server
