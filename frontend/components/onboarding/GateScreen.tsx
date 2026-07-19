@@ -3,43 +3,21 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { MotiView } from "moti";
 import { CrownIcon } from "./CrownIcon";
 import { COLORS } from "@/utils/constants";
-import { useState } from "react";
-import * as Haptics from "expo-haptics";
-import { useOAuthFlow } from "@privy-io/expo";
 
 interface GateScreenProps {
   isCheckingBackend?: boolean;
+  isStartingOAuth?: boolean;
+  oauthError?: string | null;
+  onStartOAuth: (provider: "google" | "apple") => void;
 }
 
-export const GateScreen = ({ isCheckingBackend = false }: GateScreenProps) => {
-  const { start, state } = useOAuthFlow();
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const showLoading =
-    isLoading || isCheckingBackend || state.status === "loading";
-
-  const handleAuthSuccess = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
-
-  const handleSocialAuth = async (provider: "google" | "apple") => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      await start({
-        provider,
-        redirectUri: "/oauth-callback",
-      });
-      handleAuthSuccess();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+export const GateScreen = ({
+  isCheckingBackend = false,
+  isStartingOAuth = false,
+  oauthError = null,
+  onStartOAuth,
+}: GateScreenProps) => {
+  const showLoading = isStartingOAuth || isCheckingBackend;
 
   return (
     <SafeAreaView className="flex-1 items-center justify-center px-8">
@@ -65,7 +43,7 @@ export const GateScreen = ({ isCheckingBackend = false }: GateScreenProps) => {
         className="w-full max-w-[320px] gap-3"
       >
         <TouchableOpacity
-          onPress={() => handleSocialAuth("google")}
+          onPress={() => onStartOAuth("google")}
           activeOpacity={0.8}
           disabled={showLoading}
           className={`w-full py-4 px-6 bg-transparent border border-white/30 flex-row items-center justify-center gap-3 ${
@@ -83,7 +61,7 @@ export const GateScreen = ({ isCheckingBackend = false }: GateScreenProps) => {
         </TouchableOpacity>
 
         <TouchableOpacity
-          onPress={() => handleSocialAuth("apple")}
+          onPress={() => onStartOAuth("apple")}
           activeOpacity={0.8}
           disabled={showLoading}
           className={`w-full py-4 px-6 bg-transparent border border-white/30 flex-row items-center justify-center gap-3 ${
@@ -113,8 +91,10 @@ export const GateScreen = ({ isCheckingBackend = false }: GateScreenProps) => {
           </MotiView>
         )}
 
-        {error && (
-          <Text className="text-red-400 text-xs text-center mt-2">{error}</Text>
+        {oauthError && (
+          <Text className="text-red-400 text-xs text-center mt-2">
+            {oauthError}
+          </Text>
         )}
       </MotiView>
     </SafeAreaView>

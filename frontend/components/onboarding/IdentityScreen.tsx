@@ -11,30 +11,23 @@ import { MotiView } from "moti";
 import { Check, ChevronRight, AlertCircle } from "lucide-react-native";
 import { CrownIcon } from "./CrownIcon";
 import { COLORS } from "@/utils/constants";
-import { useState, useEffect, useCallback } from "react";
-import { useEmbeddedEthereumWallet, usePrivy } from "@privy-io/expo";
-import { AuthService } from "@/services/auth.service";
-import { createAlchemySmartAccountService } from "@/services/smartAccount.service";
+import { useState, useEffect, useMemo } from "react";
 import debounce from "@/utils/debounce";
 import { TermsOfServiceScreen } from "@/components/profile/TermsOfServiceScreen";
 import { PrivacyPolicyScreen } from "@/components/profile/PrivacyPolicyScreen";
-import {
-  getPrimaryEmbeddedEthereumWalletAddress,
-  getPrimaryEmailAddress,
-  getPrimaryOAuthProvider,
-  generateRegistrationMessage,
-} from "@/utils/privy";
 
 interface IdentityScreenProps {
   handle: string;
   setHandle: (h: string) => void;
-  onFinish: () => void;
+  onCheckHandle: (handle: string) => Promise<boolean>;
+  onSubmit: (params: { handle: string }) => Promise<void>;
 }
 
 export const IdentityScreen = ({
   handle,
   setHandle,
-  onFinish,
+  onCheckHandle,
+  onSubmit,
 }: IdentityScreenProps) => {
   const isValid = handle.length >= 3;
   const [isChecking, setIsChecking] = useState(false);
@@ -45,27 +38,25 @@ export const IdentityScreen = ({
   const [termsOpen, setTermsOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
 
-  const { user } = usePrivy();
-  const { wallets, create } = useEmbeddedEthereumWallet();
-
   // Debounced handle availability check
-  const checkHandleAvailability = useCallback(
-    debounce(async (h: string) => {
-      if (h.length < 3) {
-        setIsAvailable(null);
-        return;
-      }
-      setIsChecking(true);
-      try {
-        const available = await AuthService.checkHandle(h);
-        setIsAvailable(available);
-      } catch {
-        setIsAvailable(null);
-      } finally {
-        setIsChecking(false);
-      }
-    }, 500),
-    [],
+  const checkHandleAvailability = useMemo(
+    () =>
+      debounce(async (h: string) => {
+        if (h.length < 3) {
+          setIsAvailable(null);
+          return;
+        }
+        setIsChecking(true);
+        try {
+          const available = await onCheckHandle(h);
+          setIsAvailable(available);
+        } catch {
+          setIsAvailable(null);
+        } finally {
+          setIsChecking(false);
+        }
+      }, 500),
+    [onCheckHandle],
   );
 
   useEffect(() => {
@@ -74,7 +65,7 @@ export const IdentityScreen = ({
     if (handle.length >= 3) {
       checkHandleAvailability(handle);
     }
-  }, [handle]);
+  }, [checkHandleAvailability, handle]);
 
   const handleFinish = async () => {
     if (!isValid || !isAvailable || !acceptedLegalTerms) return;
@@ -83,74 +74,11 @@ export const IdentityScreen = ({
     setError(null);
 
     try {
-      let signerWallet: (typeof wallets)[number] | undefined = wallets[0];
-      let signerAddress =
-        signerWallet?.address || getPrimaryEmbeddedEthereumWalletAddress(user);
-
-      if (!signerAddress) {
-        const result = await create({ createAdditional: false });
-        signerAddress =
-          getPrimaryEmbeddedEthereumWalletAddress(result.user) ||
-          getPrimaryEmbeddedEthereumWalletAddress(user);
-        signerWallet = wallets.find(
-          (wallet) =>
-            wallet.address.toLowerCase() === signerAddress?.toLowerCase(),
-        );
-      }
-
-      const email = getPrimaryEmailAddress(user);
-      const authProvider = getPrimaryOAuthProvider(user) ?? "privy";
-
-      if (!signerAddress) {
-        setError("Wallet not ready. Please wait...");
-        setIsRegistering(false);
-        return;
-      }
-
-      if (!signerWallet) {
-        setError("Wallet provider not ready. Please try again in a moment.");
-        setIsRegistering(false);
-        return;
-      }
-
-      const smartAccountService = await createAlchemySmartAccountService({
-        wallet: signerWallet,
-      });
-      const smartAccountAddress = smartAccountService.getSmartAccountAddress();
-
-      if (!smartAccountAddress) {
-        setError("Smart account not ready. Please try again.");
-        setIsRegistering(false);
-        return;
-      }
-
-      const registrationMessage = generateRegistrationMessage(signerAddress);
-      const provider = await signerWallet.getProvider();
-      const registrationSignature = await provider.request({
-        method: "personal_sign",
-        params: [registrationMessage, signerWallet.address],
-      });
-
-      if (!registrationSignature) {
-        setError("Failed to verify wallet ownership. Please try again.");
-        setIsRegistering(false);
-        return;
-      }
-
-      await AuthService.register({
-        handle,
-        smartAccountAddress,
-        signerAddress,
-        email: email || undefined,
-        authProvider,
-        message: registrationMessage,
-        signature: registrationSignature,
-      });
-
-      onFinish();
+      await onSubmit({ handle });
     } catch (err: any) {
       const message =
         err?.response?.data?.message ||
+        err?.message ||
         "Registration failed. Please try again.";
       setError(message);
     } finally {
