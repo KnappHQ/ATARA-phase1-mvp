@@ -7,6 +7,7 @@ import { COLORS } from "@/utils/constants";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useSmartAccountService } from "@/services/smartAccount.service";
 import { VaultService, type VaultSnapshot } from "@/services/vault.service";
+import { DEMO_MODE, DEMO_MEMBER_ADDRESS, DEMO_VAULT_ADDRESS, getDemoVaultSnapshot } from "@/utils/demoMode";
 
 const dateTime = (timestamp: number) => new Date(timestamp * 1000).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" });
 const short = (address: string) => `${address.slice(0, 8)}…${address.slice(-6)}`;
@@ -22,21 +23,32 @@ export default function VaultDetailScreen() {
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   const vaultAddress = address || "";
   const load = useCallback(async () => {
+    if (DEMO_MODE && vaultAddress === DEMO_VAULT_ADDRESS) {
+      setSnapshot(getDemoVaultSnapshot(account));
+      setError(null);
+      return;
+    }
     if (!isAddress(vaultAddress)) return;
     try { setSnapshot(await VaultService.getSnapshot(vaultAddress)); setError(null); } catch (requestError: any) { setError(requestError?.message || "Impossible de charger ce Vault."); }
-  }, [vaultAddress]);
+  }, [account, vaultAddress]);
   useEffect(() => { void load(); }, [load]);
 
-  const member = useMemo(() => snapshot?.members.find((item) => item.address.toLowerCase() === account), [account, snapshot]);
+  const member = useMemo(() => snapshot?.members.find((item) => item.address.toLowerCase() === (account || (DEMO_MODE ? DEMO_MEMBER_ADDRESS : "").toLowerCase())), [account, snapshot]);
   const isLocked = snapshot ? snapshot.chainTimestamp < snapshot.unlockAt : true;
   const allAccepted = snapshot ? snapshot.acceptedCount === snapshot.members.length : false;
   const hasProposal = !!snapshot?.proposalId && !snapshot.proposal.executed && !snapshot.proposal.cancelled && snapshot.chainTimestamp < snapshot.proposal.expiresAt;
   const unanimous = hasProposal && snapshot!.proposal.approvalCount === snapshot!.members.length;
 
-  const run = async (calls: { target: `0x${string}`; data: `0x${string}` | string }[]) => {
+  const run = async (calls: { target: `0x${string}`; data: `0x${string}` | string }[], simulate?: (current: VaultSnapshot) => VaultSnapshot, successMessage?: string) => {
+    if (DEMO_MODE && simulate) {
+      setSnapshot((current) => current ? simulate(current) : current);
+      setMessage(successMessage || "Action simulée. Aucune transaction réelle n’a été envoyée.");
+      return;
+    }
     if (!smartAccount) { setError("Connexion au portefeuille en cours…"); return; }
     setBusy(true); setError(null);
     try { await smartAccount.sendContractCalls(calls); await load(); } catch (requestError: any) { setError(requestError?.message || "La transaction a échoué."); } finally { setBusy(false); }
@@ -46,7 +58,13 @@ export default function VaultDetailScreen() {
   const deposit = () => {
     if (!depositAmount || Number(depositAmount.replace(",", ".")) <= 0) return;
     const depositId = keccak256(stringToHex(`${vaultAddress}:${account}:${depositAmount}:${Date.now()}`));
-    return run(VaultService.depositCalls(vaultAddress, depositAmount.replace(",", "."), depositId));
+    const rawAmount = Number(depositAmount.replace(",", "."));
+    return run(DEMO_MODE ? [] : VaultService.depositCalls(vaultAddress, depositAmount.replace(",", "."), depositId), DEMO_MODE ? (current) => ({
+      ...current,
+      balance: (BigInt(current.balance) + BigInt(Math.round(rawAmount * 1_000_000))).toString(),
+      totalDeposited: (BigInt(current.totalDeposited) + BigInt(Math.round(rawAmount * 1_000_000))).toString(),
+      members: current.members.map((item) => item.address.toLowerCase() === (account || DEMO_MEMBER_ADDRESS).toLowerCase() ? { ...item, contribution: (BigInt(item.contribution) + BigInt(Math.round(rawAmount * 1_000_000))).toString() } : item),
+    }) : undefined, `Simulation : dépôt de ${rawAmount.toFixed(2)} USDC ajouté au Vault.`);
   };
   const propose = () => {
     if (!isAddress(recipient) || !withdrawAmount || Number(withdrawAmount.replace(",", ".")) <= 0 || !snapshot) return;
@@ -67,6 +85,7 @@ export default function VaultDetailScreen() {
       <View className="flex-row items-center px-6 py-4 border-b border-white/10"><Pressable onPress={() => router.back()} className="w-11 h-11 rounded-full items-center justify-center bg-white/10"><ArrowLeft size={20} color={COLORS.white} /></Pressable><Text className="ml-4 text-xl font-semibold text-white">{snapshot.name}</Text></View>
       <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 54 }} showsVerticalScrollIndicator={false}>
         <View className="rounded-3xl border border-white/10 bg-white/[0.06] p-5">
+          {DEMO_MODE ? <View className="mb-5 rounded-2xl border border-blue-300/25 bg-blue-300/10 p-4"><Text className="text-blue-100 font-semibold">MODE SIMULATION</Text><Text className="text-blue-100/70 text-xs leading-5 mt-1">Données fictives. Les dépôts et retraits ne sont pas exécutés sur Base Sepolia.</Text></View> : null}
           <View className="flex-row items-center"><View className="w-11 h-11 rounded-2xl bg-white/10 items-center justify-center"><LockKeyhole size={21} color={COLORS.accent} /></View><View className="flex-1 ml-3"><Text className="text-white text-lg font-semibold">Solde du Vault</Text><Text className="text-white/50 text-sm mt-1">{formatUnits(BigInt(snapshot.balance), 6)} USDC</Text></View></View>
           <Text className="text-white text-xl font-semibold mt-6">{isLocked ? `Fonds bloqués jusqu’au ${dateTime(snapshot.unlockAt)}` : "Date atteinte — accord unanime encore requis"}</Text>
           <Text className="text-white/45 text-xs mt-2">Heure UTC : {new Date(snapshot.unlockAt * 1000).toISOString().replace("T", " ").replace(".000Z", " UTC")}</Text>
@@ -85,6 +104,7 @@ export default function VaultDetailScreen() {
         {member && !isLocked && allAccepted ? <View className="mt-5 rounded-3xl border border-white/10 bg-white/[0.04] p-5"><Text className="text-white font-semibold">Proposer un retrait</Text>{hasProposal ? <><Text className="text-white/60 text-sm mt-3">{formatUnits(BigInt(snapshot.proposal.amount), 6)} USDC vers {short(snapshot.proposal.recipient)}</Text><Text className="text-white/50 text-sm mt-1">Accords : {snapshot.proposal.approvalCount}/{snapshot.members.length}</Text><Pressable onPress={toggleApproval} disabled={busy} className="mt-4 h-13 rounded-2xl bg-white items-center justify-center" style={{ opacity: busy ? 0.4 : 1 }}><Text className="font-semibold" style={{ color: COLORS.black }}>{member.approved ? "Retirer mon accord" : "Valider ce retrait"}</Text></Pressable>{unanimous ? <Pressable onPress={execute} disabled={busy} className="mt-3 h-13 rounded-2xl border border-white/20 items-center justify-center"><Text className="font-semibold text-white">Exécuter le retrait</Text></Pressable> : null}</> : <><TextInput value={recipient} onChangeText={setRecipient} autoCapitalize="none" placeholder="Adresse du bénéficiaire (0x…)" placeholderTextColor="rgba(255,255,255,0.25)" className="mt-4 rounded-2xl border border-white/15 bg-black/40 px-4 py-4 text-sm text-white" /><TextInput value={withdrawAmount} onChangeText={(value) => setWithdrawAmount(value.replace(/[^0-9.,]/g, ""))} keyboardType="decimal-pad" placeholder="Montant USDC" placeholderTextColor="rgba(255,255,255,0.25)" className="mt-3 rounded-2xl border border-white/15 bg-black/40 px-4 py-4 text-white" /><Pressable onPress={propose} disabled={busy || !isAddress(recipient) || !withdrawAmount} className="mt-4 h-13 rounded-2xl bg-white items-center justify-center" style={{ opacity: busy || !isAddress(recipient) || !withdrawAmount ? 0.4 : 1 }}><Text className="font-semibold" style={{ color: COLORS.black }}>Proposer le retrait</Text></Pressable></>}</View> : null}
 
         {error ? <Text className="text-red-300 text-sm leading-5 mt-4">{error}</Text> : null}
+        {message ? <Text className="text-green-300 text-sm leading-5 mt-4">{message}</Text> : null}
       </ScrollView>
     </SafeAreaView>
   );

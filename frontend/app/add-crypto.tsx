@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { ArrowLeft, ExternalLink, ShieldCheck, WalletCards } from "lucide-react-native";
 import { APP_NETWORK, COLORS, NETWORK_NAME } from "@/utils/constants";
+import { DEMO_MODE } from "@/utils/demoMode";
 import { OnrampService } from "@/services/onramp.service";
 import { useWalletStore } from "@/stores/useWalletStore";
 
@@ -25,15 +26,12 @@ export default function AddCryptoScreen() {
   const [amount, setAmount] = useState("50");
   const [isOpening, setIsOpening] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const walletAddress = useWalletStore((state) => state.smartAccountAddress);
 
   const openMoonPay = async () => {
-    if (APP_NETWORK !== "base-sepolia") {
+    if (!DEMO_MODE && APP_NETWORK !== "base-sepolia") {
       setError("L’achat intégré est activé uniquement sur Base Sepolia pendant la bêta.");
-      return;
-    }
-    if (!walletAddress) {
-      setError("Ton portefeuille sécurisé n’est pas encore prêt.");
       return;
     }
     const numericAmount = Number(amount.replace(",", "."));
@@ -42,8 +40,20 @@ export default function AddCryptoScreen() {
       return;
     }
 
+    if (DEMO_MODE) {
+      setError(null);
+      setMessage(`Simulation : ${numericAmount.toFixed(2)} € convertis en USDC. Aucun achat réel n’a été effectué.`);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      return;
+    }
+    if (!walletAddress) {
+      setError("Ton portefeuille sécurisé n’est pas encore prêt.");
+      return;
+    }
+
     setIsOpening(true);
     setError(null);
+    setMessage(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const session = await OnrampService.createSession(numericAmount.toFixed(2));
@@ -75,6 +85,7 @@ export default function AddCryptoScreen() {
         contentContainerStyle={{ padding: 24, paddingBottom: 48 }}
       >
         <View className="rounded-3xl border border-white/10 bg-white/[0.06] p-5">
+          {DEMO_MODE ? <View className="mb-5 rounded-2xl border border-blue-300/25 bg-blue-300/10 p-4"><Text className="text-blue-100 font-semibold">MODE SIMULATION</Text><Text className="text-blue-100/70 text-xs leading-5 mt-1">Aucun paiement, aucune crypto reçue. Cet écran sert uniquement à tester le parcours.</Text></View> : null}
           <View className="flex-row items-center">
             <View className="w-12 h-12 rounded-2xl bg-white/10 items-center justify-center">
               <WalletCards size={24} color={COLORS.accent} />
@@ -108,6 +119,7 @@ export default function AddCryptoScreen() {
           </View>
 
           {error ? <Text className="mt-4 text-sm leading-5 text-red-300">{error}</Text> : null}
+          {message ? <Text className="mt-4 text-sm leading-5 text-green-300">{message}</Text> : null}
 
           <Pressable
             onPress={openMoonPay}
@@ -119,8 +131,8 @@ export default function AddCryptoScreen() {
               <ActivityIndicator color={COLORS.black} />
             ) : (
               <View className="flex-row items-center">
-                <Text className="font-semibold" style={{ color: COLORS.black }}>Continuer avec MoonPay</Text>
-                <ExternalLink size={16} color={COLORS.black} style={{ marginLeft: 8 }} />
+              <Text className="font-semibold" style={{ color: COLORS.black }}>{DEMO_MODE ? "Simuler l’achat" : "Continuer avec MoonPay"}</Text>
+                {!DEMO_MODE ? <ExternalLink size={16} color={COLORS.black} style={{ marginLeft: 8 }} /> : null}
               </View>
             )}
           </Pressable>

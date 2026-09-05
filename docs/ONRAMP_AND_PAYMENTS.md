@@ -15,3 +15,11 @@ Le choix de MoonPay pour la bêta réduit le code spécifique côté mobile et g
 la conformité d’achat chez un prestataire spécialisé. Le fournisseur reste
 configurable : son code de devise, son environnement sandbox et son endpoint
 peuvent changer sans modifier le contrat Vault.
+
+## Mode simulation
+
+Pour une démonstration locale, active `EXPO_PUBLIC_DEMO_MODE=true` dans le
+projet Expo. Les parcours « Ajouter des crypto », « Payer une course » et
+Vault utilisent alors des données fictives et affichent clairement le mode
+simulation. Aucun appel MoonPay, aucune signature de bundle et aucune
+transaction blockchain ne sont exécutés.

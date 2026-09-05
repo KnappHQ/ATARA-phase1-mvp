@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { ArrowLeft, ShoppingBasket, ShieldCheck } from "lucide-react-native";
 import { APP_NETWORK, COLORS, NETWORK_NAME } from "@/utils/constants";
+import { DEMO_MODE } from "@/utils/demoMode";
 import { getTokenAddress } from "@/utils/tokenConfig";
 import { useSmartAccountService } from "@/services/smartAccount.service";
 import { useTransactionService } from "@/services/transaction.service";
@@ -37,17 +38,23 @@ export default function PayMerchantScreen() {
   const isValidAddress = ADDRESS_PATTERN.test(rawAddress);
   const parsedAmount = Number(amount.replace(",", "."));
   const isValidAmount = Number.isFinite(parsedAmount) && parsedAmount > 0;
-  const balanceText = useMemo(() => usdc?.balance || "0.00", [usdc?.balance]);
+  const balanceText = useMemo(() => DEMO_MODE ? "500.00" : (usdc?.balance || "0.00"), [usdc?.balance]);
   const hasSixDecimals = !amount.includes(".") || amount.split(".")[1].length <= 6;
-  const hasBalance = parsedAmount <= Number(balanceText.replace(",", "."));
-  const canPay = !!transactionService && isValidAddress && isValidAmount && hasSixDecimals && hasBalance && !isPaying;
+  const hasBalance = DEMO_MODE || parsedAmount <= Number(balanceText.replace(",", "."));
+  const canPay = (DEMO_MODE || !!transactionService) && isValidAddress && isValidAmount && hasSixDecimals && hasBalance && !isPaying;
 
   const pay = async () => {
-    if (!canPay || !transactionService) return;
+    if (!canPay) return;
     setIsPaying(true);
     setMessage(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
+      if (DEMO_MODE) {
+        setMessage(`Simulation : paiement de ${parsedAmount.toFixed(2)} USDC validé. Aucune transaction réelle n’a été envoyée.`);
+        setAmount("");
+        return;
+      }
+      if (!transactionService) return;
       const result = await transactionService.sendTransaction({
         recipientAddress: rawAddress,
         recipientName: "Commerçant",
@@ -81,6 +88,7 @@ export default function PayMerchantScreen() {
 
       <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
         <View className="rounded-3xl border border-white/10 bg-white/[0.06] p-5">
+          {DEMO_MODE ? <View className="mb-5 rounded-2xl border border-blue-300/25 bg-blue-300/10 p-4"><Text className="text-blue-100 font-semibold">MODE SIMULATION</Text><Text className="text-blue-100/70 text-xs leading-5 mt-1">Le solde affiché est fictif. Aucun USDC ne sera envoyé.</Text></View> : null}
           <View className="flex-row items-center">
             <View className="w-12 h-12 rounded-2xl bg-white/10 items-center justify-center">
               <ShoppingBasket size={24} color={COLORS.accent} />
@@ -146,10 +154,10 @@ export default function PayMerchantScreen() {
             className="mt-5 h-14 rounded-2xl items-center justify-center"
             style={{ backgroundColor: COLORS.white, opacity: canPay ? 1 : 0.4 }}
           >
-            {isPaying ? <ActivityIndicator color={COLORS.black} /> : <Text className="font-semibold" style={{ color: COLORS.black }}>Payer en USDC</Text>}
+            {isPaying ? <ActivityIndicator color={COLORS.black} /> : <Text className="font-semibold" style={{ color: COLORS.black }}>{DEMO_MODE ? "Simuler le paiement" : "Payer en USDC"}</Text>}
           </Pressable>
-          {!service ? <Text className="text-center text-xs text-white/40 mt-3">Connexion au portefeuille en cours…</Text> : null}
-          {!user?.smartAccountAddress ? <Text className="text-center text-xs text-white/40 mt-3">Ton portefeuille ATARA n’est pas encore prêt.</Text> : null}
+          {!DEMO_MODE && !service ? <Text className="text-center text-xs text-white/40 mt-3">Connexion au portefeuille en cours…</Text> : null}
+          {!DEMO_MODE && !user?.smartAccountAddress ? <Text className="text-center text-xs text-white/40 mt-3">Ton portefeuille ATARA n’est pas encore prêt.</Text> : null}
         </View>
       </ScrollView>
     </SafeAreaView>

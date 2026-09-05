@@ -7,6 +7,7 @@ import { COLORS } from "@/utils/constants";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useSmartAccountService } from "@/services/smartAccount.service";
 import { VaultService } from "@/services/vault.service";
+import { DEMO_MODE, DEMO_MEMBER_ADDRESS, DEMO_VAULT_ADDRESS } from "@/utils/demoMode";
 
 export default function VaultCreateScreen() {
   const router = useRouter();
@@ -19,17 +20,22 @@ export default function VaultCreateScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const members = useMemo(() => {
-    const all = [account || "", ...memberText.split(/[\s,;]+/).filter(Boolean)];
+    const all = [account || (DEMO_MODE ? DEMO_MEMBER_ADDRESS : ""), ...memberText.split(/[\s,;]+/).filter(Boolean)];
     return [...new Set(all.map((value) => value.trim().toLowerCase()))];
   }, [account, memberText]);
   const numericDays = Number(days);
   const unlockAt = Math.floor(Date.now() / 1000) + Math.floor(numericDays * 86400);
-  const valid = VaultService.isConfigured() && !!smartAccount && !!account && name.trim().length > 0 && name.length <= 64 && numericDays >= 1 && numericDays <= 365 && members.length >= 2 && members.length <= 10 && members.every((member) => isAddress(member));
+  const valid = (DEMO_MODE || VaultService.isConfigured()) && (DEMO_MODE || (!!smartAccount && !!account)) && name.trim().length > 0 && name.length <= 64 && numericDays >= 1 && numericDays <= 365 && members.length >= 2 && members.length <= 10 && members.every((member) => isAddress(member));
 
   const create = async () => {
-    if (!valid || !smartAccount) return;
+    if (!valid) return;
     setBusy(true); setError(null);
     try {
+      if (DEMO_MODE) {
+        router.replace({ pathname: "/vault-detail", params: { address: DEMO_VAULT_ADDRESS } });
+        return;
+      }
+      if (!smartAccount) return;
       const call = VaultService.createVaultCall(name.trim(), members, unlockAt);
       await smartAccount.sendContractCalls([{ target: call.target, data: call.data }]);
       router.replace("/vaults");
@@ -43,6 +49,7 @@ export default function VaultCreateScreen() {
       <View className="flex-row items-center px-6 py-4 border-b border-white/10"><Pressable onPress={() => router.back()} className="w-11 h-11 rounded-full items-center justify-center bg-white/10"><ArrowLeft size={20} color={COLORS.white} /></Pressable><Text className="ml-4 text-xl font-semibold text-white">Créer un Vault</Text></View>
       <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 50 }} showsVerticalScrollIndicator={false}>
         <View className="rounded-3xl border border-white/10 bg-white/[0.06] p-5">
+          {DEMO_MODE ? <View className="mb-5 rounded-2xl border border-blue-300/25 bg-blue-300/10 p-4"><Text className="text-blue-100 font-semibold">MODE SIMULATION</Text><Text className="text-blue-100/70 text-xs leading-5 mt-1">La création sera visualisée sans publier de contrat.</Text></View> : null}
           <View className="flex-row items-center"><View className="w-11 h-11 rounded-2xl bg-white/10 items-center justify-center"><LockKeyhole size={21} color={COLORS.accent} /></View><View className="flex-1 ml-3"><Text className="text-white text-lg font-semibold">Règles immuables</Text><Text className="text-white/50 text-sm mt-1">Base Sepolia · USDC · 2 à 10 membres</Text></View></View>
           <Text className="text-white/55 text-sm leading-5 mt-5">Le nom et les adresses des membres seront publics sur la blockchain. Le retrait restera soumis à l’accord de tout le monde.</Text>
           <Text className="text-white/50 text-xs uppercase mt-6 mb-2" style={{ letterSpacing: 1.4 }}>Nom public</Text>

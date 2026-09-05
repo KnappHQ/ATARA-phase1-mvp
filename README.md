@@ -315,9 +315,15 @@ EXPO_PUBLIC_ALCHEMY_POLICY_ID=your_gas_manager_policy_id
 EXPO_PUBLIC_API_URL=http://your-backend-ip:4000
 EXPO_PUBLIC_POSTHOG_API_KEY=phc_your_posthog_key
 EXPO_PUBLIC_POSTHOG_HOST=https://app.posthog.com
+EXPO_PUBLIC_DEMO_MODE=false
 EXPO_PUBLIC_VAULT_FACTORY_ADDRESS=
 EXPO_PUBLIC_VAULT_RPC_URL=https://sepolia.base.org
 ```
+
+Pour présenter les nouveaux écrans sans clé MoonPay, backend actif ou contrat
+déployé, passe `EXPO_PUBLIC_DEMO_MODE=true`. Le mode simulation affiche un
+solde fictif, un Vault de démonstration et des confirmations locales ; il ne
+appelle ni l’API d’achat ni le portefeuille et n’envoie aucune transaction.
 
 Start the development server:
 

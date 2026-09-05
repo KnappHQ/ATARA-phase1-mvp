@@ -5,6 +5,7 @@ import { ArrowLeft, ChevronRight, LockKeyhole, Plus } from "lucide-react-native"
 import { COLORS } from "@/utils/constants";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { VaultService } from "@/services/vault.service";
+import { DEMO_MODE, DEMO_VAULT_ADDRESS } from "@/utils/demoMode";
 
 const shortAddress = (address: string) => `${address.slice(0, 8)}…${address.slice(-6)}`;
 
@@ -16,6 +17,12 @@ export default function VaultsScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const loadVaults = useCallback(async () => {
+    if (DEMO_MODE) {
+      setVaults([DEMO_VAULT_ADDRESS]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     if (!account || !VaultService.isConfigured()) {
       setLoading(false);
       return;
@@ -44,9 +51,9 @@ export default function VaultsScreen() {
         </View>
         <Pressable
           onPress={() => router.push("/vault-create")}
-          disabled={!VaultService.isConfigured()}
+          disabled={!VaultService.isConfigured() && !DEMO_MODE}
           className="w-11 h-11 rounded-full items-center justify-center bg-white"
-          style={{ opacity: VaultService.isConfigured() ? 1 : 0.35 }}
+          style={{ opacity: VaultService.isConfigured() || DEMO_MODE ? 1 : 0.35 }}
         >
           <Plus size={21} color={COLORS.black} />
         </Pressable>
@@ -54,6 +61,7 @@ export default function VaultsScreen() {
 
       <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
         <View className="rounded-3xl border border-white/10 bg-white/[0.06] p-5">
+          {DEMO_MODE ? <View className="mb-5 rounded-2xl border border-blue-300/25 bg-blue-300/10 p-4"><Text className="text-blue-100 font-semibold">MODE SIMULATION</Text><Text className="text-blue-100/70 text-xs leading-5 mt-1">Ce Vault est fictif : aucune création et aucun dépôt ne touchent la blockchain.</Text></View> : null}
           <View className="flex-row items-center">
             <View className="w-11 h-11 rounded-2xl bg-white/10 items-center justify-center">
               <LockKeyhole size={21} color={COLORS.accent} />
@@ -68,7 +76,7 @@ export default function VaultsScreen() {
           </Text>
         </View>
 
-        {!VaultService.isConfigured() ? (
+        {!VaultService.isConfigured() && !DEMO_MODE ? (
           <View className="mt-4 rounded-3xl border border-amber-300/20 bg-amber-300/5 p-5">
             <Text className="text-amber-100 font-semibold">Vault en préparation</Text>
             <Text className="text-amber-100/65 text-sm leading-5 mt-2">
