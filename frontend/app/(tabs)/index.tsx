@@ -6,6 +6,8 @@ import { WeeklyInsights } from "../../components/homeScreen/WeeklyInsights";
 import { QuickSendBar } from "../../components/homeScreen/QuickSendBar";
 import { BalanceRevealSection } from "../../components/homeScreen/BalanceRevealSection";
 import { ActionButtons } from "../../components/homeScreen/ActionButtons";
+import { CryptoActions } from "../../components/homeScreen/CryptoActions";
+import { VaultEntryCard } from "../../components/homeScreen/VaultEntryCard";
 import { ActivityList } from "../../components/homeScreen/ActivityList";
 import { useTransactionHistoryStore } from "@/stores/useTransactionHistoryStore";
 import { useAuthStore } from "@/stores/useAuthStore";
@@ -50,6 +52,13 @@ export default function HomeTab() {
                 onReceive={() => setShareModalOpen(true)}
                 onSend={() => router.push("/send")}
               />
+
+              <CryptoActions
+                onAddCrypto={() => router.push("/add-crypto")}
+                onPayMerchant={() => router.push("/pay-merchant")}
+              />
+
+              <VaultEntryCard onPress={() => router.push("/vaults")} />
 
               <View className="mb-6">
                 <WeeklyInsights />

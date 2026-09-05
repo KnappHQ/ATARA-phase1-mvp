@@ -9,6 +9,7 @@ import { toAccount } from "viem/accounts";
 import type { LocalAccount } from "viem";
 import * as Sentry from "@sentry/react-native";
 import { useEmbeddedEthereumWallet } from "@privy-io/expo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { base, baseSepolia } from "viem/chains";
 import {
   alchemyWalletTransport,
@@ -20,7 +21,7 @@ import type {
   TransactionSerializable,
 } from "viem";
 
-import { APP_NETWORK } from "@/utils/constants";
+import { APP_NETWORK, CHAIN_ID } from "@/utils/constants";
 import { useAuthStore } from "@/stores/useAuthStore";
 
 // ERC-20 ABI for transfer function
@@ -49,6 +50,12 @@ export interface TransactionResult {
   hash: string; // This is the actual mined transaction hash
   userOpHash?: string;
   success: boolean;
+}
+
+export interface SmartAccountCall {
+  target: `0x${string}`;
+  value?: bigint;
+  data: `0x${string}` | string;
 }
 
 export interface SendTransactionFailure extends Error {
@@ -238,29 +245,67 @@ export class SmartAccountService {
     },
     overrides?: Record<string, unknown>,
   ): Promise<TransactionResult> {
-    const { id } = await this.client.sendCalls({
-      account: this.smartAccountAddress,
-      calls: [
-        {
-          to: uo.target,
-          value: uo.value,
-          data: uo.data,
-        },
-      ],
-      ...(overrides ? { capabilities: overrides } : {}),
-    });
+    return this.sendCallsAndWait(
+      [{ target: uo.target, value: uo.value, data: uo.data }],
+      overrides,
+    );
+  }
 
-    const status = await this.client.waitForCallsStatus({
-      id,
-    });
+  private async sendCallsAndWait(
+    calls: SmartAccountCall[],
+    overrides?: Record<string, unknown>,
+  ): Promise<TransactionResult> {
+    const pendingKey = `atara.pending-call-bundle.${CHAIN_ID}.${this.smartAccountAddress.toLowerCase()}`;
+    const waitForBundle = async (id: string) => {
+      const status = await this.client.waitForCallsStatus({
+        id,
+        timeout: 120_000,
+        throwOnFailure: true,
+      });
+      const txHash = status.receipts?.[0]?.transactionHash;
+      if (status.status === "failure" || !txHash) {
+        throw new Error("Transaction completed without a receipt hash");
+      }
+      return { hash: txHash, success: true } as TransactionResult;
+    };
 
-    const txHash = status.receipts?.[0]?.transactionHash;
-
-    if (!txHash) {
-      throw new Error("Transaction completed without a receipt hash");
+    // A mobile app can be closed after sendCalls() but before confirmation. In
+    // that case resume the same bundle instead of submitting a duplicate.
+    const pendingId = await AsyncStorage.getItem(pendingKey);
+    if (pendingId) {
+      try {
+        const result = await waitForBundle(pendingId);
+        await AsyncStorage.removeItem(pendingKey);
+        return result;
+      } catch (error: any) {
+        if (error?.name === "WaitForCallsStatusTimeoutError") {
+          throw new Error("Transaction still pending. Reopen the app to resume it.");
+        }
+        await AsyncStorage.removeItem(pendingKey);
+      }
     }
 
-    return { hash: txHash, success: true };
+    const { id } = await this.client.sendCalls({
+      account: this.smartAccountAddress,
+      calls: calls.map((call) => ({
+        to: call.target,
+        value: call.value ?? 0n,
+        data: call.data,
+      })),
+      ...(overrides ? { capabilities: overrides } : {}),
+    });
+    await AsyncStorage.setItem(pendingKey, id);
+    try {
+      const result = await waitForBundle(id);
+      await AsyncStorage.removeItem(pendingKey);
+      return result;
+    } catch (error: any) {
+      if (error?.name === "WaitForCallsStatusTimeoutError") {
+        throw new Error("Transaction still pending. Reopen the app to resume it.");
+      }
+      await AsyncStorage.removeItem(pendingKey);
+      throw error;
+    }
   }
 
   private getGaslessCapabilities(): Record<string, unknown> | undefined {
@@ -441,6 +486,22 @@ export class SmartAccountService {
       tokenAddress,
       decimals,
     );
+  }
+
+  /** Execute an ordered smart-account batch, such as approve + deposit. */
+  async sendContractCalls(calls: SmartAccountCall[]): Promise<TransactionResult> {
+    if (!this.client) throw new Error("Smart account client not available");
+    if (calls.length === 0) throw new Error("At least one contract call is required");
+
+    try {
+      return await this.sendCallsAndWait(calls, this.getGaslessCapabilities());
+    } catch (error: any) {
+      Sentry.captureException(error);
+      throw createTransactionError(error?.message || "Contract transaction failed", {
+        cause: error,
+        isPaymasterFailure: isPaymasterFailure(error) || !!error?.isPaymasterFailure,
+      });
+    }
   }
 
   getSmartAccountAddress(): string | undefined {

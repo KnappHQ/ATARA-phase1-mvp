@@ -40,6 +40,11 @@ const PROTECTED_ROUTES = [
   "contact-detail",
   "group-create",
   "group-details",
+  "add-crypto",
+  "pay-merchant",
+  "vaults",
+  "vault-create",
+  "vault-detail",
 ];
 
 function RootLayout() {
@@ -178,6 +183,25 @@ function RootLayoutInner() {
             contentStyle: { backgroundColor: "#000000" },
           }}
         />
+        <Stack.Screen
+          name="add-crypto"
+          options={{
+            presentation: "card",
+            animation: "slide_from_bottom",
+            contentStyle: { backgroundColor: "#000000" },
+          }}
+        />
+        <Stack.Screen
+          name="pay-merchant"
+          options={{
+            presentation: "card",
+            animation: "slide_from_bottom",
+            contentStyle: { backgroundColor: "#000000" },
+          }}
+        />
+        <Stack.Screen name="vaults" options={{ presentation: "card", animation: "slide_from_bottom" }} />
+        <Stack.Screen name="vault-create" options={{ presentation: "card", animation: "slide_from_bottom" }} />
+        <Stack.Screen name="vault-detail" options={{ presentation: "card", animation: "slide_from_bottom" }} />
       </Stack>
       {alert && (
         <AppAlert

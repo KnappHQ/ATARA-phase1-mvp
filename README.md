@@ -136,9 +136,17 @@ Base URL: `http://localhost:4000/api/v1`
 
 ### Wallet - `/wallet`
 
-| Method | Path        | Description                          |
-| ------ | ----------- | ------------------------------------ |
-| `GET`  | `/balances` | ETH + ERC-20 balances for an address |
+| Method | Path                | Description                                      |
+| ------ | ------------------- | ------------------------------------------------ |
+| `GET`  | `/portfolio`        | ETH + ERC-20 balances for the authenticated user |
+| `POST` | `/onramp-session`   | Create a signed MoonPay URL for the smart account |
+
+### Vaults - `/vaults`
+
+| Method | Path                 | Description                                      |
+| ------ | -------------------- | ------------------------------------------------ |
+| `GET`  | `/`                  | List Vault addresses for the authenticated member |
+| `GET`  | `/:vaultAddress`     | Read a member-only on-chain Vault snapshot        |
 
 ### Users - `/user`
 
@@ -262,6 +270,17 @@ JWT_SECRET=your_jwt_secret_here
 ALCHEMY_API_KEY=your_alchemy_api_key
 ALCHEMY_NETWORK=base-sepolia
 
+# MoonPay (server-only; never put the secret in Expo)
+MOONPAY_API_KEY=pk_test_your_publishable_key
+MOONPAY_SECRET_KEY=sk_test_your_secret_key
+MOONPAY_WIDGET_URL=https://buy-sandbox.moonpay.com/
+MOONPAY_CURRENCY_CODE=usdc_base
+MOONPAY_BASE_CURRENCY_CODE=eur
+
+# Vault reads and deployment activation
+VAULT_FACTORY_ADDRESS=
+VAULT_RPC_URL=https://sepolia.base.org
+
 # Resend (for feedback)
 RESEND_API_KEY=re_your_resend_api_key
 FEEDBACK_FROM_EMAIL=feedback@atara.finance
@@ -293,9 +312,11 @@ Create a `.env` file (Expo reads `EXPO_PUBLIC_` prefixed variables on the client
 ```env
 EXPO_PUBLIC_ALCHEMY_API_KEY=your_alchemy_api_key
 EXPO_PUBLIC_ALCHEMY_POLICY_ID=your_gas_manager_policy_id
-EXPO_PUBLIC_API_BASE_URL=http://your-backend-ip:4000/api/v1
+EXPO_PUBLIC_API_URL=http://your-backend-ip:4000
 EXPO_PUBLIC_POSTHOG_API_KEY=phc_your_posthog_key
 EXPO_PUBLIC_POSTHOG_HOST=https://app.posthog.com
+EXPO_PUBLIC_VAULT_FACTORY_ADDRESS=
+EXPO_PUBLIC_VAULT_RPC_URL=https://sepolia.base.org
 ```
 
 Start the development server:
@@ -315,6 +336,22 @@ npm run ios            # Build and run on iOS simulator (macOS only)
 ### Gasless Transactions (ERC-4337)
 
 All transactions are sent as UserOperations through Alchemy's bundler. Gas is sponsored by an Alchemy Gas Manager policy, so users pay zero gas fees. The backend verifies each transaction on-chain by checking `receipt.status === 1` before writing it to the database.
+
+### On-ramp and merchant payments
+
+The beta keeps purchases on Base Sepolia. The authenticated backend creates a
+signed MoonPay widget URL that sends USDC directly to the user's smart account;
+the MoonPay secret stays server-side. The app also offers a merchant payment
+screen that sends USDC to a verified merchant address and resumes an in-flight
+smart-account bundle after an app restart.
+
+### Collective Vault
+
+Vaults are immutable Base Sepolia USDC group savings contracts. Every member
+accepts the terms, deposits before the lock date, and approves the same exact
+withdrawal payload. ATARA has no admin withdrawal path. See
+[`docs/VAULT_PLAN.md`](docs/VAULT_PLAN.md) for the lifecycle and deployment
+gates.
 
 ### Group Expense Splitting
 
