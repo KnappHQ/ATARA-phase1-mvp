@@ -12,19 +12,19 @@ model User {
   email               String?  @unique
   publicAddress       String   @unique // Privy embedded owner wallet address (EOA)
   smartAccountAddress String?  @unique // Alchemy ERC-4337 smart account on Base
-  authProvider        String?  // google, apple
+  authProvider        String? // google, apple
   profilePicUrl       String?
   displayName         String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  sentTx              Transaction[]      @relation("Sender")
-  receivedTx          Transaction[]      @relation("Receiver")
-  createdGroups       Group[]            @relation("CreatedGroups")
-  groupMemberships    GroupMember[]
-  paidExpenses        GroupExpense[]     @relation("PaidExpenses")
-  expenseSplits       GroupExpenseSplit[]
-  feedbacks           Feedback[]
+  sentTx           Transaction[]       @relation("Sender")
+  receivedTx       Transaction[]       @relation("Receiver")
+  createdGroups    Group[]             @relation("CreatedGroups")
+  groupMemberships GroupMember[]
+  paidExpenses     GroupExpense[]      @relation("PaidExpenses")
+  expenseSplits    GroupExpenseSplit[]
+  feedbacks        Feedback[]
 }
 
 model Group {
@@ -35,7 +35,7 @@ model Group {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  creator  User          @relation("CreatedGroups", fields: [createdById], references: [id])
+  creator  User           @relation("CreatedGroups", fields: [createdById], references: [id])
   members  GroupMember[]
   expenses GroupExpense[]
 }
@@ -61,42 +61,44 @@ model GroupExpense {
   assetSymbol String
   createdAt   DateTime @default(now())
 
-  group  Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  paidBy User              @relation("PaidExpenses", fields: [paidById], references: [id])
+  group  Group               @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  paidBy User                @relation("PaidExpenses", fields: [paidById], references: [id])
   splits GroupExpenseSplit[]
 }
 
 model GroupExpenseSplit {
-  id        String    @id @default(uuid())
-  expenseId String
-  userId    String
-  amount    Decimal   @db.Decimal(24, 8)
-  settled   Boolean   @default(false)
-  settledAt DateTime?
+  id                      String    @id @default(uuid())
+  expenseId               String
+  userId                  String
+  amount                  Decimal   @db.Decimal(24, 8)
+  settled                 Boolean   @default(false)
+  settledAt               DateTime?
+  settlementTransactionId String?
 
   expense GroupExpense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
   user    User         @relation(fields: [userId], references: [id])
 
   @@unique([expenseId, userId])
+  @@index([settlementTransactionId])
 }
 
 model Transaction {
-  id          String   @id @default(uuid())
-  senderId    String
-  receiverId  String?
+  id              String  @id @default(uuid())
+  senderId        String
+  receiverId      String?
   receiverAddress String
 
-  txHash      String   @unique
-  assetSymbol String
-  amount      Decimal  @db.Decimal(24, 8)
+  txHash       String   @unique
+  assetSymbol  String
+  amount       Decimal  @db.Decimal(24, 8)
   rawAmountWei String?
-  category    String?
-  userNote    String?
-  status      TxStatus @default(PENDING)
-  createdAt   DateTime @default(now())
+  category     String?
+  userNote     String?
+  status       TxStatus @default(PENDING)
+  createdAt    DateTime @default(now())
 
-  sender      User     @relation("Sender", fields: [senderId], references: [id])
-  receiver    User?     @relation("Receiver", fields: [receiverId], references: [id])
+  sender   User  @relation("Sender", fields: [senderId], references: [id])
+  receiver User? @relation("Receiver", fields: [receiverId], references: [id])
 }
 
 enum TxStatus {

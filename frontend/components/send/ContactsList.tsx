@@ -6,10 +6,17 @@ import {
   ClipboardPaste,
   BookUser,
 } from "lucide-react-native";
-import { Pressable, Text, TextInput, View, ScrollView } from "react-native";
+import {
+  Pressable,
+  Share,
+  Text,
+  TextInput,
+  View,
+  ScrollView,
+} from "react-native";
 import * as Haptics from "expo-haptics";
 import { MotiView } from "moti";
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Contact, useContactStore } from "@/stores/useContactStore";
 import { ContactEmptyStates } from "./ContactEmptyStates";
 import { ContactsLoading } from "./ContactsLoading";
@@ -19,6 +26,8 @@ import * as Clipboard from "expo-clipboard";
 import debounce from "@/utils/debounce";
 import { COLORS } from "@/utils/constants";
 import { buildAddressContact } from "@/utils/format";
+import { useAlertStore } from "@/stores/useAlertStore";
+import * as Sentry from "@sentry/react-native";
 
 interface ContactsListProps {
   searchQuery: string;
@@ -68,18 +77,19 @@ export const ContactsList = ({
     }
   };
 
-  const debouncedSearch = useCallback(
-    debounce(async (query: string) => {
-      if (query.trim()) {
-        await searchContacts(query);
-      }
-    }, 500),
-    [],
+  const debouncedSearch = useMemo(
+    () =>
+      debounce(async (query: string) => {
+        if (query.trim()) {
+          await searchContacts(query);
+        }
+      }, 500),
+    [searchContacts],
   );
 
   useEffect(() => {
     getRecentContacts();
-  }, []);
+  }, [getRecentContacts]);
 
   useEffect(() => {
     if (searchQuery.trim()) {
@@ -129,9 +139,21 @@ export const ContactsList = ({
     }
   };
 
-  const handleInvite = () => {
-    // TODO: Implement invite functionality
-    console.log("Invite user:", searchQuery);
+  const handleInvite = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    try {
+      await Share.share({
+        title: "Join me on ATARA",
+        message:
+          "Join me on ATARA to send and receive money instantly: https://atara.money",
+      });
+    } catch (error: any) {
+      Sentry.captureException(error);
+      useAlertStore
+        .getState()
+        .error("Invite failed", error?.message || "Unable to share right now");
+    }
   };
 
   const handlePasteAddress = async () => {

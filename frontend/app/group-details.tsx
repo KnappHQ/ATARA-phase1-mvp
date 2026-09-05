@@ -36,7 +36,7 @@ export default function GroupDetailsScreen() {
   useEffect(() => {
     if (id) fetchGroupDetail(id);
     return () => clearDetail();
-  }, [id]);
+  }, [clearDetail, fetchGroupDetail, id]);
 
   return (
     <SafeAreaView className="flex-1 bg-black">
@@ -97,14 +97,13 @@ export default function GroupDetailsScreen() {
         member={settleMember}
         groupId={id ?? ""}
         groupName={name ?? ""}
-        onSettled={() => {
-          setSettleMember(null);
-          if (id) fetchGroupDetail(id);
-        }}
       />
 
       <Pressable
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowAddExpense(true); }}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          setShowAddExpense(true);
+        }}
         className="absolute bottom-6 right-6 w-14 h-14 rounded-full items-center justify-center active:opacity-80"
         style={[
           { backgroundColor: COLORS.accent },

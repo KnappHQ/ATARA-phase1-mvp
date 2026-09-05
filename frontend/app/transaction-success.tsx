@@ -54,14 +54,6 @@ export default function TransactionSuccess() {
         status: "pending" as const,
       };
 
-  if (!transactionData.txHash && !transactionId) {
-    return (
-      <SafeAreaView className="flex-1 bg-black items-center justify-center">
-        <Text className="text-white text-lg">Loading transaction...</Text>
-      </SafeAreaView>
-    );
-  }
-
   const handleShareProof = async () => {
     try {
       await Share.share({
@@ -95,8 +87,16 @@ export default function TransactionSuccess() {
       );
 
       return () => subscription.remove();
-    }, []),
+    }, [router]),
   );
+
+  if (!transactionData.txHash && !transactionId) {
+    return (
+      <SafeAreaView className="flex-1 bg-black items-center justify-center">
+        <Text className="text-white text-lg">Loading transaction...</Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView className="flex-1 bg-black" edges={["top"]}>

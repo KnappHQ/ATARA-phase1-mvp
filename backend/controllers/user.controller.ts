@@ -39,6 +39,24 @@ export const userController = {
     },
   ),
 
+  deleteAccount: catchAsync(
+    async (req: Request, res: Response, next: NextFunction) => {
+      if (req.body?.confirmation !== "DELETE") {
+        throw new ErrorHandler(
+          "Account deletion confirmation is required",
+          400,
+        );
+      }
+
+      await userService.deleteAccount(req.user.id);
+
+      res.status(200).json({
+        success: true,
+        message: "Account deleted successfully",
+      });
+    },
+  ),
+
   search: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
       const { q } = req.query;

@@ -38,7 +38,7 @@ export const ShieldIcon = ({ visible }: ShieldIconProps) => {
         ),
       );
     }
-  }, [visible]);
+  }, [shieldScale, shieldShake, visible]);
 
   const shieldContainerStyle = useAnimatedStyle(() => ({
     transform: [

@@ -45,7 +45,7 @@ export default function GroupCreateScreen() {
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [searchQuery]);
+  }, [searchContacts, searchQuery]);
 
   const isSearchMode = searchQuery.trim().length > 0;
   const allResults = isSearchMode
@@ -134,7 +134,7 @@ export default function GroupCreateScreen() {
                   className="text-sm mt-3"
                   style={{ color: `${COLORS.white}66` }}
                 >
-                  No users found for "{searchQuery}"
+                  {`No users found for “${searchQuery}”`}
                 </Text>
               </View>
             )}

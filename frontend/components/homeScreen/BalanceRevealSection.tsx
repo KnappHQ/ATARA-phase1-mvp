@@ -43,7 +43,7 @@ export const BalanceRevealSection = ({
     if (user?.smartAccountAddress) {
       refreshBalances();
     }
-  }, [user]);
+  }, [refreshBalances, user]);
 
   const isInitialLoad = totalUSDValue === 0;
 

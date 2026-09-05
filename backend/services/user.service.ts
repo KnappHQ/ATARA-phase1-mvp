@@ -81,6 +81,33 @@ class UserService {
     return updatedUser;
   }
 
+  public async deleteAccount(userId: string) {
+    await prisma.$transaction(async (tx) => {
+      // Keep anonymous feedback content, but remove its link to the user.
+      await tx.feedback.updateMany({
+        where: { userId },
+        data: { userId: null, handle: null },
+      });
+
+      // Preserve incoming transfers for the sender while removing the deleted
+      // account as their identified recipient. Sent transfers are deleted.
+      await tx.transaction.updateMany({
+        where: { receiverId: userId },
+        data: { receiverId: null },
+      });
+      await tx.transaction.deleteMany({ where: { senderId: userId } });
+
+      // Remove group data owned by or directly tied to the account. Cascades
+      // on groups/expenses take care of their dependent rows.
+      await tx.groupExpenseSplit.deleteMany({ where: { userId } });
+      await tx.groupExpense.deleteMany({ where: { paidById: userId } });
+      await tx.group.deleteMany({ where: { createdById: userId } });
+      await tx.groupMember.deleteMany({ where: { userId } });
+
+      await tx.user.delete({ where: { id: userId } });
+    });
+  }
+
   public async searchUsers(query: string) {
     const cleanQuery = query.replace("@", "").toLowerCase();
 

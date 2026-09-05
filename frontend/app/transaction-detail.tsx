@@ -54,7 +54,7 @@ export default function TransactionDetail() {
             isInApp: params.isInApp === "true",
           }
         : null,
-    [params.id],
+    [params],
   );
 
   useEffect(() => {
@@ -67,7 +67,7 @@ export default function TransactionDetail() {
       setSelectedCategory(category);
       setNote(transaction.note || "");
     }
-  }, [params.id]);
+  }, [transaction]);
 
   const handleBack = () => {
     router.back();

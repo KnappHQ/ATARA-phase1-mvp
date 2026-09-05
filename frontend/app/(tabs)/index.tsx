@@ -25,7 +25,7 @@ export default function HomeTab() {
       fetchHistory();
       fetchGroups();
     }
-  }, [isAuthenticated]);
+  }, [fetchGroups, fetchHistory, isAuthenticated]);
 
   const recentActivity = useMemo(
     () => displayHistory.slice(0, ACTIVITY_LIMIT),

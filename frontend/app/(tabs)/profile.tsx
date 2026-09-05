@@ -1,12 +1,6 @@
 import "react-native-get-random-values";
 import { useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  Pressable,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, ScrollView, Pressable } from "react-native";
 import { MotiView } from "moti";
 import {
   LogOut,
@@ -14,7 +8,7 @@ import {
   FileText,
   ShieldCheck,
   ChevronRight,
-  Check,
+  Trash2,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { COLORS } from "@/utils/constants";
@@ -22,12 +16,14 @@ import { ProfileAvatar } from "@/components/profile/ProfileAvatar";
 import { IdentityCard } from "@/components/profile/IdentityCard";
 import { FeedbackModal } from "@/components/profile/FeedbackModal";
 import { DisplayNameModal } from "@/components/profile/DisplayNameModal";
+import { DeleteAccountModal } from "@/components/profile/DeleteAccountModal";
 import { LogoutModal } from "@/components/profile/LogoutModal";
 import { TermsOfServiceScreen } from "@/components/profile/TermsOfServiceScreen";
 import { PrivacyPolicyScreen } from "@/components/profile/PrivacyPolicyScreen";
 import { useAuth } from "@/providers/AuthProvider";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { getInitials } from "@/utils/format";
+import { UserService } from "@/services/user.service";
 
 const SettingRow = ({
   icon: Icon,
@@ -107,6 +103,7 @@ export default function ProfileTab() {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [deleteAccountOpen, setDeleteAccountOpen] = useState(false);
 
   const [displayNameOpen, setDisplayNameOpen] = useState(false);
   const [displayNameSaving, setDisplayNameSaving] = useState(false);
@@ -139,6 +136,11 @@ export default function ProfileTab() {
     } finally {
       setDisplayNameSaving(false);
     }
+  };
+
+  const deleteAccount = async () => {
+    await UserService.deleteAccount();
+    await logout();
   };
 
   return (
@@ -216,6 +218,17 @@ export default function ProfileTab() {
             right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
           />
 
+          <SectionHeader title="Account" delay={450} />
+
+          <SettingRow
+            icon={Trash2}
+            label="Delete Account"
+            subtitle="Permanently remove your ATARA account"
+            delay={480}
+            onPress={() => setDeleteAccountOpen(true)}
+            right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
+          />
+
           <MotiView
             from={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -256,6 +269,11 @@ export default function ProfileTab() {
         isSaving={displayNameSaving}
         onClose={closeDisplayNameModal}
         onSave={saveDisplayName}
+      />
+      <DeleteAccountModal
+        isOpen={deleteAccountOpen}
+        onClose={() => setDeleteAccountOpen(false)}
+        onConfirm={deleteAccount}
       />
     </View>
   );

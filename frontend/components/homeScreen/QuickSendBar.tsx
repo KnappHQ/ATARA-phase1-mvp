@@ -1,6 +1,6 @@
 import { MotiView } from "moti";
 import { Search, X } from "lucide-react-native";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { View, TextInput, TouchableOpacity, Text } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useContactStore, Contact } from "@/stores/useContactStore";
@@ -21,15 +21,16 @@ export const QuickSendBar = () => {
 
   useEffect(() => {
     getRecentContacts();
-  }, []);
+  }, [getRecentContacts]);
 
-  const debouncedSearch = useCallback(
-    debounce(async (query: string) => {
-      if (query.trim()) {
-        await searchContacts(query);
-      }
-    }, 500),
-    [],
+  const debouncedSearch = useMemo(
+    () =>
+      debounce(async (query: string) => {
+        if (query.trim()) {
+          await searchContacts(query);
+        }
+      }, 500),
+    [searchContacts],
   );
 
   useEffect(() => {

@@ -305,7 +305,7 @@ export default function ContactDetail() {
                             style={{ color: "rgba(255,255,255,0.4)" }}
                             numberOfLines={2}
                           >
-                            "{tx.userNote}"
+                            {`“${tx.userNote}”`}
                           </Text>
                         </View>
                       )}

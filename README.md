@@ -1,6 +1,6 @@
 # ATARA
 
-**ATARA** is a mobile-first crypto payment application built for everyday peer-to-peer transfers and group expense splitting. It runs on Base Sepolia (ERC-4337), uses Alchemy Smart Wallets so users never manage private keys, and authenticates with Google and Apple - no seed phrases, no friction.
+**ATARA** is a mobile-first crypto payment application built for everyday peer-to-peer transfers and group expense splitting. It runs on Base Sepolia (ERC-4337), uses Privy embedded wallets with Alchemy smart accounts so users never manage private keys, and authenticates with Google and Apple - no seed phrases, no friction.
 
 ---
 
@@ -42,7 +42,7 @@
 **Auth flow:**
 
 1. User taps "Continue with Google" or "Continue with Apple"
-2. Alchemy SDK handles OAuth → creates / restores an embedded signer (EOA)
+2. Privy handles OAuth → creates / restores an embedded signer (EOA)
 3. Alchemy deploys a ModularAccountV2 smart account (ERC-4337) for the user
 4. Frontend calls `/api/v1/auth/login` (or `/register` for new users) with the signer address
 5. Backend issues a **30-day JWT** - all subsequent API calls use this token
@@ -102,7 +102,8 @@ knapp-phase1-mvp/
 | NativeWind                | Tailwind CSS for React Native    |
 | Zustand                   | Global state management          |
 | Moti                      | Declarative animations           |
-| @account-kit/react-native | Alchemy Smart Wallets (ERC-4337) |
+| @privy-io/expo           | OAuth + embedded signer wallet   |
+| @alchemy/wallet-apis     | Alchemy Smart Wallets (ERC-4337) |
 | ethers.js                 | EVM utilities                    |
 | viem / wagmi              | EVM types + hooks                |
 | posthog-react-native      | Product analytics                |
@@ -145,6 +146,7 @@ Base URL: `http://localhost:4000/api/v1`
 | ------- | --------- | ---------------------------------------------------------- |
 | `GET`   | `/me`     | Authenticated user's profile                               |
 | `PATCH` | `/me`     | Update profile (handle, email, displayName, profilePicUrl) |
+| `DELETE`| `/me`     | Permanently delete the authenticated app account           |
 | `GET`   | `/search` | Search users by handle                                     |
 
 ### Groups - `/groups`
@@ -155,7 +157,7 @@ Base URL: `http://localhost:4000/api/v1`
 | `GET`    | `/`             | List all groups the user is a member of                   |
 | `GET`    | `/:id`          | Group detail with member balances                         |
 | `POST`   | `/:id/expenses` | Add an expense to a group                                 |
-| `POST`   | `/:id/settle`   | Settle debt via on-chain transaction (USD value verified) |
+| `POST`   | `/:id/settle/:memberId/by-tx` | Settle debt with a verified in-app transaction |
 | `DELETE` | `/:id`          | Delete a group (creator only)                             |
 
 ### Feedback - `/feedback`

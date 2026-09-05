@@ -8,6 +8,8 @@ router.get("/me", authentication, userController.getMe);
 
 router.patch("/me", authentication, userController.updateProfile);
 
+router.delete("/me", authentication, userController.deleteAccount);
+
 router.get("/search", authentication, userController.search);
 
 router.get("/quick-contacts", authentication, userController.getQuickContacts);

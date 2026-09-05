@@ -3,6 +3,7 @@ import { useTransactionHistoryStore } from "../stores/useTransactionHistoryStore
 import { SmartAccountService } from "./smartAccount.service";
 import { api } from "./api";
 import * as Sentry from "@sentry/react-native";
+import { parseUnits } from "viem";
 
 export interface SendTransactionRequest {
   transactionId?: string;
@@ -48,9 +49,10 @@ export class TransactionService {
 
     const decimals =
       request.decimals || (request.tokenSymbol === "ETH" ? 18 : 6);
-    const rawAmountWei = (
-      parseFloat(request.amount) * Math.pow(10, decimals)
-    ).toFixed(0);
+    // Never use floating-point arithmetic for on-chain values. A JS number can
+    // silently round token amounts and make backend verification fail (or sync
+    // a value different from the one shown to the user).
+    const rawAmountWei = parseUnits(request.amount, decimals).toString();
 
     const transactionId =
       request.transactionId ??
@@ -168,10 +170,7 @@ export class TransactionService {
     try {
       const rawAmountWei =
         transaction.rawAmountWei ||
-        (
-          parseFloat(transaction.amount) *
-          Math.pow(10, transaction.decimals || 18)
-        ).toFixed(0);
+        parseUnits(transaction.amount, transaction.decimals || 18).toString();
 
       const response = await api.post("/transaction/sync", {
         receiverAddress: transaction.recipientAddress,

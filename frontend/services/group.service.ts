@@ -98,13 +98,6 @@ export const GroupService = {
     return response.data.expense;
   },
 
-  markAsSettledManually: async (groupId: string, memberId: string) => {
-    const response = await api.post(
-      `/groups/${groupId}/settle/${memberId}/manual`,
-    );
-    return response.data;
-  },
-
   settleByInternalTx: async (
     groupId: string,
     memberId: string,

@@ -102,21 +102,25 @@ class TransactionService {
     );
 
     if (data.assetSymbol === "ETH") {
-      if (transfer) {
-        if (transfer.to.toLowerCase() !== normalizedReceiverAddress) {
-          throw new ErrorHandler("ETH transfer target mismatch", 400);
-        }
-
-        const expectedWei = ethers.BigNumber.from(data.rawAmountWei);
-        const actualWei = this.getNativeTransferWei(transfer);
-
-        if (!expectedWei.eq(actualWei)) {
-          throw new ErrorHandler("ETH transfer amount mismatch", 400);
-        }
-      } else {
-        console.warn(
-          `[Alchemy] ETH transfer ${normalizedTxHash} not yet indexed for ${expectedSender}; syncing from receipt only.`,
+      // ERC-4337 transfers are internal to the EntryPoint transaction. The
+      // top-level receipt alone does not prove who received how much, so never
+      // accept a receipt-only fallback.
+      if (!transfer) {
+        throw new ErrorHandler(
+          "Transaction not yet indexed for sync. Retry in a few moments.",
+          202,
         );
+      }
+
+      if (transfer.to.toLowerCase() !== normalizedReceiverAddress) {
+        throw new ErrorHandler("ETH transfer target mismatch", 400);
+      }
+
+      const expectedWei = ethers.BigNumber.from(data.rawAmountWei);
+      const actualWei = this.getNativeTransferWei(transfer);
+
+      if (!expectedWei.eq(actualWei)) {
+        throw new ErrorHandler("ETH transfer amount mismatch", 400);
       }
     } else {
       if (!transfer) {

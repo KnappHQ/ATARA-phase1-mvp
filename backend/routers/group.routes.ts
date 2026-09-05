@@ -19,14 +19,8 @@ router.post("/:groupId/expenses", groupController.addExpense);
 router.get("/:groupId/expenses", groupController.getExpenses);
 // /e/ prefix avoids ambiguity with /:groupId
 router.delete("/e/:expenseId", groupController.deleteExpense);
-router.post("/e/:expenseId/settle", groupController.settleMyShare);
 
 router.get("/:groupId/settle/:memberId", groupController.getSettleAllAmount);
-router.post("/:groupId/settle/:memberId", groupController.settleAllWithMember);
-router.post(
-  "/:groupId/settle/:memberId/manual",
-  groupController.markAsSettledManually,
-);
 router.post(
   "/:groupId/settle/:memberId/by-tx",
   groupController.settleByInternalTx,

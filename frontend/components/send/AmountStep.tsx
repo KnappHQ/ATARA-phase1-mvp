@@ -120,7 +120,7 @@ export const AmountStep = ({
     if (user?.smartAccountAddress) {
       refreshBalances();
     }
-  }, [user]);
+  }, [refreshBalances, user]);
 
   useEffect(() => {
     const updatedToken = getAssetBySymbol(selectedToken.symbol);
@@ -131,7 +131,7 @@ export const AmountStep = ({
         setAmount(usdToTokenAmount(settlementUsdAmount, updatedToken));
       }
     }
-  }, [assets]);
+  }, [assets, getAssetBySymbol, selectedToken.symbol, settlementUsdAmount]);
 
   const currentBalance = parseAmount(selectedToken.balance);
   const amountValue = parseAmount(amount);
@@ -181,7 +181,7 @@ export const AmountStep = ({
   const buildTransactionRequest = (
     forceGasPayment = false,
   ): SendTransactionRequest => ({
-    recipientAddress: recipient.smartAccountAddress!!,
+    recipientAddress: recipient.smartAccountAddress,
     recipientHandle: recipient.handle,
     recipientName: recipient.name,
     amount: amountValue.toString(),

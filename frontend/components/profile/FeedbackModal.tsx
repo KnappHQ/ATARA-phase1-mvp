@@ -57,7 +57,7 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
         setIsSubmitted(false);
         bottomSheetRef.current?.dismiss();
       }, 2000);
-    } catch (err) {
+    } catch {
       useAlertStore
         .getState()
         .error(

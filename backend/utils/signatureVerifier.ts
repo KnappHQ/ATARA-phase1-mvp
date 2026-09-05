@@ -63,7 +63,20 @@ export const verifyLoginSignature = (
   signerAddress: string,
   message: string,
   signature: string,
+  action: "Login" | "Register",
 ): void => {
+  const messageMatch = message.match(
+    /^(Login|Register) to ATARA\nWallet: (0x[a-fA-F0-9]{40})\nTimestamp: (\d+)$/,
+  );
+
+  if (
+    !messageMatch ||
+    messageMatch[1] !== action ||
+    messageMatch[2].toLowerCase() !== signerAddress.toLowerCase()
+  ) {
+    throw new ErrorHandler("Invalid authentication message", 400);
+  }
+
   // Validate message format and timestamp
   validateMessageTimestamp(message);
 

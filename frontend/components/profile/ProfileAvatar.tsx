@@ -1,7 +1,5 @@
-import { View, Text, Pressable } from "react-native";
+import { View, Text } from "react-native";
 import { MotiView } from "moti";
-import { Pencil } from "lucide-react-native";
-import * as Haptics from "expo-haptics";
 import { COLORS } from "@/utils/constants";
 
 interface ProfileAvatarProps {
@@ -9,10 +7,6 @@ interface ProfileAvatarProps {
 }
 
 export const ProfileAvatar = ({ initials = "TV" }: ProfileAvatarProps) => {
-  const handleEdit = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
-
   return (
     <MotiView
       from={{ opacity: 0, scale: 0.8 }}
@@ -40,19 +34,6 @@ export const ProfileAvatar = ({ initials = "TV" }: ProfileAvatarProps) => {
           </Text>
         </View>
       </View>
-
-      <Pressable
-        onPress={handleEdit}
-        className="absolute bottom-0 right-1/2 w-8 h-8 rounded-full items-center justify-center border-2"
-        style={{
-          backgroundColor: COLORS.accent,
-          borderColor: COLORS.black,
-          transform: [{ translateX: 36 }],
-          bottom: 4,
-        }}
-      >
-        <Pencil size={14} color={COLORS.white} />
-      </Pressable>
     </MotiView>
   );
 };
