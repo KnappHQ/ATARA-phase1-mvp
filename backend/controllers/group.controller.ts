@@ -221,8 +221,10 @@ export const groupController = {
     async (req: Request, res: Response, next: NextFunction) => {
       const userId = req.user.id;
       const { expenseId } = req.params;
-      const { txHash, assetSymbol, amount, rawAmountWei, tokenPriceUsd } =
-        req.body;
+      // Only the hash and the asset are accepted. The amount, the recipient and
+      // the USD price are all resolved server-side from the chain and the DB -
+      // taking them from the request let a debtor declare their own settlement.
+      const { txHash, assetSymbol } = req.body;
 
       if (!txHash || typeof txHash !== "string") {
         throw new ErrorHandler("txHash is required", 400);
@@ -233,41 +235,18 @@ export const groupController = {
           400,
         );
       }
-      if (
-        amount === undefined ||
-        isNaN(Number(amount)) ||
-        Number(amount) <= 0
-      ) {
-        throw new ErrorHandler("A valid positive amount is required", 400);
-      }
-      if (!rawAmountWei || typeof rawAmountWei !== "string") {
-        throw new ErrorHandler("rawAmountWei is required", 400);
-      }
-      if (
-        tokenPriceUsd === undefined ||
-        isNaN(Number(tokenPriceUsd)) ||
-        Number(tokenPriceUsd) <= 0
-      ) {
-        throw new ErrorHandler(
-          "A valid positive tokenPriceUsd is required",
-          400,
-        );
-      }
 
-      const split = await groupService.settleMyShare(
+      const settlement = await groupService.settleMyShare(
         expenseId,
         userId,
         txHash,
         assetSymbol.toUpperCase(),
-        Number(amount),
-        rawAmountWei,
-        Number(tokenPriceUsd),
       );
 
       res.status(200).json({
         success: true,
         message: "Your share has been marked as settled",
-        split,
+        settlement,
       });
     },
   ),
@@ -294,8 +273,7 @@ export const groupController = {
     async (req: Request, res: Response, next: NextFunction) => {
       const userId = req.user.id;
       const { groupId, memberId } = req.params;
-      const { txHash, assetSymbol, amount, rawAmountWei, tokenPriceUsd } =
-        req.body;
+      const { txHash, assetSymbol } = req.body;
 
       if (!txHash || typeof txHash !== "string") {
         throw new ErrorHandler("txHash is required", 400);
@@ -306,26 +284,6 @@ export const groupController = {
           400,
         );
       }
-      if (
-        amount === undefined ||
-        isNaN(Number(amount)) ||
-        Number(amount) <= 0
-      ) {
-        throw new ErrorHandler("A valid positive amount is required", 400);
-      }
-      if (!rawAmountWei || typeof rawAmountWei !== "string") {
-        throw new ErrorHandler("rawAmountWei is required", 400);
-      }
-      if (
-        tokenPriceUsd === undefined ||
-        isNaN(Number(tokenPriceUsd)) ||
-        Number(tokenPriceUsd) <= 0
-      ) {
-        throw new ErrorHandler(
-          "A valid positive tokenPriceUsd is required",
-          400,
-        );
-      }
 
       await groupService.settleAllWithMember(
         groupId,
@@ -333,9 +291,6 @@ export const groupController = {
         memberId,
         txHash,
         assetSymbol.toUpperCase(),
-        Number(amount),
-        rawAmountWei,
-        Number(tokenPriceUsd),
       );
 
       res.status(200).json({

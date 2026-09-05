@@ -16,6 +16,17 @@ export type SupportedAsset = {
 
 type TokenAddressConfig = Record<Exclude<TokenSymbol, "ETH">, string>;
 
+/**
+ * Canonical Base mainnet token addresses.
+ *
+ * These used to default to Base *Sepolia* addresses, which on mainnet would
+ * have encoded transfers to a contract that does not exist there.
+ */
+const BASE_MAINNET_ADDRESSES: TokenAddressConfig = {
+  USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  USDT: "0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2",
+};
+
 const DEFAULT_TOKEN_ADDRESSES: Record<AppNetwork, TokenAddressConfig> = {
   "base-sepolia": {
     USDC: process.env.EXPO_PUBLIC_USDC_ADDRESS_BASE_SEPOLIA ?? "",
@@ -23,11 +34,11 @@ const DEFAULT_TOKEN_ADDRESSES: Record<AppNetwork, TokenAddressConfig> = {
   },
   "base-mainnet": {
     USDC:
-      process.env.EXPO_PUBLIC_USDC_ADDRESS_BASE_MAINNET ??
-      "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      process.env.EXPO_PUBLIC_USDC_ADDRESS_BASE_MAINNET ||
+      BASE_MAINNET_ADDRESSES.USDC,
     USDT:
-      process.env.EXPO_PUBLIC_USDT_ADDRESS_BASE_MAINNET ??
-      "0x7c6b91D9Be155A6Db01f749217d76fF02A7227F2",
+      process.env.EXPO_PUBLIC_USDT_ADDRESS_BASE_MAINNET ||
+      BASE_MAINNET_ADDRESSES.USDT,
   },
 };
 

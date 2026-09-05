@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from "express";
 import { transactionService } from "../services/transaction.service";
 import { catchAsync } from "../utils/catchAsync";
 import { ErrorHandler } from "../utils/errorHandler";
-import type { TxStatus } from "@prisma/client";
 import { TRANSACTION_CATEGORIES } from "../utils/constants";
 
 export const transactionController = {
@@ -26,24 +25,13 @@ export const transactionController = {
   syncTransaction: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
       const senderProfile = req.user;
-      const {
-        receiverAddress,
-        txHash,
-        userOpHash,
-        amount,
-        rawAmountWei,
-        assetSymbol,
-        category,
-        userNote,
-      } = req.body;
+      // `amount` and `rawAmountWei` are no longer read from the request: the
+      // recorded amount is read back from the chain, so a client cannot state
+      // what a transaction was worth.
+      const { receiverAddress, txHash, assetSymbol, category, userNote } =
+        req.body;
 
-      if (
-        !receiverAddress ||
-        !txHash ||
-        !amount ||
-        !rawAmountWei ||
-        !assetSymbol
-      ) {
+      if (!receiverAddress || !txHash || !assetSymbol) {
         throw new ErrorHandler("Missing required transaction data", 400);
       }
 
@@ -51,8 +39,6 @@ export const transactionController = {
         senderProfile,
         receiverAddress,
         txHash,
-        amount,
-        rawAmountWei,
         assetSymbol,
         category,
         userNote,
@@ -99,11 +85,13 @@ export const transactionController = {
   updateTransaction: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
       const { transactionId } = req.params;
-      const { category, userNote, status } = req.body;
+      // `status` is not accepted: it reflects the on-chain outcome recorded at
+      // sync time and is not the caller's to change.
+      const { category, userNote } = req.body;
 
-      if (!category && !userNote && !status) {
+      if (!category && !userNote) {
         throw new ErrorHandler(
-          "Please provide category, userNote, or status to update",
+          "Please provide category or userNote to update",
           400,
         );
       }
@@ -118,16 +106,11 @@ export const transactionController = {
         );
       }
 
-      if (status && !["PENDING", "COMPLETED", "FAILED"].includes(status)) {
-        throw new ErrorHandler("Invalid status value", 400);
-      }
-
       const userId = req.user.id;
 
       const transaction = await transactionService.updateTransaction(
         userId,
         transactionId,
-        status as TxStatus,
         category,
         userNote,
       );

@@ -25,6 +25,8 @@ model User {
   paidExpenses        GroupExpense[]     @relation("PaidExpenses")
   expenseSplits       GroupExpenseSplit[]
   feedbacks           Feedback[]
+  settlementsPaid     GroupSettlement[]  @relation("SettlementsPaid")
+  settlementsReceived GroupSettlement[]  @relation("SettlementsReceived")
 }
 
 model Group {
@@ -35,9 +37,36 @@ model Group {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  creator  User          @relation("CreatedGroups", fields: [createdById], references: [id])
-  members  GroupMember[]
-  expenses GroupExpense[]
+  creator     User              @relation("CreatedGroups", fields: [createdById], references: [id])
+  members     GroupMember[]
+  expenses    GroupExpense[]
+  settlements GroupSettlement[]
+}
+
+/// An audit record of one settlement action between two group members.
+///
+/// The unique constraints on `txHash` and `transactionId` are what make a
+/// settlement single-use: the same on-chain payment can never clear a second
+/// debt, with a different member or in a different group.
+model GroupSettlement {
+  id            String   @id @default(uuid())
+  groupId       String
+  payerId       String
+  payeeId       String
+  /// "onchain" | "internal_tx" | "manual"
+  method        String
+  txHash        String?  @unique
+  transactionId String?  @unique
+  assetSymbol   String?
+  amountUsd     Decimal  @db.Decimal(24, 8)
+  createdAt     DateTime @default(now())
+
+  group  Group               @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  payer  User                @relation("SettlementsPaid", fields: [payerId], references: [id])
+  payee  User                @relation("SettlementsReceived", fields: [payeeId], references: [id])
+  splits GroupExpenseSplit[]
+
+  @@index([groupId, payerId, payeeId])
 }
 
 model GroupMember {
@@ -67,15 +96,17 @@ model GroupExpense {
 }
 
 model GroupExpenseSplit {
-  id        String    @id @default(uuid())
-  expenseId String
-  userId    String
-  amount    Decimal   @db.Decimal(24, 8)
-  settled   Boolean   @default(false)
-  settledAt DateTime?
+  id           String    @id @default(uuid())
+  expenseId    String
+  userId       String
+  amount       Decimal   @db.Decimal(24, 8)
+  settled      Boolean   @default(false)
+  settledAt    DateTime?
+  settlementId String?
 
-  expense GroupExpense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
-  user    User         @relation(fields: [userId], references: [id])
+  expense    GroupExpense     @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user       User             @relation(fields: [userId], references: [id])
+  settlement GroupSettlement? @relation(fields: [settlementId], references: [id], onDelete: SetNull)
 
   @@unique([expenseId, userId])
 }

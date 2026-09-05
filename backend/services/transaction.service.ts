@@ -1,7 +1,6 @@
 import { ethers } from "ethers";
 import axios from "axios";
 import prisma from "../config/prisma";
-import type { TxStatus } from "@prisma/client";
 import { ErrorHandler } from "../utils/errorHandler";
 import {
   ALCHEMY_URL,
@@ -9,7 +8,12 @@ import {
   DEFAULT_CATEGORY,
   NETWORK,
 } from "../utils/constants";
-import { getKnownTokens, type AppNetwork } from "../utils/tokenConfig";
+import {
+  getTokenConfig,
+  isSupportedTokenSymbol,
+  type AppNetwork,
+} from "../utils/tokenConfig";
+import { verifyTransfer } from "../utils/chainVerifier";
 
 interface AlchemyTransfer {
   blockNum: string;
@@ -54,18 +58,27 @@ class TransactionService {
     return user;
   }
 
+  /**
+   * Record an on-chain payment made by the authenticated user.
+   *
+   * The stored amount is whatever the chain says was transferred - the client's
+   * figures are not compared, they are simply not used. A transfer that cannot
+   * be verified is refused; it is never recorded on trust.
+   */
   public async syncTransaction(data: {
     senderProfile: any;
     receiverAddress: string;
     txHash: string;
-    amount: number | string;
-    rawAmountWei: string;
     assetSymbol: string;
     category?: string;
     userNote?: string;
   }) {
     const normalizedTxHash = data.txHash.toLowerCase();
-    const normalizedReceiverAddress = data.receiverAddress.toLowerCase();
+
+    if (!/^0x[a-fA-F0-9]{40}$/.test(data.receiverAddress.trim())) {
+      throw new ErrorHandler("Invalid receiver address", 400);
+    }
+    const normalizedReceiverAddress = data.receiverAddress.trim().toLowerCase();
 
     const existingTx = await prisma.transaction.findUnique({
       where: { txHash: normalizedTxHash },
@@ -75,99 +88,62 @@ class TransactionService {
       throw new ErrorHandler("Transaction already synced", 409);
     }
 
-    const alchemyProvider = new ethers.providers.JsonRpcProvider(ALCHEMY_URL);
-    const receipt =
-      await alchemyProvider.getTransactionReceipt(normalizedTxHash);
+    // ERC-4337: the sender of record is the smart account, not the EOA and
+    // certainly not the bundler that appears as `receipt.from`.
+    const expectedSender = data.senderProfile.smartAccountAddress;
 
-    if (!receipt) {
+    if (!expectedSender) {
       throw new ErrorHandler(
-        "Transaction receipt not found on the network. It may still be pending.",
-        404,
+        "Your smart account address is not set up yet",
+        400,
       );
     }
 
-    if (receipt.status !== 1) {
-      throw new ErrorHandler("Transaction failed on-chain", 400);
+    if (normalizedReceiverAddress === expectedSender.toLowerCase()) {
+      throw new ErrorHandler("Cannot record a transfer to yourself", 400);
     }
 
-    const expectedSender = (
-      data.senderProfile.smartAccountAddress ||
-      data.senderProfile.publicAddress ||
-      ""
-    ).toLowerCase();
+    const assetSymbol = data.assetSymbol.toUpperCase();
 
-    const transfer = await this.findTransferByHash(
-      expectedSender,
-      normalizedTxHash,
-    );
+    let decimals: number;
+    let token;
 
-    if (data.assetSymbol === "ETH") {
-      if (transfer) {
-        if (transfer.to.toLowerCase() !== normalizedReceiverAddress) {
-          throw new ErrorHandler("ETH transfer target mismatch", 400);
-        }
-
-        const expectedWei = ethers.BigNumber.from(data.rawAmountWei);
-        const actualWei = this.getNativeTransferWei(transfer);
-
-        if (!expectedWei.eq(actualWei)) {
-          throw new ErrorHandler("ETH transfer amount mismatch", 400);
-        }
-      } else {
-        console.warn(
-          `[Alchemy] ETH transfer ${normalizedTxHash} not yet indexed for ${expectedSender}; syncing from receipt only.`,
-        );
-      }
+    if (assetSymbol === "ETH") {
+      decimals = 18;
     } else {
-      if (!transfer) {
-        throw new ErrorHandler(
-          "Transaction not yet indexed for sync. Retry in a few moments.",
-          202,
-        );
+      if (!isSupportedTokenSymbol(assetSymbol)) {
+        throw new ErrorHandler(`Unsupported asset: ${assetSymbol}`, 400);
       }
 
-      const tokenConfig =
-        data.assetSymbol === "USDC" || data.assetSymbol === "USDT"
-          ? getKnownTokens(NETWORK as AppNetwork)[data.assetSymbol]
-          : undefined;
+      token = getTokenConfig(NETWORK as AppNetwork, assetSymbol);
 
-      if (!tokenConfig?.address) {
+      if (!token) {
         throw new ErrorHandler(
-          "Unknown token configuration for this network",
+          `${assetSymbol} is not configured for this network`,
           400,
         );
       }
 
-      if (transfer.asset !== data.assetSymbol) {
-        throw new ErrorHandler("Token asset mismatch", 400);
-      }
-
-      if (transfer.to.toLowerCase() !== normalizedReceiverAddress) {
-        throw new ErrorHandler("Token transfer recipient mismatch", 400);
-      }
-
-      const expectedWei = ethers.BigNumber.from(data.rawAmountWei);
-      const actualWei = ethers.BigNumber.from(
-        transfer.rawContract?.value || "0x0",
-      );
-
-      if (!expectedWei.eq(actualWei)) {
-        throw new ErrorHandler("Token transfer amount mismatch", 400);
-      }
+      decimals = token.decimals;
     }
 
-    const calculatedDecimal = ethers.utils.formatEther(data.rawAmountWei);
-    if (
-      data.assetSymbol === "ETH" &&
-      Math.abs(
-        parseFloat(calculatedDecimal) - parseFloat(data.amount.toString()),
-      ) > 0.0001
-    ) {
-      throw new ErrorHandler(
-        `Decimal amount mismatch. Wei: ${data.rawAmountWei} equals ${calculatedDecimal} ETH, but received ${data.amount}`,
-        400,
-      );
+    // Reads the actual movement of value out of the receipt: the token contract
+    // address, the sender and the recipient are all checked against what the
+    // chain recorded, so a look-alike ERC-20 or a third party's hash is refused.
+    const verified = await verifyTransfer({
+      txHash: normalizedTxHash,
+      expectedFrom: expectedSender,
+      expectedTo: normalizedReceiverAddress,
+      assetSymbol,
+      token,
+    });
+
+    if (verified.rawAmount.isZero()) {
+      throw new ErrorHandler("Transaction transfers no value", 400);
     }
+
+    const rawAmountWei = verified.rawAmount.toString();
+    const amount = ethers.utils.formatUnits(verified.rawAmount, decimals);
 
     const receiver = await prisma.user.findFirst({
       where: { smartAccountAddress: normalizedReceiverAddress },
@@ -179,9 +155,9 @@ class TransactionService {
         receiverId: receiver ? receiver.id : null,
         receiverAddress: normalizedReceiverAddress,
         txHash: normalizedTxHash,
-        assetSymbol: data.assetSymbol,
-        amount: data.amount,
-        rawAmountWei: data.rawAmountWei,
+        assetSymbol,
+        amount,
+        rawAmountWei,
         category:
           data.category &&
           (TRANSACTION_CATEGORIES as readonly string[]).includes(data.category)
@@ -329,10 +305,16 @@ class TransactionService {
     return transaction;
   }
 
+  /**
+   * Update the user-owned annotations on a transaction.
+   *
+   * `status` is deliberately not updatable: it records a fact established
+   * on-chain at sync time, and letting either party rewrite it made a
+   * transaction look confirmed to the settlement logic on request.
+   */
   public async updateTransaction(
     userId: string,
     transactionId: string,
-    status?: TxStatus,
     category?: string,
     userNote?: string,
   ) {
@@ -351,7 +333,6 @@ class TransactionService {
     return prisma.transaction.update({
       where: { id: transactionId },
       data: {
-        status,
         category,
         userNote,
       },
@@ -361,9 +342,13 @@ class TransactionService {
   private async fetchAlchemyHistory(
     address: string,
   ): Promise<AlchemyTransfer[]> {
+    // `order: "desc"` matters: alchemy_getAssetTransfers defaults to ascending,
+    // so without it this returned the 100 OLDEST transfers and an active
+    // account's history silently froze on its first 100 transactions.
     const externalParams = {
       fromBlock: "0x0",
       category: ["external", "erc20"],
+      order: "desc",
       withMetadata: true,
       excludeZeroValue: true,
       maxCount: "0x64",
@@ -372,6 +357,7 @@ class TransactionService {
     const internalParams = {
       fromBlock: "0x0",
       category: ["internal"],
+      order: "desc",
       withMetadata: true,
       excludeZeroValue: true,
       maxCount: "0x64",
@@ -462,35 +448,6 @@ class TransactionService {
     }
   }
 
-  private async findTransferByHash(
-    address: string,
-    txHash: string,
-  ): Promise<AlchemyTransfer | null> {
-    const history = await this.fetchAlchemyHistory(address);
-    const normalizedTxHash = txHash.toLowerCase();
-
-    return (
-      history.find(
-        (transfer) => transfer.hash.toLowerCase() === normalizedTxHash,
-      ) ?? null
-    );
-  }
-
-  private getNativeTransferWei(transfer: AlchemyTransfer) {
-    const rawValue = transfer.rawContract?.value;
-
-    if (rawValue) {
-      return ethers.BigNumber.from(rawValue);
-    }
-
-    const humanValue = transfer.value != null ? transfer.value.toString() : "0";
-
-    try {
-      return ethers.utils.parseEther(humanValue);
-    } catch {
-      return ethers.BigNumber.from(humanValue);
-    }
-  }
 }
 
 export const transactionService = new TransactionService();

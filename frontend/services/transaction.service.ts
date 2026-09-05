@@ -1,3 +1,4 @@
+import { parseUnits } from "viem";
 import { useTransactionStore } from "../stores/useTransactionStore";
 import { useTransactionHistoryStore } from "../stores/useTransactionHistoryStore";
 import { SmartAccountService } from "./smartAccount.service";
@@ -48,9 +49,10 @@ export class TransactionService {
 
     const decimals =
       request.decimals || (request.tokenSymbol === "ETH" ? 18 : 6);
-    const rawAmountWei = (
-      parseFloat(request.amount) * Math.pow(10, decimals)
-    ).toFixed(0);
+    // parseUnits is string-based and exact. The previous float maths produced
+    // e.g. 1100000000000000128 wei for "1.1" ETH - and "1e+24" for large
+    // amounts - which never matched what the transfer actually moved.
+    const rawAmountWei = parseUnits(request.amount, decimals).toString();
 
     const transactionId =
       request.transactionId ??
@@ -166,19 +168,12 @@ export class TransactionService {
     }
 
     try {
-      const rawAmountWei =
-        transaction.rawAmountWei ||
-        (
-          parseFloat(transaction.amount) *
-          Math.pow(10, transaction.decimals || 18)
-        ).toFixed(0);
-
+      // The backend reads the amount back from the chain, so it is not sent
+      // here - there is no client-stated figure for it to disagree with.
       const response = await api.post("/transaction/sync", {
         receiverAddress: transaction.recipientAddress,
         txHash: transaction.hash,
         userOpHash: transaction.userOpHash,
-        amount: parseFloat(transaction.amount),
-        rawAmountWei: rawAmountWei,
         assetSymbol: transaction.tokenSymbol,
         category: "transfer",
         userNote: transaction.note || null,
