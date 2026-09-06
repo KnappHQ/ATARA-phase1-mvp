@@ -376,7 +376,7 @@ export const AmountStep = ({
         className="mb-6"
       >
         <Text className="text-sm font-medium uppercase mb-3 text-muted tracking-widest">
-          Select Asset
+          Crypto à envoyer
         </Text>
         {isLoadingBalances ? (
           <View className="flex-row gap-2">
@@ -424,6 +424,17 @@ export const AmountStep = ({
                   }}
                 >
                   {token.symbol}
+                </Text>
+                <Text
+                  className="text-[10px] mt-1"
+                  style={{
+                    color:
+                      selectedToken.symbol === token.symbol
+                        ? "rgba(0,0,0,0.55)"
+                        : "rgba(255,255,255,0.5)",
+                  }}
+                >
+                  {token.balance}
                 </Text>
               </Pressable>
             ))}
