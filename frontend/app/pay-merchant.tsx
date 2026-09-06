@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import * as Clipboard from "expo-clipboard";
@@ -12,9 +12,8 @@ import {
   View,
 } from "react-native";
 import { ArrowLeft, ClipboardPaste, ShoppingBasket, ShieldCheck } from "lucide-react-native";
-import { APP_NETWORK, COLORS, NETWORK_NAME } from "@/utils/constants";
+import { COLORS, NETWORK_NAME } from "@/utils/constants";
 import { DEMO_MODE } from "@/utils/demoMode";
-import { getTokenAddress } from "@/utils/tokenConfig";
 import { useSmartAccountService } from "@/services/smartAccount.service";
 import { useTransactionService } from "@/services/transaction.service";
 import { useWalletStore } from "@/stores/useWalletStore";
@@ -31,13 +30,23 @@ const parsePaymentRequest = (value: string) => {
       return {
         address: typeof parsed.address === "string" ? parsed.address : "",
         amount: typeof parsed.amount === "string" || typeof parsed.amount === "number" ? String(parsed.amount) : "",
+        symbol:
+          typeof parsed.token === "string"
+            ? parsed.token
+            : typeof parsed.symbol === "string"
+              ? parsed.symbol
+              : "",
       };
     }
     const normalized = raw.replace(/^ethereum:/i, "");
     const [address, query] = normalized.split("?");
     const params = new URLSearchParams(query || "");
     const valueInEth = params.get("value") || params.get("amount") || "";
-    return { address, amount: valueInEth };
+    return {
+      address,
+      amount: valueInEth,
+      symbol: params.get("token") || params.get("symbol") || "",
+    };
   } catch {
     return null;
   }
@@ -48,13 +57,22 @@ export default function PayMerchantScreen() {
   const { user } = useAuthStore();
   const service = useSmartAccountService();
   const transactionService = useTransactionService(service);
-  const refreshBalances = useWalletStore((state) => state.refreshBalances);
-  const usdc = useWalletStore((state) => state.getAssetBySymbol("USDC"));
+  const { assets, refreshBalances } = useWalletStore();
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("Courses");
+  const [selectedTokenSymbol, setSelectedTokenSymbol] = useState("USDC");
   const [isPaying, setIsPaying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  const selectedToken =
+    assets.find((asset) => asset.symbol === selectedTokenSymbol) ?? assets[0];
+
+  useEffect(() => {
+    if (selectedToken && selectedToken.symbol !== selectedTokenSymbol) {
+      setSelectedTokenSymbol(selectedToken.symbol);
+    }
+  }, [selectedToken, selectedTokenSymbol]);
 
   const pastePaymentRequest = async () => {
     const clipboard = await Clipboard.getStringAsync();
@@ -65,6 +83,10 @@ export default function PayMerchantScreen() {
     }
     setRecipient(request.address);
     if (request.amount) setAmount(request.amount);
+    const requestedSymbol = request.symbol?.toUpperCase();
+    if (requestedSymbol && assets.some((asset) => asset.symbol === requestedSymbol)) {
+      setSelectedTokenSymbol(requestedSymbol);
+    }
     setMessage("Demande QR importée. Vérifie le commerçant et le montant avant de payer.");
   };
 
@@ -72,10 +94,24 @@ export default function PayMerchantScreen() {
   const isValidAddress = ADDRESS_PATTERN.test(rawAddress);
   const parsedAmount = Number(amount.replace(",", "."));
   const isValidAmount = Number.isFinite(parsedAmount) && parsedAmount > 0;
-  const balanceText = useMemo(() => DEMO_MODE ? "500.00" : (usdc?.balance || "0.00"), [usdc?.balance]);
-  const hasSixDecimals = !amount.includes(".") || amount.split(".")[1].length <= 6;
-  const hasBalance = DEMO_MODE || parsedAmount <= Number(balanceText.replace(",", "."));
-  const canPay = (DEMO_MODE || !!transactionService) && isValidAddress && isValidAmount && hasSixDecimals && hasBalance && !isPaying;
+  const balanceText = useMemo(() => {
+    if (!selectedToken) return "0.00";
+    if (DEMO_MODE && selectedToken.symbol === "USDC") return "500.00";
+    return selectedToken.balance || "0.00";
+  }, [selectedToken]);
+  const maxDecimals = selectedToken?.decimals ?? 6;
+  const hasValidDecimals =
+    !amount.includes(".") || amount.split(".")[1].length <= maxDecimals;
+  const hasBalance =
+    !!selectedToken && parsedAmount <= Number(balanceText.replace(",", "."));
+  const canPay =
+    !!selectedToken &&
+    (DEMO_MODE || !!transactionService) &&
+    isValidAddress &&
+    isValidAmount &&
+    hasValidDecimals &&
+    hasBalance &&
+    !isPaying;
 
   const pay = async () => {
     if (!canPay) return;
@@ -84,7 +120,7 @@ export default function PayMerchantScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       if (DEMO_MODE) {
-        setMessage(`Simulation : paiement de ${parsedAmount.toFixed(2)} USDC validé. Aucune transaction réelle n’a été envoyée.`);
+        setMessage(`Simulation : paiement de ${parsedAmount.toFixed(2)} ${selectedToken.symbol} validé. Aucune transaction réelle n’a été envoyée.`);
         setAmount("");
         return;
       }
@@ -92,11 +128,14 @@ export default function PayMerchantScreen() {
       const result = await transactionService.sendTransaction({
         recipientAddress: rawAddress,
         recipientName: "Commerçant",
-        amount: parsedAmount.toFixed(6),
-        tokenSymbol: "USDC",
-        tokenAddress: getTokenAddress("USDC", APP_NETWORK),
-        decimals: 6,
-        usdValue: parsedAmount.toFixed(2),
+        amount: parsedAmount.toFixed(selectedToken.decimals),
+        tokenSymbol: selectedToken.symbol,
+        tokenAddress: selectedToken.contractAddress,
+        decimals: selectedToken.decimals,
+        usdValue:
+          selectedToken.usdPrice > 0
+            ? (parsedAmount * selectedToken.usdPrice).toFixed(2)
+            : selectedToken.usdValue,
         note,
       });
       if (!result.success) {
@@ -129,13 +168,68 @@ export default function PayMerchantScreen() {
             </View>
             <View className="flex-1 ml-4">
               <Text className="text-white text-lg font-semibold">Paiement commerçant</Text>
-              <Text className="text-white/50 text-sm mt-1">USDC sur {NETWORK_NAME}</Text>
+              <Text className="text-white/50 text-sm mt-1">
+                {selectedToken?.symbol ?? "Crypto"} sur {NETWORK_NAME}
+              </Text>
             </View>
           </View>
 
           <Text className="text-white/55 text-sm leading-5 mt-6">
-            Importe une demande QR fournie par le magasin ou colle son adresse. Pour la bêta, le commerçant doit accepter l’USDC sur Base Sepolia.
+            Importe une demande QR fournie par le magasin ou colle son adresse. Choisis ensuite la crypto à débiter.
           </Text>
+
+          <Text
+            className="text-white/50 text-xs uppercase mt-5 mb-2"
+            style={{ letterSpacing: 1.4 }}
+          >
+            Crypto à payer
+          </Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, paddingBottom: 4 }}
+          >
+            {assets.map((token) => {
+              const selected = token.symbol === selectedToken?.symbol;
+              return (
+                <Pressable
+                  key={token.symbol}
+                  onPress={() => {
+                    setSelectedTokenSymbol(token.symbol);
+                    setAmount("");
+                    setMessage(null);
+                  }}
+                  className="rounded-2xl px-4 py-3"
+                  style={{
+                    backgroundColor: selected
+                      ? COLORS.white
+                      : "rgba(255,255,255,0.04)",
+                    borderWidth: 1,
+                    borderColor: selected
+                      ? COLORS.white
+                      : "rgba(255,255,255,0.12)",
+                  }}
+                >
+                  <Text
+                    className="text-sm font-semibold"
+                    style={{ color: selected ? COLORS.black : COLORS.white }}
+                  >
+                    {token.symbol}
+                  </Text>
+                  <Text
+                    className="text-[10px] mt-1"
+                    style={{
+                      color: selected
+                        ? "rgba(0,0,0,0.55)"
+                        : "rgba(255,255,255,0.5)",
+                    }}
+                  >
+                    {token.balance}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
 
           <Pressable onPress={pastePaymentRequest} className="flex-row items-center justify-center rounded-2xl border border-blue-300/25 bg-blue-300/10 px-4 py-3 mt-4">
             <ClipboardPaste size={17} color="#93c5fd" />
@@ -155,7 +249,9 @@ export default function PayMerchantScreen() {
           </View>
           {recipient.length > 0 && !isValidAddress ? <Text className="text-xs text-red-300 mt-2">Adresse Base invalide.</Text> : null}
 
-          <Text className="text-white/50 text-xs uppercase mt-5 mb-2" style={{ letterSpacing: 1.4 }}>Montant USDC</Text>
+          <Text className="text-white/50 text-xs uppercase mt-5 mb-2" style={{ letterSpacing: 1.4 }}>
+            Montant {selectedToken?.symbol ?? "crypto"}
+          </Text>
           <View className="flex-row items-center rounded-2xl border border-white/15 bg-black/40 px-4">
             <TextInput
               value={amount}
@@ -165,11 +261,13 @@ export default function PayMerchantScreen() {
               placeholderTextColor="rgba(255,255,255,0.25)"
               className="flex-1 py-4 text-2xl text-white"
             />
-            <Text className="text-white/60 text-lg">USDC</Text>
+            <Text className="text-white/60 text-lg">{selectedToken?.symbol ?? "—"}</Text>
           </View>
-          <Text className="text-white/40 text-xs mt-2">Solde disponible : {balanceText} USDC</Text>
+          <Text className="text-white/40 text-xs mt-2">
+            Solde disponible : {balanceText} {selectedToken?.symbol ?? ""}
+          </Text>
           {isValidAmount && !hasBalance ? <Text className="text-red-300 text-xs mt-2">Montant supérieur au solde disponible.</Text> : null}
-          {amount.includes(".") && !hasSixDecimals ? <Text className="text-red-300 text-xs mt-2">USDC accepte au maximum 6 décimales.</Text> : null}
+          {amount.includes(".") && !hasValidDecimals ? <Text className="text-red-300 text-xs mt-2">{selectedToken?.symbol ?? "Cette crypto"} accepte au maximum {maxDecimals} décimales.</Text> : null}
 
           <TextInput
             value={note}
@@ -193,7 +291,7 @@ export default function PayMerchantScreen() {
             className="mt-5 h-14 rounded-2xl items-center justify-center"
             style={{ backgroundColor: COLORS.white, opacity: canPay ? 1 : 0.4 }}
           >
-            {isPaying ? <ActivityIndicator color={COLORS.black} /> : <Text className="font-semibold" style={{ color: COLORS.black }}>{DEMO_MODE ? "Simuler le paiement" : "Payer en USDC"}</Text>}
+            {isPaying ? <ActivityIndicator color={COLORS.black} /> : <Text className="font-semibold" style={{ color: COLORS.black }}>{DEMO_MODE ? "Simuler le paiement" : `Payer en ${selectedToken?.symbol ?? "crypto"}`}</Text>}
           </Pressable>
           {!DEMO_MODE && !service ? <Text className="text-center text-xs text-white/40 mt-3">Connexion au portefeuille en cours…</Text> : null}
           {!DEMO_MODE && !user?.smartAccountAddress ? <Text className="text-center text-xs text-white/40 mt-3">Ton portefeuille ATARA n’est pas encore prêt.</Text> : null}
