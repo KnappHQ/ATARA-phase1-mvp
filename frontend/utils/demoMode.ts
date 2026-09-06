@@ -11,6 +11,11 @@ export const DEMO_MEMBER_ADDRESS = "0x2222222222222222222222222222222222222222";
 const SECOND_MEMBER_ADDRESS = "0x3333333333333333333333333333333333333333";
 const THIRD_MEMBER_ADDRESS = "0x4444444444444444444444444444444444444444";
 
+export const DEMO_VAULT_CONTACTS = [
+  { handle: "@marcuschen", name: "Marcus Chen", address: SECOND_MEMBER_ADDRESS },
+  { handle: "@elenarodriguez", name: "Elena Rodriguez", address: THIRD_MEMBER_ADDRESS },
+].sort((a, b) => a.name.localeCompare(b.name, "fr", { sensitivity: "base" }));
+
 const isHexAddress = (value?: string): value is `0x${string}` =>
   !!value && /^0x[a-fA-F0-9]{40}$/.test(value);
 
@@ -29,11 +34,14 @@ export const getDemoVaultSnapshot = (account?: string): VaultSnapshot => {
     maxTotalDeposits: "10000000000",
     acceptedCount: members.length,
     proposalId: 0,
+    cancellationApprovalCount: 0,
+    cancelled: false,
     members: members.map((address, index) => ({
       address,
       accepted: true,
       contribution: index === 0 ? "50000000" : index === 1 ? "45000000" : "30000000",
       approved: false,
+      cancellationApproved: false,
     })),
     proposal: {
       recipient: "0x0000000000000000000000000000000000000000",
