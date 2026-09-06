@@ -32,11 +32,14 @@ const normalizeSnapshot = (raw: any) => ({
   maxTotalDeposits: raw.maxTotalDeposits.toString(),
   acceptedCount: Number(raw.acceptedCount.toString()),
   proposalId: Number(raw.proposalId.toString()),
+  cancellationApprovalCount: Number(raw.cancellationApprovalCount.toString()),
+  cancelled: raw.cancelled,
   members: raw.members.map((member: string, index: number) => ({
     address: member,
     accepted: raw.accepted[index],
     contribution: raw.contributions[index].toString(),
     approved: raw.approvals[index],
+    cancellationApproved: raw.cancellationApprovals[index],
   })),
   proposal: {
     recipient: raw.proposal.recipient,
