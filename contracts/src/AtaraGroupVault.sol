@@ -71,6 +71,7 @@ contract AtaraGroupVault is ReentrancyGuard {
     error UnanimityRequired();
     error UnsupportedToken();
     error DuplicateDeposit();
+    error RefundUnavailable();
 
     event TermsAccepted(address indexed member);
     event Deposited(address indexed member, bytes32 indexed depositId, uint256 amount);
@@ -191,6 +192,10 @@ contract AtaraGroupVault is ReentrancyGuard {
     /// paid their own contribution, so no share is redistributed or lost.
     function cancelVault() external onlyMember nonReentrant {
         if (cancelled) revert InvalidProposal();
+        // Contributions are immutable deposit records. Once a withdrawal has
+        // paid out, they no longer describe the remaining pool, so an exact
+        // per-member refund would be unsafe and is permanently unavailable.
+        if (proposalId != 0 && proposal.executed) revert RefundUnavailable();
         if (proposalId != 0 && !proposal.executed && !proposal.cancelled && block.timestamp < proposal.expiresAt) {
             revert ActiveProposal();
         }
