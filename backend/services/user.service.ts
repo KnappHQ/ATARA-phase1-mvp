@@ -135,7 +135,10 @@ class UserService {
     return users;
   }
 
-  public async getRecentContacts(userId: string, limit: number = 8) {
+  // The recipient picker uses this list for the @ suggestions. Keep enough
+  // counterparties to cover the account's contact history, then sort locally
+  // in the client for an alphabetical, instant picker.
+  public async getRecentContacts(userId: string, limit: number = 100) {
     const recentTx = await prisma.transaction.findMany({
       where: {
         OR: [
