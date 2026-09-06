@@ -42,8 +42,10 @@ pas exécutée. Lorsque tout le monde a confirmé, n’importe quel membre peut
 exécuter `cancelVault` : le contrat rembourse exactement
 `contributions[membre]` à chaque adresse, remet le solde comptable à zéro et
 marque définitivement le Vault comme supprimé. Une proposition de retrait
-active doit d’abord être expirée ou annulée. Il n’existe pas de bouton admin ou
-de remboursement unilatéral.
+active doit d’abord être expirée ou annulée. Si un retrait a déjà été exécuté,
+la suppression avec remboursement exact n’est plus disponible, car les
+contributions historiques ne décrivent plus le solde restant. Il n’existe pas
+de bouton admin ou de remboursement unilatéral.
 
 ## Contrats livrés
 
