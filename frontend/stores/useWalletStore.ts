@@ -53,9 +53,21 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   },
 
   updateTokenBalances: (tokens: Token[]) => {
-    const updatedAssets = get().assets.map((asset) => {
-      const loadedToken = tokens.find((t) => t.symbol === asset.symbol);
-      return loadedToken || asset;
+    const updatedAssets = [...get().assets];
+
+    tokens.forEach((token) => {
+      const existingIndex = updatedAssets.findIndex(
+        (asset) => asset.symbol === token.symbol,
+      );
+
+      if (existingIndex >= 0) {
+        updatedAssets[existingIndex] = {
+          ...updatedAssets[existingIndex],
+          ...token,
+        };
+      } else {
+        updatedAssets.push(token);
+      }
     });
 
     set({
@@ -100,6 +112,23 @@ export const useWalletStore = create<WalletState>((set, get) => ({
         }
 
         return asset;
+      });
+
+      portfolio.tokens.forEach((portfolioToken: any) => {
+        if (updatedAssets.some((asset) => asset.symbol === portfolioToken.symbol)) {
+          return;
+        }
+
+        updatedAssets.push({
+          symbol: portfolioToken.symbol,
+          name: portfolioToken.name ?? portfolioToken.symbol,
+          balance: String(portfolioToken.balance ?? "0"),
+          usdValue: `$${Number(portfolioToken.usdValue ?? 0).toFixed(2)}`,
+          usdPrice: Number(portfolioToken.usdPrice ?? 0),
+          decimals: Number(portfolioToken.decimals ?? 18),
+          contractAddress: portfolioToken.contractAddress,
+          logoUrl: portfolioToken.logoUrl,
+        });
       });
 
       set({
