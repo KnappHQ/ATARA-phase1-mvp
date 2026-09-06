@@ -91,6 +91,11 @@
     "type": "error"
   },
   {
+    "inputs": [],
+    "name": "RefundUnavailable",
+    "type": "error"
+  },
+  {
     "inputs": [
       {
         "internalType": "address",
