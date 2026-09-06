@@ -50,6 +50,7 @@ export const ContactsList = ({
   const { contacts: addressBook } = useAddressBookStore();
   const {
     recentContacts,
+    favoriteContacts,
     searchResults,
     isLoadingRecents,
     isLoadingSearch,
@@ -59,6 +60,13 @@ export const ContactsList = ({
   } = useContactStore();
 
   const [clipboardAddress, setClipboardAddress] = useState<string | null>(null);
+
+  const sortContactsAlphabetically = (contacts: Contact[]) =>
+    [...contacts].sort((a, b) => {
+      const labelA = (a.name || a.handle).replace(/^@/, "").toLocaleLowerCase();
+      const labelB = (b.name || b.handle).replace(/^@/, "").toLocaleLowerCase();
+      return labelA.localeCompare(labelB, undefined, { sensitivity: "base" });
+    });
 
   useEffect(() => {
     Clipboard.getStringAsync().then((text) => {
@@ -80,7 +88,9 @@ export const ContactsList = ({
   const debouncedSearch = useMemo(
     () =>
       debounce(async (query: string) => {
-        if (query.trim()) {
+        // A lone @ is an explicit “show my contacts” affordance. Keep this
+        // local so suggestions appear immediately and stay alphabetized.
+        if (query.trim() && query.trim() !== "@") {
           await searchContacts(query);
         }
       }, 500),
@@ -106,6 +116,21 @@ export const ContactsList = ({
         .map(([address, nickname]) => buildAddressContact(address, nickname))
     : [];
 
+  const knownContacts = useMemo(() => {
+    const contactsById = new Map<string, Contact>();
+    [...favoriteContacts, ...recentContacts].forEach((contact) => {
+      contactsById.set(contact.id, contact);
+    });
+
+    Object.entries(addressBook).forEach(([address, nickname]) => {
+      const contact = buildAddressContact(address, nickname);
+      if (!contactsById.has(contact.id)) contactsById.set(contact.id, contact);
+    });
+
+    return sortContactsAlphabetically(Array.from(contactsById.values()));
+  }, [addressBook, favoriteContacts, recentContacts]);
+
+  const isAllContactsQuery = searchQuery.trim() === "@";
   const mergedSearchResults: Contact[] = searchQuery.trim()
     ? [
         ...nicknameResults,
@@ -118,7 +143,11 @@ export const ContactsList = ({
       ]
     : [];
 
-  const displayContacts = searchQuery ? mergedSearchResults : recentContacts;
+  const displayContacts = isAllContactsQuery
+    ? knownContacts
+    : searchQuery
+      ? sortContactsAlphabetically(mergedSearchResults)
+      : sortContactsAlphabetically(recentContacts);
   const isLoading = searchQuery ? isLoadingSearch : isLoadingRecents;
   const hasQuery = searchQuery.trim().length > 0;
   const showResults = displayContacts.length > 0;
@@ -275,7 +304,11 @@ export const ContactsList = ({
       ) : showResults ? (
         <View>
           <Text className="text-sm font-medium uppercase mb-3 text-muted tracking-widest">
-            {hasQuery ? "Search Results" : "Recent Contacts"}
+            {isAllContactsQuery
+              ? "Tous les contacts"
+              : hasQuery
+                ? "Search Results"
+                : "Recent Contacts"}
           </Text>
           <ScrollView
             style={{ maxHeight: 320 }}
