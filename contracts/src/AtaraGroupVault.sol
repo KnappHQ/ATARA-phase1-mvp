@@ -19,12 +19,15 @@ contract AtaraGroupVault is ReentrancyGuard {
     uint256 public totalDeposited;
     uint256 public acceptedCount;
     uint256 public proposalId;
+    uint256 public cancellationApprovalCount;
+    bool public cancelled;
     address[] private members;
     mapping(address => bool) public isMember;
     mapping(address => bool) public accepted;
     mapping(address => uint256) public contributions;
     mapping(address => mapping(bytes32 => bool)) public usedDepositIds;
     mapping(uint256 => mapping(address => bool)) public approved;
+    mapping(address => bool) public cancellationApproved;
 
     struct Proposal {
         address recipient;
@@ -45,10 +48,13 @@ contract AtaraGroupVault is ReentrancyGuard {
         uint256 maxTotalDeposits;
         uint256 acceptedCount;
         uint256 proposalId;
+        uint256 cancellationApprovalCount;
+        bool cancelled;
         address[] members;
         bool[] accepted;
         uint256[] contributions;
         bool[] approvals;
+        bool[] cancellationApprovals;
         Proposal proposal;
     }
 
@@ -72,6 +78,8 @@ contract AtaraGroupVault is ReentrancyGuard {
     event ApprovalChanged(uint256 indexed id, address indexed member, bool approved);
     event ProposalCancelled(uint256 indexed id);
     event Withdrawn(uint256 indexed id, address indexed recipient, uint256 amount);
+    event CancellationApprovalChanged(address indexed member, bool approved);
+    event VaultCancelled(uint256 totalRefunded);
 
     modifier onlyMember() {
         if (!isMember[msg.sender]) revert NotMember();
@@ -98,6 +106,7 @@ contract AtaraGroupVault is ReentrancyGuard {
     }
 
     function acceptTerms() external onlyMember {
+        if (cancelled) revert FundingClosed();
         if (block.timestamp >= unlockAt) revert FundingClosed();
         if (accepted[msg.sender]) revert AlreadyAccepted();
         accepted[msg.sender] = true;
@@ -106,6 +115,7 @@ contract AtaraGroupVault is ReentrancyGuard {
     }
 
     function deposit(uint256 amount, bytes32 depositId) external onlyMember nonReentrant {
+        if (cancelled) revert FundingClosed();
         if (usedDepositIds[msg.sender][depositId]) revert DuplicateDeposit();
         if (block.timestamp >= unlockAt) revert FundingClosed();
         if (acceptedCount != members.length) revert MissingAcceptance();
@@ -121,6 +131,7 @@ contract AtaraGroupVault is ReentrancyGuard {
     }
 
     function proposeWithdrawal(address recipient, uint256 amount, uint256 nextId) external onlyMember {
+        if (cancelled) revert InvalidProposal();
         // A retry after a lost RPC response must never open another proposal.
         if (nextId != proposalId + 1) revert InvalidProposal();
         if (block.timestamp < unlockAt) revert Locked();
@@ -137,6 +148,7 @@ contract AtaraGroupVault is ReentrancyGuard {
     }
 
     function setApproval(uint256 id, bool approve) external onlyMember {
+        if (cancelled) revert InvalidProposal();
         _checkProposal(id);
         if (approved[id][msg.sender] == approve) revert DuplicateApproval();
         approved[id][msg.sender] = approve;
@@ -146,6 +158,7 @@ contract AtaraGroupVault is ReentrancyGuard {
     }
 
     function cancelProposal(uint256 id) external onlyMember {
+        if (cancelled) revert InvalidProposal();
         _checkProposal(id);
         proposal.cancelled = true;
         emit ProposalCancelled(id);
@@ -153,12 +166,48 @@ contract AtaraGroupVault is ReentrancyGuard {
 
     /// @notice Any member may execute the already unanimous, unchanged proposal.
     function executeWithdrawal(uint256 id) external onlyMember nonReentrant {
+        if (cancelled) revert InvalidProposal();
         if (block.timestamp < unlockAt) revert Locked();
         _checkProposal(id);
         if (proposal.approvalCount != members.length) revert UnanimityRequired();
         proposal.executed = true;
         token.safeTransfer(proposal.recipient, proposal.amount);
         emit Withdrawn(id, proposal.recipient, proposal.amount);
+    }
+
+    /// @notice Members can unanimously dissolve the Vault and receive exactly
+    /// their own recorded contribution back. No creator or ATARA administrator
+    /// can unilaterally move funds.
+    function setCancellationApproval(bool approve) external onlyMember {
+        if (cancelled) revert InvalidProposal();
+        if (cancellationApproved[msg.sender] == approve) revert DuplicateApproval();
+        cancellationApproved[msg.sender] = approve;
+        if (approve) ++cancellationApprovalCount;
+        else --cancellationApprovalCount;
+        emit CancellationApprovalChanged(msg.sender, approve);
+    }
+
+    /// @notice Any member may execute a unanimous cancellation. Each member is
+    /// paid their own contribution, so no share is redistributed or lost.
+    function cancelVault() external onlyMember nonReentrant {
+        if (cancelled) revert InvalidProposal();
+        if (proposalId != 0 && !proposal.executed && !proposal.cancelled && block.timestamp < proposal.expiresAt) {
+            revert ActiveProposal();
+        }
+        if (cancellationApprovalCount != members.length) revert UnanimityRequired();
+
+        cancelled = true;
+        uint256 refunded;
+        for (uint256 i; i < members.length; ++i) {
+            address member = members[i];
+            uint256 amount = contributions[member];
+            if (amount == 0) continue;
+            contributions[member] = 0;
+            refunded += amount;
+            token.safeTransfer(member, amount);
+        }
+        totalDeposited = 0;
+        emit VaultCancelled(refunded);
     }
 
     function _checkProposal(uint256 id) private view {
@@ -176,15 +225,19 @@ contract AtaraGroupVault is ReentrancyGuard {
         s.maxTotalDeposits = maxTotalDeposits;
         s.acceptedCount = acceptedCount;
         s.proposalId = proposalId;
+        s.cancellationApprovalCount = cancellationApprovalCount;
+        s.cancelled = cancelled;
         s.members = members;
         s.accepted = new bool[](members.length);
         s.contributions = new uint256[](members.length);
         s.approvals = new bool[](members.length);
+        s.cancellationApprovals = new bool[](members.length);
         s.proposal = proposal;
         for (uint256 i; i < members.length; ++i) {
             s.accepted[i] = accepted[members[i]];
             s.contributions[i] = contributions[members[i]];
             s.approvals[i] = approved[proposalId][members[i]];
+            s.cancellationApprovals[i] = cancellationApproved[members[i]];
         }
     }
 }
