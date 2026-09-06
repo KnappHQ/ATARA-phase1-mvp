@@ -242,3 +242,15 @@ test("unanimous cancellation refunds each member's recorded share exactly once",
   await assert.rejects(vault.cancelVault());
   await assert.rejects(vault.deposit(units(1), id("after-cancel")));
 });
+
+test("does not promise exact refunds after a withdrawal has already paid out", async () => {
+  const { vault, unlockAt, acceptAll, approveAll } = await fixture();
+  await acceptAll();
+  await mined(vault.deposit(units(100), id("refund-after-withdrawal")));
+  await warp(unlockAt);
+  await mined(propose(vault, addresses[9], units(40)));
+  await approveAll();
+  await mined(vault.executeWithdrawal(1));
+  for (let i = 0; i < 3; i++) await mined(vault.connect(signers[i]).setCancellationApproval(true));
+  await assert.rejects(vault.cancelVault());
+});
