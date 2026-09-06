@@ -10,6 +10,11 @@ Chaque Vault a un nom public, 2 à 10 membres, une date de déblocage unique et
 un plafond de 10 000 USDC de test. Tous les membres doivent accepter les règles
 avant le premier dépôt. Les dépôts sont fermés à la date de déblocage.
 
+La création propose une invitation par handle ATARA (ou par smart account). Les
+adresses sont fixées dans les termes publics du Vault au moment de sa création;
+chaque invité doit ensuite accepter les règles depuis son propre compte. Un
+Vault déjà déployé ne peut pas ajouter une adresse en silence.
+
 Les écrans affichent toujours :
 
 > **Fonds bloqués jusqu’au {date}**
@@ -28,6 +33,17 @@ Cette règle stricte est adaptée à une bêta parce qu’elle est compréhensib
 ne donne aucun pouvoir de retrait à ATARA. Elle comporte un risque assumé : un
 groupe peut rester bloqué si un membre perd son accès ou refuse de voter. Aucun
 compte administrateur ou mécanisme de récupération ne contourne cette règle.
+
+## Suppression et remboursement collectif
+
+Avant ou après la date de déblocage, chaque membre peut confirmer la suppression
+du Vault. Un membre peut retirer sa confirmation tant que la suppression n’est
+pas exécutée. Lorsque tout le monde a confirmé, n’importe quel membre peut
+exécuter `cancelVault` : le contrat rembourse exactement
+`contributions[membre]` à chaque adresse, remet le solde comptable à zéro et
+marque définitivement le Vault comme supprimé. Une proposition de retrait
+active doit d’abord être expirée ou annulée. Il n’existe pas de bouton admin ou
+de remboursement unilatéral.
 
 ## Contrats livrés
 
@@ -87,6 +103,8 @@ Après la bêta et une revue externe :
 6. un contrat d’épargne individuelle verrouillée ;
 7. une intégration de rendement uniquement avec un protocole externe audité.
 
-Les signatures off-chain EIP-712/ERC-1271, le rendement et les mécanismes de
-refund ne font pas partie de la première bêta : ils augmenteraient les risques
-de récupération et de mauvaise compréhension des règles.
+Les signatures off-chain EIP-712/ERC-1271, le rendement et les invitations
+ajoutées après déploiement ne font pas partie de la première bêta : ils
+augmenteraient les risques de récupération et de mauvaise compréhension des
+règles. La suppression collective et le remboursement des contributions sont
+désormais inclus dans le contrat bêta, avec un vote unanime explicite.
