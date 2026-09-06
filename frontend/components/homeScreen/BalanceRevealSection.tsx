@@ -61,6 +61,8 @@ export const BalanceRevealSection = ({
   };
 
   const panGesture = Gesture.Pan()
+    .activeOffsetY([-18, 18])
+    .failOffsetX([-18, 18])
     .onStart(() => {
       startY.value = translateY.value;
     })
