@@ -27,6 +27,9 @@ export const SettleBottomSheet = ({
   if (!member) return null;
 
   const amount = Math.abs(member.netBalance).toFixed(2);
+  const debtAmount = Math.abs(member.netBalance);
+  const minimumReserve = 5;
+  const requiredBalance = debtAmount + Math.max(debtAmount * 0.2, minimumReserve);
   const memberDisplayName = member.displayName || `@${member.handle}`;
 
   const handleClose = () => {
@@ -96,7 +99,7 @@ export const SettleBottomSheet = ({
                   <Text className="text-xl font-semibold text-white">
                     Settle Up
                   </Text>
-                  <Text
+              <Text
                     className="text-sm font-mono mt-1"
                     style={{ color: "rgba(255,255,255,0.5)" }}
                   >
@@ -105,7 +108,10 @@ export const SettleBottomSheet = ({
                       {memberDisplayName}
                     </Text>{" "}
                     <Text className="text-white font-semibold">${amount}</Text>
-                  </Text>
+              </Text>
+              <Text className="text-xs mt-3" style={{ color: "rgba(255,255,255,0.55)" }}>
+                Collecte automatique : solde requis {requiredBalance.toFixed(2)} USDC (dette + 20 %, réserve minimum {minimumReserve.toFixed(2)} USDC).
+              </Text>
                 </View>
                 <Pressable
                   onPress={handleClose}
@@ -135,7 +141,7 @@ export const SettleBottomSheet = ({
                   <ArrowRight size={18} color={COLORS.accent} />
                 </View>
                 <View className="flex-1">
-                  <Text
+                <Text
                     className="text-sm font-semibold"
                     style={{ color: COLORS.accent }}
                   >
@@ -145,7 +151,7 @@ export const SettleBottomSheet = ({
                     className="text-xs mt-0.5"
                     style={{ color: "rgba(255,255,255,0.4)" }}
                   >
-                    Pay ${amount} via app · balance clears automatically
+                    Pay ${amount} via app · balance check before debit
                   </Text>
                 </View>
               </Pressable>

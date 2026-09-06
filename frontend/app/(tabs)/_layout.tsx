@@ -41,6 +41,13 @@ export default function TabsLayout() {
               }}
             />
             <Tabs.Screen
+              name="vaults"
+              options={{
+                href: "/vaults",
+                title: "Vault",
+              }}
+            />
+            <Tabs.Screen
               name="profile"
               options={{
                 href: "/profile",

@@ -64,6 +64,22 @@ export const ContactThreadItem = ({
                 {thread.transactionCount} transaction
                 {thread.transactionCount !== 1 ? "s" : ""}
               </Text>
+              {Math.abs(thread.totalReceived - thread.totalSent) > 0.009 ? (
+                <Text
+                  className="text-xs font-mono"
+                  style={{
+                    color:
+                      thread.totalReceived > thread.totalSent
+                        ? "#4ade80"
+                        : "rgba(255,255,255,0.55)",
+                  }}
+                  numberOfLines={1}
+                >
+                  {thread.totalReceived > thread.totalSent
+                    ? `owes you $${(thread.totalReceived - thread.totalSent).toFixed(2)}`
+                    : `you owe $${(thread.totalSent - thread.totalReceived).toFixed(2)}`}
+                </Text>
+              ) : null}
             </View>
           </View>
 

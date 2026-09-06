@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, Pressable, Platform } from "react-native";
+import { View, Text, ScrollView, Pressable, Platform, Switch } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { Plus } from "lucide-react-native";
@@ -32,6 +32,7 @@ export default function GroupDetailsScreen() {
   const [settleMember, setSettleMember] = useState<GroupMemberBalance | null>(
     null,
   );
+  const [autoCollectEnabled, setAutoCollectEnabled] = useState(false);
 
   useEffect(() => {
     if (id) fetchGroupDetail(id);
@@ -56,6 +57,29 @@ export default function GroupDetailsScreen() {
             onSettle={(member) => setSettleMember(member)}
           />
         )}
+
+        <View
+          className="mx-6 mb-6 rounded-2xl border border-white/10 p-4"
+          style={{ backgroundColor: `${COLORS.white}06` }}
+        >
+          <View className="flex-row items-center justify-between">
+            <View className="flex-1 mr-4">
+              <Text className="text-white text-sm font-semibold">Collecte automatique</Text>
+              <Text className="text-white/50 text-xs leading-5 mt-1">
+                Prépare une demande de règlement avec accord explicite, plafond et contrôle de solde.
+              </Text>
+            </View>
+            <Switch
+              value={autoCollectEnabled}
+              onValueChange={setAutoCollectEnabled}
+              trackColor={{ false: "rgba(255,255,255,0.15)", true: `${COLORS.accent}88` }}
+              thumbColor={autoCollectEnabled ? COLORS.accent : "#777"}
+            />
+          </View>
+          <Text className="text-white/40 text-[11px] leading-4 mt-3">
+            Le contrat devra vérifier : solde disponible ≥ dette + 20 % (avec réserve minimum), autorisation du membre et plafond de collecte. Aucun débit automatique n’est actif tant que le contrat audité n’est pas déployé.
+          </Text>
+        </View>
 
         {isLoadingDetail ? (
           <GroupDetailsSkeleton />

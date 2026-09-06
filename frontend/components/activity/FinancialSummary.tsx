@@ -14,6 +14,11 @@ export const FinancialSummary = ({
   totalSent,
   contactName,
 }: FinancialSummaryProps) => {
+  const netBalance = Number((totalReceived - totalSent).toFixed(2));
+  const absoluteBalance = Math.abs(netBalance).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
   return (
     <MotiView
       from={{ opacity: 0, translateY: -10 }}
@@ -79,7 +84,6 @@ export const FinancialSummary = ({
         style={{ backgroundColor: "rgba(255, 255, 255, 0.1)" }}
       />
 
-      {/* Net Balance Display - Always show Settled */}
       <View className="flex-row items-center justify-between">
         <View className="flex-1">
           <View className="flex-row items-center gap-2">
@@ -93,7 +97,11 @@ export const FinancialSummary = ({
               className="font-mono text-sm"
               style={{ color: "rgba(255, 255, 255, 0.6)" }}
             >
-              Settled
+              {netBalance > 0.009
+                ? `${contactName} owes you $${absoluteBalance}`
+                : netBalance < -0.009
+                  ? `You owe ${contactName} $${absoluteBalance}`
+                  : "Settled"}
             </Text>
           </View>
         </View>

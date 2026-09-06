@@ -42,7 +42,7 @@ const PROTECTED_ROUTES = [
   "group-details",
   "add-crypto",
   "pay-merchant",
-  "vaults",
+  "security",
   "vault-create",
   "vault-detail",
 ];
@@ -199,7 +199,7 @@ function RootLayoutInner() {
             contentStyle: { backgroundColor: "#000000" },
           }}
         />
-        <Stack.Screen name="vaults" options={{ presentation: "card", animation: "slide_from_bottom" }} />
+        <Stack.Screen name="security" options={{ presentation: "card", animation: "slide_from_bottom" }} />
         <Stack.Screen name="vault-create" options={{ presentation: "card", animation: "slide_from_bottom" }} />
         <Stack.Screen name="vault-detail" options={{ presentation: "card", animation: "slide_from_bottom" }} />
       </Stack>

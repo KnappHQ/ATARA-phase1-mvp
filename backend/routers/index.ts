@@ -8,6 +8,7 @@ import userRouter from "./user.route";
 import groupRouter from "./group.routes";
 import feedbackRouter from "./feedback.routes";
 import vaultRouter from "./vault.routes";
+import securityRouter from "./security.routes";
 
 app.use("/", express.Router());
 app.use("/health", healthRouter);
@@ -18,5 +19,6 @@ app.use("/user", userRouter);
 app.use("/groups", groupRouter);
 app.use("/feedback", feedbackRouter);
 app.use("/vaults", vaultRouter);
+app.use("/security", securityRouter);
 
 export default app;

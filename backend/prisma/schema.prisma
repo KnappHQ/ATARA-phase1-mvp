@@ -13,10 +13,16 @@ model User {
   publicAddress       String   @unique // Privy embedded owner wallet address (EOA)
   smartAccountAddress String?  @unique // Alchemy ERC-4337 smart account on Base
   authProvider        String? // google, apple
-  profilePicUrl       String?
-  displayName         String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  profilePicUrl          String?
+  displayName            String?
+  totpSecretEncrypted    String?
+  totpPendingSecret      String?
+  totpPendingCreatedAt   DateTime?
+  totpEnabled            Boolean  @default(false)
+  recoveryPhone          String?
+  recoveryPhoneVerifiedAt DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
   sentTx           Transaction[]       @relation("Sender")
   receivedTx       Transaction[]       @relation("Receiver")
@@ -25,6 +31,19 @@ model User {
   paidExpenses     GroupExpense[]      @relation("PaidExpenses")
   expenseSplits    GroupExpenseSplit[]
   feedbacks        Feedback[]
+  recoveryCodes    RecoveryCode[]
+}
+
+model RecoveryCode {
+  id        String    @id @default(uuid())
+  userId    String
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
 }
 
 model Group {

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
+import * as Clipboard from "expo-clipboard";
 import {
   ActivityIndicator,
   Pressable,
@@ -10,7 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { ArrowLeft, ShoppingBasket, ShieldCheck } from "lucide-react-native";
+import { ArrowLeft, ClipboardPaste, ShoppingBasket, ShieldCheck } from "lucide-react-native";
 import { APP_NETWORK, COLORS, NETWORK_NAME } from "@/utils/constants";
 import { DEMO_MODE } from "@/utils/demoMode";
 import { getTokenAddress } from "@/utils/tokenConfig";
@@ -20,6 +21,27 @@ import { useWalletStore } from "@/stores/useWalletStore";
 import { useAuthStore } from "@/stores/useAuthStore";
 
 const ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
+
+const parsePaymentRequest = (value: string) => {
+  const raw = value.trim();
+  if (!raw) return null;
+  try {
+    if (raw.startsWith("{")) {
+      const parsed = JSON.parse(raw);
+      return {
+        address: typeof parsed.address === "string" ? parsed.address : "",
+        amount: typeof parsed.amount === "string" || typeof parsed.amount === "number" ? String(parsed.amount) : "",
+      };
+    }
+    const normalized = raw.replace(/^ethereum:/i, "");
+    const [address, query] = normalized.split("?");
+    const params = new URLSearchParams(query || "");
+    const valueInEth = params.get("value") || params.get("amount") || "";
+    return { address, amount: valueInEth };
+  } catch {
+    return null;
+  }
+};
 
 export default function PayMerchantScreen() {
   const router = useRouter();
@@ -33,6 +55,18 @@ export default function PayMerchantScreen() {
   const [note, setNote] = useState("Courses");
   const [isPaying, setIsPaying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  const pastePaymentRequest = async () => {
+    const clipboard = await Clipboard.getStringAsync();
+    const request = parsePaymentRequest(clipboard);
+    if (!request?.address || !ADDRESS_PATTERN.test(request.address)) {
+      setMessage("Aucune demande de paiement QR valide dans le presse-papiers.");
+      return;
+    }
+    setRecipient(request.address);
+    if (request.amount) setAmount(request.amount);
+    setMessage("Demande QR importée. Vérifie le commerçant et le montant avant de payer.");
+  };
 
   const rawAddress = recipient.trim();
   const isValidAddress = ADDRESS_PATTERN.test(rawAddress);
@@ -100,8 +134,13 @@ export default function PayMerchantScreen() {
           </View>
 
           <Text className="text-white/55 text-sm leading-5 mt-6">
-            Colle l’adresse ou le QR de paiement fourni par le magasin. Pour la bêta, le commerçant doit accepter l’USDC sur Base Sepolia.
+            Importe une demande QR fournie par le magasin ou colle son adresse. Pour la bêta, le commerçant doit accepter l’USDC sur Base Sepolia.
           </Text>
+
+          <Pressable onPress={pastePaymentRequest} className="flex-row items-center justify-center rounded-2xl border border-blue-300/25 bg-blue-300/10 px-4 py-3 mt-4">
+            <ClipboardPaste size={17} color="#93c5fd" />
+            <Text className="ml-2 text-blue-200 font-semibold text-sm">Importer une demande QR copiée</Text>
+          </Pressable>
 
           <View className="flex-row items-center rounded-2xl border border-white/15 bg-black/40 px-4 mt-5">
             <TextInput

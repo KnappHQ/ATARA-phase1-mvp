@@ -1,5 +1,6 @@
 import "react-native-get-random-values";
 import { useState } from "react";
+import { useRouter } from "expo-router";
 import { View, Text, ScrollView, Pressable } from "react-native";
 import { MotiView } from "moti";
 import {
@@ -9,6 +10,7 @@ import {
   ShieldCheck,
   ChevronRight,
   Trash2,
+  KeyRound,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { COLORS } from "@/utils/constants";
@@ -96,6 +98,7 @@ const SectionHeader = ({
 );
 
 export default function ProfileTab() {
+  const router = useRouter();
   const { user, updateProfile } = useAuthStore();
   const { logout } = useAuth();
 
@@ -183,10 +186,22 @@ export default function ProfileTab() {
           <SectionHeader title="Beta Program" delay={360} />
 
           <SettingRow
+            icon={KeyRound}
+            label="Security Center"
+            subtitle="Passkey, 2FA, recovery codes and phone backup"
+            delay={390}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/security" as never);
+            }}
+            right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
+          />
+
+          <SettingRow
             icon={Bug}
             label="Report Bug or Feedback"
             subtitle="Help us improve Atara"
-            delay={420}
+            delay={450}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setFeedbackOpen(true);
