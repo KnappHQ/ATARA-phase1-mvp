@@ -137,6 +137,7 @@ export const QuickSendBar = () => {
                   className="w-12 h-3 rounded bg-white/10"
                   style={{ opacity: 0.5 }}
                 />
+              </View>
             ))}
           </>
         ) : (
