@@ -30,6 +30,7 @@ export type VaultMember = {
   accepted: boolean;
   contribution: string;
   approved: boolean;
+  cancellationApproved: boolean;
 };
 
 export type VaultSnapshot = {
@@ -41,6 +42,8 @@ export type VaultSnapshot = {
   maxTotalDeposits: string;
   acceptedCount: number;
   proposalId: number;
+  cancellationApprovalCount: number;
+  cancelled: boolean;
   members: VaultMember[];
   proposal: {
     recipient: string;
@@ -90,8 +93,14 @@ export const VaultService = {
       maxTotalDeposits: raw.maxTotalDeposits.toString(),
       acceptedCount: Number(raw.acceptedCount),
       proposalId: Number(raw.proposalId),
+      cancellationApprovalCount: Number(raw.cancellationApprovalCount),
+      cancelled: Boolean(raw.cancelled),
       members: raw.members.map((address: string, index: number) => ({
-        address, accepted: raw.accepted[index], contribution: raw.contributions[index].toString(), approved: raw.approvals[index],
+        address,
+        accepted: raw.accepted[index],
+        contribution: raw.contributions[index].toString(),
+        approved: raw.approvals[index],
+        cancellationApproved: raw.cancellationApprovals[index],
       })),
       proposal: {
         recipient: raw.proposal.recipient,
@@ -126,4 +135,6 @@ export const VaultService = {
   approvalCall: (vault: string, proposalId: number, approve: boolean) => ({ target: asAddress(vault), data: encodeVault("setApproval", [BigInt(proposalId), approve]) }),
   cancelCall: (vault: string, proposalId: number) => ({ target: asAddress(vault), data: encodeVault("cancelProposal", [BigInt(proposalId)]) }),
   executeCall: (vault: string, proposalId: number) => ({ target: asAddress(vault), data: encodeVault("executeWithdrawal", [BigInt(proposalId)]) }),
+  cancellationApprovalCall: (vault: string, approve: boolean) => ({ target: asAddress(vault), data: encodeVault("setCancellationApproval", [approve]) }),
+  cancelVaultCall: (vault: string) => ({ target: asAddress(vault), data: encodeVault("cancelVault") }),
 };
