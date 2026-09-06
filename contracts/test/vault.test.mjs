@@ -221,3 +221,24 @@ test("lost-response retries cannot duplicate a deposit or create a later proposa
   await assert.rejects(vault.proposeWithdrawal(addresses[9], units(10), 1));
   assert.equal(await vault.proposalId(), 1n);
 });
+
+test("unanimous cancellation refunds each member's recorded share exactly once", async () => {
+  const { vault, token, acceptAll } = await fixture();
+  await acceptAll();
+  await mined(vault.deposit(units(50), id("refund-0")));
+  await mined(vault.connect(signers[1]).deposit(units(30), id("refund-1")));
+  await mined(vault.connect(signers[2]).deposit(units(20), id("refund-2")));
+
+  const before = await Promise.all(addresses.slice(0, 3).map((address) => token.balanceOf(address)));
+  await assert.rejects(vault.cancelVault());
+  for (let i = 0; i < 3; i++) await mined(vault.connect(signers[i]).setCancellationApproval(true));
+  await mined(vault.cancelVault());
+
+  const after = await Promise.all(addresses.slice(0, 3).map((address) => token.balanceOf(address)));
+  assert.deepEqual(after.map((value, i) => value - before[i]), [units(50), units(30), units(20)]);
+  assert.equal(await token.balanceOf(await vault.getAddress()), 0n);
+  assert.equal(await vault.totalDeposited(), 0n);
+  assert.equal(await vault.cancelled(), true);
+  await assert.rejects(vault.cancelVault());
+  await assert.rejects(vault.deposit(units(1), id("after-cancel")));
+});
