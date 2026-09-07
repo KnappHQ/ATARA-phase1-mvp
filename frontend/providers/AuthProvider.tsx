@@ -27,7 +27,6 @@ import {
 import { useAlertStore } from "@/stores/useAlertStore";
 import { useAuthStore } from "@/stores/useAuthStore";
 import {
-  generateRegistrationMessage,
   getPrimaryEmailAddress,
   getPrimaryEmbeddedEthereumWalletAddress,
   getPrimaryOAuthProvider,
@@ -208,10 +207,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         throw new Error("Smart account not ready. Please try again.");
       }
 
-      const registrationMessage = generateRegistrationMessage(signerAddress);
+      const challenge = await AuthService.requestChallenge(
+        signerAddress,
+        "register",
+      );
       const registrationSignature = await signPersonalMessage(
         signerWallet,
-        registrationMessage,
+        challenge.message,
       );
 
       if (!registrationSignature) {
@@ -224,7 +226,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         signerAddress,
         email: getPrimaryEmailAddress(user) || undefined,
         authProvider: getPrimaryOAuthProvider(user) ?? "privy",
-        message: registrationMessage,
+        message: challenge.message,
         signature: registrationSignature,
       });
 
