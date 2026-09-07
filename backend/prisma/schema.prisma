@@ -21,6 +21,11 @@ model User {
   totpEnabled            Boolean  @default(false)
   recoveryPhone          String?
   recoveryPhoneVerifiedAt DateTime?
+  subscriptionTier       SubscriptionTier   @default(FREE)
+  subscriptionStatus     SubscriptionStatus @default(INACTIVE)
+  subscriptionProvider   String?
+  subscriptionProductId  String?
+  subscriptionExpiresAt  DateTime?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
@@ -138,6 +143,20 @@ enum SplitDecision {
   PENDING
   ACCEPTED
   DISPUTED
+}
+
+enum SubscriptionTier {
+  FREE
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  INACTIVE
+  ACTIVE
+  GRACE_PERIOD
+  PAUSED
+  CANCELED
+  EXPIRED
 }
 
 model SettlementIntent {
