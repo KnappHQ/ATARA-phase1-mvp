@@ -1,17 +1,17 @@
 import { Router } from "express";
-import rateLimit, { ipKeyGenerator } from "express-rate-limit";
+import rateLimit from "express-rate-limit";
 import { authController } from "../controllers/auth.controller";
+import { authentication } from "../middleware/auth.middleware";
 
 const router = Router();
 
-const authKeyGenerator = (req: any) => {
-  const signerAddress =
-    typeof req.body?.signerAddress === "string"
-      ? req.body.signerAddress.toLowerCase()
-      : "";
-
-  return signerAddress || ipKeyGenerator(req.ip);
-};
+const challengeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 20,
+  message: "Too many authentication attempts. Please try again later.",
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
 
 const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -24,16 +24,23 @@ const registerLimiter = rateLimit({
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
-  keyGenerator: authKeyGenerator,
   message: "Too many login attempts. Please try again later.",
   standardHeaders: "draft-7",
   legacyHeaders: false,
 });
 
+const handleLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  message: "Too many handle checks. Please try again later.",
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
+
+router.post("/challenge", challengeLimiter, authController.challenge);
 router.post("/register", registerLimiter, authController.register);
-
 router.post("/login", loginLimiter, authController.login);
-
-router.get("/check-handle/:handle", authController.checkHandle);
+router.post("/logout-all", authentication, authController.logoutAll);
+router.get("/check-handle/:handle", handleLimiter, authController.checkHandle);
 
 export default router;
