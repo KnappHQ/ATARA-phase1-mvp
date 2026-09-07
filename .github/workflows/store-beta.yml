@@ -1,0 +1,75 @@
+name: Store Beta
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Platform to build and submit
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - ios
+          - android
+
+permissions:
+  contents: read
+
+concurrency:
+  group: store-beta-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+            contracts/package-lock.json
+      - name: Backend checks
+        working-directory: backend
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/atara
+        run: npm ci && npm run build && npm test
+      - name: Frontend checks
+        working-directory: frontend
+        run: npm ci && npm run lint && npm run typecheck
+      - name: Contract checks
+        working-directory: contracts
+        run: npm ci && npm test && npm run abi:check
+
+  build-and-submit:
+    needs: verify
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Ensure Expo authentication is configured
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "Missing repository secret EXPO_TOKEN"
+            exit 1
+          fi
+      - name: Build and submit iOS beta
+        if: ${{ inputs.platform == 'all' || inputs.platform == 'ios' }}
+        run: npx eas-cli@latest build --platform ios --profile beta --auto-submit --non-interactive --no-wait
+      - name: Build and submit Android beta
+        if: ${{ inputs.platform == 'all' || inputs.platform == 'android' }}
+        run: npx eas-cli@latest build --platform android --profile beta --auto-submit --non-interactive --no-wait
