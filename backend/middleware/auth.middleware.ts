@@ -31,7 +31,9 @@ export const authentication = async (
   }
 
   try {
-    const decoded: any = jwt.verify(token, JWT_SECRET);
+    const decoded: any = jwt.verify(token, JWT_SECRET, {
+      algorithms: ["HS256"],
+    });
     const user = await prisma.user.findUnique({
       where: { id: decoded.id },
       select: {
@@ -40,6 +42,7 @@ export const authentication = async (
         email: true,
         publicAddress: true,
         smartAccountAddress: true,
+        tokenVersion: true,
       },
     });
 
@@ -52,9 +55,13 @@ export const authentication = async (
       );
     }
 
+    if (!Number.isInteger(decoded.tv) || decoded.tv !== user.tokenVersion) {
+      return next(new ErrorHandler("This session is no longer valid", 401));
+    }
+
     req.user = user;
     next();
-  } catch (error) {
+  } catch {
     return next(new ErrorHandler("Not authorized to access this route", 401));
   }
 };
