@@ -1,0 +1,45 @@
+name: Expo Environment Audit
+
+on:
+  push:
+    branches:
+      - release/expo-env-audit
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Ensure Expo token exists
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "Missing repository secret EXPO_TOKEN"
+            exit 1
+          fi
+      - name: Fetch production environment variable metadata
+        run: npx eas-cli@latest env:list --environment production --json > /tmp/eas-env.json
+      - name: Print variable names only
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const data = JSON.parse(fs.readFileSync('/tmp/eas-env.json', 'utf8'));
+          const rows = Array.isArray(data) ? data : (data.variables || data.environmentVariables || []);
+          const names = rows.map((v) => v.name || v.key).filter(Boolean).sort();
+          console.log('EAS_PRODUCTION_VARIABLE_NAMES');
+          for (const name of names) console.log(`- ${name}`);
+          console.log(`TOTAL=${names.length}`);
+          NODE
