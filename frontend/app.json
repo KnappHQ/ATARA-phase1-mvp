@@ -68,13 +68,13 @@
         "origin": false
       },
       "eas": {
-        "projectId": "349e8195-b371-4294-9bab-c85f991b11be"
+        "projectId": "b454eaa9-f1d5-4d8c-ac09-945ce1f1d09f"
       }
     },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "owner": "karankoder"
+    "owner": "tk41"
   }
 }
