@@ -9,13 +9,16 @@ import { NETWORK } from "../utils/constants";
 import { paymentChainId, verifyTokenPayment, verifyReceiptSigner } from "./paymentProof.service";
 
 const hash = (token: string) => crypto.createHash("sha256").update(token).digest("hex");
+const publicPaymentOrigin = () =>
+  process.env.PUBLIC_PAYMENT_ORIGIN || process.env.RENDER_EXTERNAL_URL || "";
+
 export const validateRequestToken = (token: string) => {
   if (!/^[a-f0-9]{64}$/.test(token)) throw new ErrorHandler("Payment request not found", 404);
   return token;
 };
 export const paymentRequestService = {
   async create(userId: string, amount: unknown, note: unknown) {
-    const origin = process.env.PUBLIC_PAYMENT_ORIGIN;
+    const origin = publicPaymentOrigin();
     if (!origin || !/^https:\/\/[^/?#]+$/.test(origin)) throw new ErrorHandler("Payment links await configuration of the public HTTPS service", 503);
     if (paymentChainId !== 84532 && process.env.ENABLE_MAINNET_PAYMENT_REQUESTS !== "true")
       throw new ErrorHandler("Payment requests are currently available on Base Sepolia only", 503);
