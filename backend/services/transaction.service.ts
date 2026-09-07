@@ -1,7 +1,6 @@
 import { ethers } from "ethers";
 import axios from "axios";
 import prisma from "../config/prisma";
-import type { TxStatus } from "@prisma/client";
 import { ErrorHandler } from "../utils/errorHandler";
 import {
   ALCHEMY_URL,
@@ -59,28 +58,31 @@ class TransactionService {
     senderProfile: any;
     receiverAddress: string;
     txHash: string;
-    amount: number | string;
-    rawAmountWei: string;
     assetSymbol: string;
     category?: string;
     userNote?: string;
   }) {
     const normalizedTxHash = data.txHash.toLowerCase();
     const normalizedReceiverAddress = data.receiverAddress.toLowerCase();
+    const normalizedAsset = data.assetSymbol.toUpperCase();
 
     const existingTx = await prisma.transaction.findUnique({
       where: { txHash: normalizedTxHash },
     });
 
     if (existingTx) {
-      if (existingTx.senderId === data.senderProfile.id && existingTx.receiverAddress.toLowerCase() === normalizedReceiverAddress && existingTx.assetSymbol === data.assetSymbol && existingTx.rawAmountWei === data.rawAmountWei)
+      if (
+        existingTx.senderId === data.senderProfile.id &&
+        existingTx.receiverAddress.toLowerCase() === normalizedReceiverAddress &&
+        existingTx.assetSymbol === normalizedAsset
+      ) {
         return existingTx;
+      }
       throw new ErrorHandler("Transaction reference belongs to another transfer", 409);
     }
 
     const alchemyProvider = new ethers.providers.JsonRpcProvider(ALCHEMY_URL);
-    const receipt =
-      await alchemyProvider.getTransactionReceipt(normalizedTxHash);
+    const receipt = await alchemyProvider.getTransactionReceipt(normalizedTxHash);
 
     if (!receipt) {
       throw new ErrorHandler(
@@ -99,36 +101,78 @@ class TransactionService {
       ""
     ).toLowerCase();
 
-    if (!ethers.utils.isAddress(expectedSender) || !ethers.utils.isAddress(normalizedReceiverAddress))
+    if (
+      !ethers.utils.isAddress(expectedSender) ||
+      !ethers.utils.isAddress(normalizedReceiverAddress)
+    ) {
       throw new ErrorHandler("Invalid sender or receiver", 400);
+    }
+
     let decimals = 18;
+    let rawAmount: ethers.BigNumber;
     let confirmedAt: Date;
-    if (data.assetSymbol === "ETH") {
-      const transfers = (await this.fetchAlchemyHistory(expectedSender)).filter(t =>
-        t.hash.toLowerCase() === normalizedTxHash && t.from.toLowerCase() === expectedSender &&
-        t.to?.toLowerCase() === normalizedReceiverAddress && t.asset === "ETH" && !t.rawContract.address);
-      if (transfers.length !== 1) throw new ErrorHandler("Waiting for an unambiguous indexed ETH transfer", 202);
-      if (!this.getNativeTransferWei(transfers[0]).eq(ethers.BigNumber.from(data.rawAmountWei)))
-        throw new ErrorHandler("ETH amount mismatch", 400);
-      const [network, block] = await Promise.all([alchemyProvider.getNetwork(), alchemyProvider.getBlock(receipt.blockNumber)]);
-      if (network.chainId !== paymentChainId || !block || block.hash !== receipt.blockHash || receipt.confirmations < 2)
+
+    if (normalizedAsset === "ETH") {
+      const transfers = (await this.fetchAlchemyHistory(expectedSender)).filter(
+        (t) =>
+          t.hash.toLowerCase() === normalizedTxHash &&
+          t.from.toLowerCase() === expectedSender &&
+          t.to?.toLowerCase() === normalizedReceiverAddress &&
+          t.asset === "ETH" &&
+          !t.rawContract.address,
+      );
+      if (transfers.length !== 1) {
+        throw new ErrorHandler(
+          "Waiting for an unambiguous indexed ETH transfer",
+          202,
+        );
+      }
+      rawAmount = this.getNativeTransferWei(transfers[0]);
+      const [network, block] = await Promise.all([
+        alchemyProvider.getNetwork(),
+        alchemyProvider.getBlock(receipt.blockNumber),
+      ]);
+      if (
+        network.chainId !== paymentChainId ||
+        !block ||
+        block.hash !== receipt.blockHash ||
+        receipt.confirmations < 2
+      ) {
         throw new ErrorHandler("Waiting for network confirmations", 202);
+      }
       confirmedAt = new Date(block.timestamp * 1000);
     } else {
-      const token = data.assetSymbol === "USDC" || data.assetSymbol === "USDT"
-        ? getKnownTokens(NETWORK as AppNetwork)[data.assetSymbol] : undefined;
-      if (!token?.address) throw new ErrorHandler("Unsupported token on this network", 400);
-      const proof = await verifyTokenPayment({ txHash: normalizedTxHash, token: token.address, sender: expectedSender, recipient: normalizedReceiverAddress });
-      if (!proof.rawAmount.eq(ethers.BigNumber.from(data.rawAmountWei))) throw new ErrorHandler("Token amount mismatch", 400);
+      const token =
+        normalizedAsset === "USDC" || normalizedAsset === "USDT"
+          ? getKnownTokens(NETWORK as AppNetwork)[normalizedAsset]
+          : undefined;
+      if (!token?.address) {
+        throw new ErrorHandler("Unsupported token on this network", 400);
+      }
+      const proof = await verifyTokenPayment({
+        txHash: normalizedTxHash,
+        token: token.address,
+        sender: expectedSender,
+        recipient: normalizedReceiverAddress,
+      });
+      rawAmount = proof.rawAmount;
       decimals = token.decimals;
       confirmedAt = proof.confirmedAt;
     }
-    const calculatedDecimal = ethers.utils.formatUnits(data.rawAmountWei, decimals);
-    if (ethers.BigNumber.from(data.rawAmountWei).lte(0)) throw new ErrorHandler("Amount must be positive", 400);
-    // Derive the recorded amount from verified chain data, never a client's fiat estimate.
+
+    if (rawAmount.lte(0)) {
+      throw new ErrorHandler("Amount must be positive", 400);
+    }
+    const rawAmountWei = rawAmount.toString();
+    const calculatedDecimal = ethers.utils.formatUnits(rawAmount, decimals);
 
     const receiver = await prisma.user.findFirst({
-      where: { smartAccountAddress: { equals: normalizedReceiverAddress, mode: "insensitive" } },
+      where: {
+        smartAccountAddress: {
+          equals: normalizedReceiverAddress,
+          mode: "insensitive",
+        },
+      },
     });
 
     const transaction = await prisma.transaction.create({
@@ -137,11 +181,11 @@ class TransactionService {
         receiverId: receiver ? receiver.id : null,
         receiverAddress: normalizedReceiverAddress,
         txHash: normalizedTxHash,
-        assetSymbol: data.assetSymbol,
+        assetSymbol: normalizedAsset,
         amount: calculatedDecimal,
         chainId: paymentChainId,
         confirmedAt,
-        rawAmountWei: data.rawAmountWei,
+        rawAmountWei,
         category:
           data.category &&
           (TRANSACTION_CATEGORIES as readonly string[]).includes(data.category)
@@ -293,7 +337,6 @@ class TransactionService {
   public async updateTransaction(
     userId: string,
     transactionId: string,
-    status?: TxStatus,
     category?: string,
     userNote?: string,
   ) {
@@ -327,6 +370,7 @@ class TransactionService {
       withMetadata: true,
       excludeZeroValue: true,
       maxCount: "0x64",
+      order: "desc",
     };
 
     const internalParams = {
@@ -335,6 +379,7 @@ class TransactionService {
       withMetadata: true,
       excludeZeroValue: true,
       maxCount: "0x64",
+      order: "desc",
     };
 
     const makeRequest = (params: Record<string, unknown>) => ({
@@ -420,20 +465,6 @@ class TransactionService {
       console.error("[Alchemy] Fetch Error:", error);
       return [];
     }
-  }
-
-  private async findTransferByHash(
-    address: string,
-    txHash: string,
-  ): Promise<AlchemyTransfer | null> {
-    const history = await this.fetchAlchemyHistory(address);
-    const normalizedTxHash = txHash.toLowerCase();
-
-    return (
-      history.find(
-        (transfer) => transfer.hash.toLowerCase() === normalizedTxHash,
-      ) ?? null
-    );
   }
 
   private getNativeTransferWei(transfer: AlchemyTransfer) {
