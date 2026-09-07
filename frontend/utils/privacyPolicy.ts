@@ -1,7 +1,7 @@
-export const PRIVACY_POLICY_LAST_UPDATED = "08/05/2026";
+export const PRIVACY_POLICY_LAST_UPDATED = "07/09/2026";
 
 export const PRIVACY_POLICY_FOOTER_TEXT =
-  "ATARA UK Ltd — privacy@atara.finance";
+  "ATARA LTD — privacy@atara.finance";
 
 export interface PrivacyPolicySection {
   title: string;
@@ -10,7 +10,7 @@ export interface PrivacyPolicySection {
 }
 
 export const PRIVACY_POLICY_INTRO =
-  'This Privacy Policy explains how ATARA UK Ltd ("ATARA", "we", "us") collects, uses, and protects your personal data when you use the ATARA app and website (the "Service"). ATARA UK Ltd is a company registered in England and Wales (company number 17054670), registered office: [adresse enregistrée]. We act as the data controller for the personal data described below. This policy complies with the UK GDPR and the EU GDPR.';
+  'This Privacy Policy explains how ATARA LTD ("ATARA", "we", "us") collects, uses, and protects your personal data when you use the ATARA app and website (the "Service"). ATARA LTD is a company registered in England and Wales (company number 17054670), registered office: 71-75 Shelton Street, Covent Garden, London, United Kingdom, WC2H 9JQ. We act as the data controller for the personal data described below. This policy is intended to comply with the UK GDPR and, where applicable, the EU GDPR.';
 
 export const PRIVACY_POLICY_SECTIONS: PrivacyPolicySection[] = [
   {
@@ -22,7 +22,7 @@ export const PRIVACY_POLICY_SECTIONS: PrivacyPolicySection[] = [
   {
     title: "2. What ATARA is — and what we do not hold",
     body: [
-      "ATARA is a self-custodial crypto wallet built on Base. You control your funds. We do not take custody of your assets, and we do not have access to, store, or control your private keys or wallet recovery in a way that would let us move your funds on your behalf. Key management is handled through secure multi-party computation (MPC) technology provided by our infrastructure partner.",
+      "ATARA is a self-custodial crypto wallet built on Base. You control your funds. ATARA does not take custody of your crypto assets and does not hold a conventional custodial balance on your behalf. Wallet authentication and key-management infrastructure are provided by specialist third-party providers. ATARA does not ask you to disclose a seed phrase to us.",
     ],
   },
   {
@@ -31,71 +31,79 @@ export const PRIVACY_POLICY_SECTIONS: PrivacyPolicySection[] = [
       "We collect information needed to provide, secure, and improve the Service.",
     ],
     bullets: [
-      "Account information: email address and name, provided through Google or Apple sign-in; the username you choose for sending and receiving payments.",
-      "Wallet and transaction information: your public wallet address and on-chain transaction history, which is recorded on a public blockchain and is by nature public, permanent, and outside our control.",
-      "Technical and device information: IP address, device type, operating system, app version, and device identifiers.",
-      "Usage information: how you interact with the app, collected through analytics tools to help us improve the Service.",
-      "Communications: any information you share when you contact our support team.",
-      "We do not collect your private keys, seed phrase, or recovery information.",
+      "Account information: email address and name, where provided through Google or Apple sign-in, plus the username and display name you choose.",
+      "Wallet and transaction information: public wallet addresses and blockchain transaction information. Public blockchain records are generally permanent and outside ATARA's control.",
+      "Technical information: device type, operating system, app version, IP address received by our servers, and security or diagnostic information needed to operate the Service.",
+      "Usage information: limited product events may be processed if analytics is enabled. Passive product analytics is disabled for the current beta unless separately disclosed and enabled.",
+      "Communications: information you provide when you contact support or send feedback.",
+      "We do not ask you to provide a seed phrase or private key to ATARA support.",
     ],
   },
   {
     title: "4. How we use your information",
     body: [
-      "To provide and operate the Service; to maintain security, prevent fraud, and protect users; to comply with legal and regulatory obligations including applicable anti-money laundering requirements; to improve and develop the Service; and to communicate with you.",
-      "Legal bases (GDPR Article 6): performance of a contract, compliance with a legal obligation, our legitimate interests (security, fraud prevention, product improvement), and your consent where required.",
+      "We use personal data to provide and operate the Service; authenticate users; maintain security; prevent fraud and abuse; provide support; comply with applicable legal obligations; and improve ATARA.",
+      "Depending on the processing activity, our legal basis may include performance of a contract, compliance with a legal obligation, legitimate interests such as security and fraud prevention, or consent where required.",
     ],
   },
   {
     title: "5. Who we share your information with",
     body: [
-      "We use trusted third-party processors to operate ATARA, including providers for wallet infrastructure and authentication, blockchain network access, database and hosting, and product analytics. These providers only process your data on our instructions and under contract. We may also disclose data where required by law or valid legal request. We do not sell your personal data.",
+      "ATARA uses third-party providers for authentication and wallet infrastructure, blockchain connectivity, hosting/database services, error monitoring, and other technical functions. Providers process information only as needed to deliver those services and subject to their contractual and legal obligations. We may also disclose information where required by law. We do not sell personal data.",
     ],
   },
   {
     title: "6. International transfers",
     body: [
-      "Some service providers are located outside the UK/EU (for example, in the United States). Where personal data is transferred outside the UK/EEA, we rely on appropriate safeguards such as Standard Contractual Clauses.",
+      "Some providers may process data outside the UK or EEA. Where required, we use appropriate safeguards for international transfers, such as adequacy decisions or approved contractual safeguards.",
     ],
   },
   {
     title: "7. Blockchain data",
     body: [
-      "Transactions you make are recorded on a public blockchain (Base). Blockchain data is public, permanent, and cannot be changed or deleted by us or anyone else. This is a fundamental property of the technology.",
+      "Transactions made on public blockchains such as Base can be public, permanent, and technically impossible for ATARA to delete or alter. Closing an ATARA account does not erase public blockchain records.",
     ],
   },
   {
     title: "8. Data retention",
     body: [
-      "We keep your personal data only as long as needed to provide the Service, comply with legal obligations, resolve disputes, and enforce our agreements. On-chain data cannot be deleted (see section 7).",
+      "We retain off-chain personal data only for as long as reasonably necessary for the purposes described in this policy, including security, legal, dispute-resolution, and fraud-prevention requirements. Some minimal anti-replay payment records may be retained where necessary to prevent a blockchain receipt from being reused fraudulently.",
     ],
   },
   {
     title: "9. Your rights",
     body: [
-      "Under the UK GDPR and GDPR you have the right to access your data, correct it, request erasure, object to or restrict processing, request portability, and withdraw consent. To exercise these rights, contact privacy@atara.finance. You also have the right to lodge a complaint with a supervisory authority — in the UK, the ICO; in France, the CNIL.",
+      "Depending on where you live, you may have rights to access, correct, erase, restrict, object to processing, or obtain a portable copy of certain personal data, and to withdraw consent where processing relies on consent. Contact privacy@atara.finance to exercise applicable rights. You may also complain to the relevant supervisory authority, including the UK ICO or, where applicable, an EU data protection authority such as the CNIL in France.",
     ],
   },
   {
     title: "10. Security",
     body: [
-      "We use technical and organisational measures to protect your personal data, including encryption in transit. No system is perfectly secure, and you are responsible for keeping your device and login credentials safe.",
+      "We use technical and organisational measures designed to protect personal data, including encrypted transport and access controls. No online service can guarantee absolute security. Keep your device, authentication methods, and recovery methods secure.",
     ],
   },
   {
     title: "11. Children",
     body: [
-      "ATARA is not intended for, and we do not knowingly collect data from, anyone under 18.",
+      "ATARA is not intended for anyone under 18 and we do not knowingly offer the Service to children.",
     ],
   },
   {
-    title: "12. Changes to this policy",
+    title: "12. Account deletion",
     body: [
-      'We may update this policy from time to time. We will post the updated version here and change the "Last updated" date.',
+      "You can request deletion from the Profile section of the ATARA app. Account deletion removes or disconnects eligible off-chain account information in accordance with our retention obligations. Public blockchain records cannot be deleted.",
     ],
   },
   {
-    title: "13. Contact",
-    body: ["ATARA UK Ltd — privacy@atara.finance"],
+    title: "13. Changes to this policy",
+    body: [
+      'We may update this policy from time to time. We will make the updated version available through the Service and change the "Last updated" date.',
+    ],
+  },
+  {
+    title: "14. Contact",
+    body: [
+      "ATARA LTD, 71-75 Shelton Street, Covent Garden, London, United Kingdom, WC2H 9JQ — privacy@atara.finance",
+    ],
   },
 ];
