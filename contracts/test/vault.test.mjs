@@ -254,3 +254,16 @@ test("does not promise exact refunds after a withdrawal has already paid out", a
   for (let i = 0; i < 3; i++) await mined(vault.connect(signers[i]).setCancellationApproval(true));
   await assert.rejects(vault.cancelVault());
 });
+
+
+test("refund prohibition survives a replacement proposal and an unsolicited top-up", async () => {
+  const { vault, token, unlockAt, acceptAll, approveAll } = await fixture();
+  await acceptAll(); await mined(deposit(vault, units(100))); await warp(unlockAt);
+  await mined(propose(vault, addresses[9], units(40))); await approveAll(); await mined(vault.executeWithdrawal(1));
+  assert.equal((await vault.snapshot()).totalWithdrawn, units(40));
+  await mined(propose(vault, addresses[8], units(10))); await mined(vault.cancelProposal(2));
+  await mined(token.mint(await vault.getAddress(), units(40)));
+  for (let i = 0; i < 3; i++) await mined(vault.connect(signers[i]).setCancellationApproval(true));
+  await assert.rejects(vault.cancelVault.staticCall(), error => error.revert?.name === "RefundUnavailable");
+  assert.equal(await token.balanceOf(await vault.getAddress()), units(100));
+});

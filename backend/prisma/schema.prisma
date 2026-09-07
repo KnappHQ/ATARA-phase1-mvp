@@ -50,6 +50,7 @@ model Group {
   id          String   @id @default(uuid())
   name        String
   description String?
+  assetSymbol String   @default("USD") // Existing USD records retain their unit; new groups use USDC.
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -78,11 +79,14 @@ model GroupExpense {
   description String
   amount      Decimal  @db.Decimal(24, 8)
   assetSymbol String
+  clientRequestId String?
   createdAt   DateTime @default(now())
 
   group  Group               @relation(fields: [groupId], references: [id], onDelete: Cascade)
   paidBy User                @relation("PaidExpenses", fields: [paidById], references: [id])
   splits GroupExpenseSplit[]
+
+  @@unique([groupId, paidById, clientRequestId])
 }
 
 model GroupExpenseSplit {
@@ -91,6 +95,8 @@ model GroupExpenseSplit {
   userId                  String
   amount                  Decimal   @db.Decimal(24, 8)
   settled                 Boolean   @default(false)
+  decision                SplitDecision @default(PENDING)
+  decidedAt               DateTime?
   settledAt               DateTime?
   settlementTransactionId String?
 
@@ -111,6 +117,8 @@ model Transaction {
   assetSymbol  String
   amount       Decimal  @db.Decimal(24, 8)
   rawAmountWei String?
+  chainId      Int?
+  confirmedAt  DateTime?
   category     String?
   userNote     String?
   status       TxStatus @default(PENDING)
@@ -124,6 +132,55 @@ enum TxStatus {
   PENDING
   COMPLETED
   FAILED
+}
+
+enum SplitDecision {
+  PENDING
+  ACCEPTED
+  DISPUTED
+}
+
+model SettlementIntent {
+  id           String   @id @default(uuid())
+  groupId      String
+  senderId     String
+  receiverId   String
+  amount       Decimal  @db.Decimal(24, 8)
+  splitIds     String[]
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+  settledAt    DateTime?
+
+  @@index([senderId, groupId, expiresAt])
+}
+
+// A chain receipt can discharge only one request or one group intent.
+model PaymentUse {
+  chainId      Int
+  txHash       String
+  purpose      String
+  referenceId  String @unique
+  createdAt    DateTime @default(now())
+
+  @@id([chainId, txHash])
+}
+
+model PaymentRequest {
+  id               String   @id @default(uuid())
+  tokenHash        String   @unique
+  creatorId        String
+  recipientAddress String
+  amount           Decimal  @db.Decimal(24, 8)
+  note             String
+  chainId          Int
+  tokenAddress     String
+  createdAt        DateTime @default(now())
+  expiresAt        DateTime
+  paidAt           DateTime?
+  cancelledAt      DateTime?
+  txHash           String?
+
+  @@index([creatorId, createdAt])
 }
 
 model Feedback {

@@ -29,7 +29,7 @@ const DEFAULT_TOKEN_ADDRESSES: Record<AppNetwork, TokenAddressConfig> = {
       "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     USDT:
       process.env.EXPO_PUBLIC_USDT_ADDRESS_BASE_MAINNET ??
-      "0x7c6b91D9Be155A6Db01f749217d76fF02A7227F2",
+      "",
   },
 };
 
@@ -42,7 +42,7 @@ export const getDefaultAssets = (network: AppNetwork): SupportedAsset[] => {
   const usdcAddress = getTokenAddress("USDC", network);
   const usdtAddress = getTokenAddress("USDT", network);
 
-  return [
+  const configured: SupportedAsset[] = [
     {
       symbol: "ETH",
       name: "Ethereum",
@@ -73,4 +73,5 @@ export const getDefaultAssets = (network: AppNetwork): SupportedAsset[] => {
       decimals: 6,
     },
   ];
+  return configured.filter(asset => asset.symbol === "ETH" || !!asset.contractAddress).sort((a, b) => a.symbol === "USDC" ? -1 : b.symbol === "USDC" ? 1 : 0);
 };

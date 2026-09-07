@@ -4,6 +4,18 @@ import { ErrorHandler } from "../utils/errorHandler";
 import { groupService } from "../services/group.service";
 
 export const groupController = {
+  decideSplit: catchAsync(async (req, res) => {
+    const split = await groupService.decideSplit(req.params.expenseId, req.user.id, req.body.decision);
+    res.json({ success: true, split });
+  }),
+  createSettlementIntent: catchAsync(async (req, res) => {
+    const intent = await groupService.createSettlementIntent(req.params.groupId, req.user.id, req.params.memberId);
+    res.status(201).json({ success: true, intent });
+  }),
+  contactBalances: catchAsync(async (req, res) => {
+    const balances = await groupService.contactBalances(req.user.id, req.params.address);
+    res.json({ success: true, balances });
+  }),
   createGroup: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
       const userId = req.user.id;
@@ -148,7 +160,7 @@ export const groupController = {
     async (req: Request, res: Response, next: NextFunction) => {
       const userId = req.user.id;
       const { groupId } = req.params;
-      const { description, amount, splitWithUserIds } = req.body;
+      const { description, amount, splitWithUserIds, customSplits, clientRequestId } = req.body;
 
       if (
         !description ||
@@ -177,13 +189,13 @@ export const groupController = {
         groupId,
         userId,
         description.trim(),
-        Number(amount),
-        splitWithUserIds,
+        amount,
+        splitWithUserIds, customSplits, clientRequestId,
       );
 
       res.status(201).json({
         success: true,
-        message: "Expense added and split equally",
+        message: "Expense proposed; each participant must accept their share",
         expense,
       });
     },
@@ -249,7 +261,7 @@ export const groupController = {
         groupId,
         userId,
         memberId,
-        transactionId,
+        transactionId, req.body.intentId,
       );
 
       res.status(200).json({

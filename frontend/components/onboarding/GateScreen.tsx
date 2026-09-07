@@ -8,6 +8,7 @@ interface GateScreenProps {
   isCheckingBackend?: boolean;
   isStartingOAuth?: boolean;
   oauthError?: string | null;
+  onStartPasskey: () => void;
   onStartOAuth: (provider: "google" | "apple") => void;
 }
 
@@ -16,6 +17,7 @@ export const GateScreen = ({
   isStartingOAuth = false,
   oauthError = null,
   onStartOAuth,
+  onStartPasskey,
 }: GateScreenProps) => {
   const showLoading = isStartingOAuth || isCheckingBackend;
 
@@ -78,6 +80,7 @@ export const GateScreen = ({
           </Text>
         </TouchableOpacity>
 
+        {!!process.env.EXPO_PUBLIC_PASSKEY_RP_ID && <TouchableOpacity onPress={onStartPasskey} disabled={showLoading} className="w-full py-4 px-6 border border-white/30"><Text className="text-white text-center">Se connecter avec une passkey</Text></TouchableOpacity>}
         {showLoading && (
           <MotiView
             from={{ opacity: 0 }}

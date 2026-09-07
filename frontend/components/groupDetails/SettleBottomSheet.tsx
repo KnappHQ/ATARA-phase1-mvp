@@ -5,7 +5,9 @@ import { X, ArrowRight } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/utils/constants";
 import { GroupMemberBalance } from "@/stores/useGroupStore";
-import { analyticsEvents } from "@/services/analytics.service";
+import { useState } from "react";
+import { GroupService } from "@/services/group.service";
+import { useAlertStore } from "@/stores/useAlertStore";
 
 interface SettleBottomSheetProps {
   isOpen: boolean;
@@ -24,12 +26,10 @@ export const SettleBottomSheet = ({
 }: SettleBottomSheetProps) => {
   const router = useRouter();
 
+  const [busy, setBusy] = useState(false);
   if (!member) return null;
 
-  const amount = Math.abs(member.netBalance).toFixed(2);
-  const debtAmount = Math.abs(member.netBalance);
-  const minimumReserve = 5;
-  const requiredBalance = debtAmount + Math.max(debtAmount * 0.2, minimumReserve);
+  const amount = (member.owedByMe ?? 0).toFixed(2);
   const memberDisplayName = member.displayName || `@${member.handle}`;
 
   const handleClose = () => {
@@ -37,24 +37,21 @@ export const SettleBottomSheet = ({
     onClose();
   };
 
-  const handleSendAndSettle = () => {
-    if (!member.smartAccountAddress) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    analyticsEvents.groupSettled({ settleType: "on_chain" });
-    handleClose();
-    router.push({
-      pathname: "/send",
-      params: {
-        contactId: member.userId,
-        contactHandle: member.handle,
-        contactName: member.displayName || member.handle,
-        contactSmartAddress: member.smartAccountAddress,
-        prefilledAmount: amount,
-        prefilledNote: `Settle: ${groupName}`,
-        settlementGroupId: groupId,
-        settlementMemberId: member.userId,
-      },
-    });
+  const handleSendAndSettle = async () => {
+    if (!member.smartAccountAddress || busy) return;
+    setBusy(true);
+    try {
+      const quote = await GroupService.createSettlementIntent(groupId, member.userId);
+      handleClose();
+      router.push({ pathname: "/send", params: {
+        contactId: member.userId, contactHandle: member.handle,
+        contactName: member.displayName || member.handle, contactSmartAddress: member.smartAccountAddress,
+        prefilledAmount: String(quote.amount), prefilledAsset: "USDC", prefilledNote: `Remboursement : ${groupName}`,
+        settlementGroupId: groupId, settlementMemberId: member.userId, settlementIntentId: quote.id,
+        settlementExpiresAt: quote.expiresAt,
+      } });
+    } catch (error: any) { useAlertStore.getState().error("Règlement indisponible", error?.response?.data?.message ?? "Réessaie dans un instant."); }
+    finally { setBusy(false); }
   };
 
   return (
@@ -107,10 +104,10 @@ export const SettleBottomSheet = ({
                     <Text style={{ color: "rgba(255,255,255,0.85)" }}>
                       {memberDisplayName}
                     </Text>{" "}
-                    <Text className="text-white font-semibold">${amount}</Text>
+                    <Text className="text-white font-semibold">{amount} USDC</Text>
               </Text>
               <Text className="text-xs mt-3" style={{ color: "rgba(255,255,255,0.55)" }}>
-                Collecte automatique : solde requis {requiredBalance.toFixed(2)} USDC (dette + 20 %, réserve minimum {minimumReserve.toFixed(2)} USDC).
+                Les parts acceptées seront vérifiées avant le paiement. Les montants dus dans l’autre sens restent affichés séparément.
               </Text>
                 </View>
                 <Pressable
@@ -125,7 +122,7 @@ export const SettleBottomSheet = ({
               {/* Option 1 — Send & Settle */}
               <Pressable
                 onPress={handleSendAndSettle}
-                disabled={!member.smartAccountAddress}
+                disabled={!member.smartAccountAddress || busy}
                 className="flex-row items-center gap-4 p-4 rounded-2xl mb-3 active:opacity-80"
                 style={{
                   backgroundColor: `${COLORS.accent}15`,
@@ -151,7 +148,7 @@ export const SettleBottomSheet = ({
                     className="text-xs mt-0.5"
                     style={{ color: "rgba(255,255,255,0.4)" }}
                   >
-                    Pay ${amount} via app · balance check before debit
+                    Vérifier le montant et confirmer le paiement
                   </Text>
                 </View>
               </Pressable>

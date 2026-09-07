@@ -1,8 +1,9 @@
-import { View, Text, ScrollView, Pressable, Platform, Switch } from "react-native";
+import { View, Text, ScrollView, Pressable, Platform, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { Plus } from "lucide-react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { retryPendingSettlements } from "@/services/settlementRecovery.service";
 import { COLORS } from "@/utils/constants";
 import { useGroupStore } from "@/stores/useGroupStore";
 import type { GroupMemberBalance } from "@/stores/useGroupStore";
@@ -32,7 +33,7 @@ export default function GroupDetailsScreen() {
   const [settleMember, setSettleMember] = useState<GroupMemberBalance | null>(
     null,
   );
-  const [autoCollectEnabled, setAutoCollectEnabled] = useState(false);
+
 
   useEffect(() => {
     if (id) fetchGroupDetail(id);
@@ -58,27 +59,10 @@ export default function GroupDetailsScreen() {
           />
         )}
 
-        <View
-          className="mx-6 mb-6 rounded-2xl border border-white/10 p-4"
-          style={{ backgroundColor: `${COLORS.white}06` }}
-        >
-          <View className="flex-row items-center justify-between">
-            <View className="flex-1 mr-4">
-              <Text className="text-white text-sm font-semibold">Collecte automatique</Text>
-              <Text className="text-white/50 text-xs leading-5 mt-1">
-                Prépare une demande de règlement avec accord explicite, plafond et contrôle de solde.
-              </Text>
-            </View>
-            <Switch
-              value={autoCollectEnabled}
-              onValueChange={setAutoCollectEnabled}
-              trackColor={{ false: "rgba(255,255,255,0.15)", true: `${COLORS.accent}88` }}
-              thumbColor={autoCollectEnabled ? COLORS.accent : "#777"}
-            />
-          </View>
-          <Text className="text-white/40 text-[11px] leading-4 mt-3">
-            Le contrat devra vérifier : solde disponible ≥ dette + 20 % (avec réserve minimum), autorisation du membre et plafond de collecte. Aucun débit automatique n’est actif tant que le contrat audité n’est pas déployé.
-          </Text>
+        <View className="mx-6 mb-6 rounded-2xl border border-white/10 p-4">
+          <Text className="text-white text-sm font-semibold">Dépenses partagées · {groupDetail?.assetSymbol ?? "USDC"}</Text>
+          <Pressable className="py-3" onPress={async () => { try { const result = await retryPendingSettlements(); if (id) await fetchGroupDetail(id); Alert.alert("Vérification des reçus", `${result.settled} règlement(s) rapproché(s). ${result.remaining} encore à vérifier. Ne repaie pas un transfert déjà envoyé.`); } catch (error) { Alert.alert("Vérification", error instanceof Error ? error.message : "Réessaie dans quelques instants."); } }}><Text style={{ color: COLORS.accent }}>Vérifier mes paiements en attente</Text></Pressable>
+          <Text className="text-white/50 text-xs leading-5 mt-2">Chaque membre accepte ou conteste sa part. Seules les parts acceptées apparaissent dans les montants à rembourser. Tu confirmes chaque paiement.</Text>
         </View>
 
         {isLoadingDetail ? (

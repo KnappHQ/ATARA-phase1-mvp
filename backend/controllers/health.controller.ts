@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { catchAsync } from "../utils/catchAsync";
 import prisma from "../config/prisma";
-import { NODE_ENV } from "../utils/constants";
+import { NODE_ENV, NETWORK } from "../utils/constants";
 
 export const healthController = {
   backendHealth: catchAsync(
@@ -9,6 +9,8 @@ export const healthController = {
       res.status(200).json({
         status: "success",
         message: "Backend is healthy",
+        chainId: NETWORK === "base-mainnet" ? 8453 : 84532,
+        network: NETWORK,
       });
     },
   ),

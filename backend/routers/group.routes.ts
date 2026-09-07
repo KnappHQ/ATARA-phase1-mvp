@@ -6,6 +6,10 @@ const router = Router();
 
 router.use(authentication);
 
+router.get("/contacts/:address/balances", groupController.contactBalances);
+router.patch("/e/:expenseId/decision", groupController.decideSplit);
+router.post("/:groupId/settle/:memberId/quote", groupController.createSettlementIntent);
+
 router.post("/", groupController.createGroup);
 router.get("/", groupController.getMyGroups);
 router.get("/:groupId", groupController.getGroupDetails);

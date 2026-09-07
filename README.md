@@ -1,5 +1,7 @@
 # ATARA
 
+> **Pilote du 7 septembre 2026** : lire [le périmètre livré et la procédure d’activation](docs/PILOT_RELEASE_2026-09-07.md). La simulation web est distincte du backend, des builds mobiles et des contrats à déployer.
+
 **ATARA** is a mobile-first crypto payment application built for everyday peer-to-peer transfers and group expense splitting. It runs on Base Sepolia (ERC-4337), uses Privy embedded wallets with Alchemy smart accounts so users never manage private keys, and authenticates with Google and Apple - no seed phrases, no friction.
 
 ---
@@ -7,10 +9,10 @@
 ## What It Does
 
 - **Send crypto** to any ATARA user by handle (e.g. `@karan`) - no wallet addresses needed
-- **Group expense splitting** - create groups, log shared expenses, settle directly on-chain with automatic USD value verification
+- **Group expense splitting** - create groups, log shared expenses, accept or dispute each share, then settle an exact USDC amount with a verified on-chain receipt
 - **Contact book** - search and save friends by handle, view threaded conversation history
 - **Transaction history** - full activity feed with categories (drinks, food, shopping, transfer, other), notes, and receipt detail views
-- **Wallet management** - ETH + USDC/USDT balances on Base Sepolia
+- **Wallet management** - ETH + USDC balances on Base Sepolia; other ERC-20 tokens require explicit configuration
 - **Feedback** - in-app feedback submissions delivered via Resend
 
 ---
@@ -65,7 +67,7 @@ knapp-phase1-mvp/
 │
 └── frontend/         React Native app
     ├── app/          expo-router screens
-    │   └── (tabs)/   Home, Activity, Profile
+    │   └── (tabs)/   Home, Activity, Vault, Profile
     ├── components/   Reusable UI components
     ├── services/     API client, analytics, smart account
     ├── stores/       Zustand state stores

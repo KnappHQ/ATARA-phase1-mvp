@@ -10,6 +10,7 @@ import {
   NETWORK,
 } from "../utils/constants";
 import { getKnownTokens, type AppNetwork } from "../utils/tokenConfig";
+import { verifyTokenPayment, paymentChainId } from "./paymentProof.service";
 
 interface AlchemyTransfer {
   blockNum: string;
@@ -72,7 +73,9 @@ class TransactionService {
     });
 
     if (existingTx) {
-      throw new ErrorHandler("Transaction already synced", 409);
+      if (existingTx.senderId === data.senderProfile.id && existingTx.receiverAddress.toLowerCase() === normalizedReceiverAddress && existingTx.assetSymbol === data.assetSymbol && existingTx.rawAmountWei === data.rawAmountWei)
+        return existingTx;
+      throw new ErrorHandler("Transaction reference belongs to another transfer", 409);
     }
 
     const alchemyProvider = new ethers.providers.JsonRpcProvider(ALCHEMY_URL);
@@ -96,85 +99,36 @@ class TransactionService {
       ""
     ).toLowerCase();
 
-    const transfer = await this.findTransferByHash(
-      expectedSender,
-      normalizedTxHash,
-    );
-
+    if (!ethers.utils.isAddress(expectedSender) || !ethers.utils.isAddress(normalizedReceiverAddress))
+      throw new ErrorHandler("Invalid sender or receiver", 400);
+    let decimals = 18;
+    let confirmedAt: Date;
     if (data.assetSymbol === "ETH") {
-      // ERC-4337 transfers are internal to the EntryPoint transaction. The
-      // top-level receipt alone does not prove who received how much, so never
-      // accept a receipt-only fallback.
-      if (!transfer) {
-        throw new ErrorHandler(
-          "Transaction not yet indexed for sync. Retry in a few moments.",
-          202,
-        );
-      }
-
-      if (transfer.to.toLowerCase() !== normalizedReceiverAddress) {
-        throw new ErrorHandler("ETH transfer target mismatch", 400);
-      }
-
-      const expectedWei = ethers.BigNumber.from(data.rawAmountWei);
-      const actualWei = this.getNativeTransferWei(transfer);
-
-      if (!expectedWei.eq(actualWei)) {
-        throw new ErrorHandler("ETH transfer amount mismatch", 400);
-      }
+      const transfers = (await this.fetchAlchemyHistory(expectedSender)).filter(t =>
+        t.hash.toLowerCase() === normalizedTxHash && t.from.toLowerCase() === expectedSender &&
+        t.to?.toLowerCase() === normalizedReceiverAddress && t.asset === "ETH" && !t.rawContract.address);
+      if (transfers.length !== 1) throw new ErrorHandler("Waiting for an unambiguous indexed ETH transfer", 202);
+      if (!this.getNativeTransferWei(transfers[0]).eq(ethers.BigNumber.from(data.rawAmountWei)))
+        throw new ErrorHandler("ETH amount mismatch", 400);
+      const [network, block] = await Promise.all([alchemyProvider.getNetwork(), alchemyProvider.getBlock(receipt.blockNumber)]);
+      if (network.chainId !== paymentChainId || !block || block.hash !== receipt.blockHash || receipt.confirmations < 2)
+        throw new ErrorHandler("Waiting for network confirmations", 202);
+      confirmedAt = new Date(block.timestamp * 1000);
     } else {
-      if (!transfer) {
-        throw new ErrorHandler(
-          "Transaction not yet indexed for sync. Retry in a few moments.",
-          202,
-        );
-      }
-
-      const tokenConfig =
-        data.assetSymbol === "USDC" || data.assetSymbol === "USDT"
-          ? getKnownTokens(NETWORK as AppNetwork)[data.assetSymbol]
-          : undefined;
-
-      if (!tokenConfig?.address) {
-        throw new ErrorHandler(
-          "Unknown token configuration for this network",
-          400,
-        );
-      }
-
-      if (transfer.asset !== data.assetSymbol) {
-        throw new ErrorHandler("Token asset mismatch", 400);
-      }
-
-      if (transfer.to.toLowerCase() !== normalizedReceiverAddress) {
-        throw new ErrorHandler("Token transfer recipient mismatch", 400);
-      }
-
-      const expectedWei = ethers.BigNumber.from(data.rawAmountWei);
-      const actualWei = ethers.BigNumber.from(
-        transfer.rawContract?.value || "0x0",
-      );
-
-      if (!expectedWei.eq(actualWei)) {
-        throw new ErrorHandler("Token transfer amount mismatch", 400);
-      }
+      const token = data.assetSymbol === "USDC" || data.assetSymbol === "USDT"
+        ? getKnownTokens(NETWORK as AppNetwork)[data.assetSymbol] : undefined;
+      if (!token?.address) throw new ErrorHandler("Unsupported token on this network", 400);
+      const proof = await verifyTokenPayment({ txHash: normalizedTxHash, token: token.address, sender: expectedSender, recipient: normalizedReceiverAddress });
+      if (!proof.rawAmount.eq(ethers.BigNumber.from(data.rawAmountWei))) throw new ErrorHandler("Token amount mismatch", 400);
+      decimals = token.decimals;
+      confirmedAt = proof.confirmedAt;
     }
-
-    const calculatedDecimal = ethers.utils.formatEther(data.rawAmountWei);
-    if (
-      data.assetSymbol === "ETH" &&
-      Math.abs(
-        parseFloat(calculatedDecimal) - parseFloat(data.amount.toString()),
-      ) > 0.0001
-    ) {
-      throw new ErrorHandler(
-        `Decimal amount mismatch. Wei: ${data.rawAmountWei} equals ${calculatedDecimal} ETH, but received ${data.amount}`,
-        400,
-      );
-    }
+    const calculatedDecimal = ethers.utils.formatUnits(data.rawAmountWei, decimals);
+    if (ethers.BigNumber.from(data.rawAmountWei).lte(0)) throw new ErrorHandler("Amount must be positive", 400);
+    // Derive the recorded amount from verified chain data, never a client's fiat estimate.
 
     const receiver = await prisma.user.findFirst({
-      where: { smartAccountAddress: normalizedReceiverAddress },
+      where: { smartAccountAddress: { equals: normalizedReceiverAddress, mode: "insensitive" } },
     });
 
     const transaction = await prisma.transaction.create({
@@ -184,7 +138,9 @@ class TransactionService {
         receiverAddress: normalizedReceiverAddress,
         txHash: normalizedTxHash,
         assetSymbol: data.assetSymbol,
-        amount: data.amount,
+        amount: calculatedDecimal,
+        chainId: paymentChainId,
+        confirmedAt,
         rawAmountWei: data.rawAmountWei,
         category:
           data.category &&
@@ -254,7 +210,8 @@ class TransactionService {
     const inAppTransactions = dbTransactions.map((tx) => ({
       id: tx.id,
       txHash: tx.txHash,
-      timestamp: tx.createdAt.toISOString(),
+      timestamp: (tx.confirmedAt ?? tx.createdAt).toISOString(),
+      chainId: tx.chainId,
       status: tx.status,
       amount: tx.amount.toString(),
       assetSymbol: tx.assetSymbol,
@@ -355,7 +312,6 @@ class TransactionService {
     return prisma.transaction.update({
       where: { id: transactionId },
       data: {
-        status,
         category,
         userNote,
       },

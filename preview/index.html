@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="description" content="Simulation ATARA : portefeuille, ajout de crypto, paiement et Vault collectif." />
+  <title>ATARA — Simulation</title>
+  <link rel="icon" href="./mark.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./style.css" />
+  <script src="./ledger.js" defer></script>
+  <script src="./app.js" defer></script>
+  <script src="./pilot.js" defer></script>
+</head>
+<body>
+  <svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+    <symbol id="logo" viewBox="0 0 24 24"><rect x="4" y="4" width="3" height="16" fill="currentColor"/><rect x="10.5" y="2" width="3" height="18" fill="currentColor"/><rect x="17" y="4" width="3" height="16" fill="currentColor"/></symbol>
+    <symbol id="home-icon" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></symbol>
+    <symbol id="add-icon" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="pay-icon" viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10"/></symbol>
+    <symbol id="lock-icon" viewBox="0 0 24 24"><rect x="5" y="10" width="14" height="11" rx="3"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v3"/></symbol>
+    <symbol id="back-icon" viewBox="0 0 24 24"><path d="m14 6-6 6 6 6"/></symbol>
+    <symbol id="check-icon" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="down-icon" viewBox="0 0 24 24"><path d="M12 4v16m-6-6 6 6 6-6"/></symbol>
+    <symbol id="search-icon" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+    <symbol id="activity-icon" viewBox="0 0 24 24"><path d="m4 13 4-4 4 6 4-8 4 4"/></symbol>
+    <symbol id="profile-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></symbol>
+    <symbol id="card-icon" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/></symbol>
+    <symbol id="shield-icon" viewBox="0 0 24 24"><path d="M12 3 20 6v5c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></symbol>
+    <symbol id="key-icon" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 8-8M16 6l2 2M14 8l2 2"/></symbol>
+    <symbol id="phone-icon" viewBox="0 0 24 24"><rect x="7" y="3" width="10" height="18" rx="2"/><path d="M10 6h4M11 18h2"/></symbol>
+    <symbol id="users-icon" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20v-1a6 6 0 0 1 12 0v1M16 5a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 5v1"/></symbol>
+    <symbol id="arrow-up-icon" viewBox="0 0 24 24"><path d="M12 19V5m-6 6 6-6 6 6"/></symbol>
+    <symbol id="arrow-down-left-icon" viewBox="0 0 24 24"><path d="M5 5v14h14M5 19 19 5"/></symbol>
+  </defs></svg>
+
+  <section id="welcome" class="welcome" aria-labelledby="welcome-title">
+    <button class="demo-entry" data-screen="home">Simulation <span aria-hidden="true">↗</span></button>
+    <div class="welcome-content" lang="en">
+      <svg class="welcome-logo" width="40" height="40" role="img" aria-label="ATARA"><use href="#logo"/></svg>
+      <h1 id="welcome-title" tabindex="-1">Your money.<br />Your control.</h1>
+      <p>Access your self-custody ATARA account.</p>
+    </div>
+    <div class="welcome-actions" lang="en">
+      <button class="primary" data-auth="create">Create Account</button>
+      <button class="secondary" data-auth="login">Log In</button>
+    </div>
+  </section>
+
+  <div id="wallet" class="wallet" hidden>
+    <header class="top">
+      <button class="brand" data-screen="welcome" aria-label="ATARA, retour à l’accueil"><svg width="24" height="24" aria-hidden="true"><use href="#logo"/></svg><span>ATARA</span></button>
+      <button class="avatar" data-screen="profile" aria-label="Profil du compte de démonstration">DM</button>
+    </header>
+    <div class="simulation-strip"><span>Mode simulation</span><span>Base Sepolia</span></div>
+    <main>
+      <section class="screen" id="home" aria-labelledby="home-title" hidden>
+        <h1 id="home-title" class="sr-only" tabindex="-1">Portefeuille de démonstration</h1>
+        <button class="balance-toggle" id="balanceToggle" aria-expanded="false" aria-controls="balanceBlock" aria-label="Afficher le solde fictif"><i aria-hidden="true"></i><svg class="icon" aria-hidden="true"><use href="#back-icon"/></svg></button>
+        <div class="balance-block" id="balanceBlock" hidden>
+          <p class="balance-label">Solde disponible</p>
+          <div class="crypto-carousel" id="cryptoCarousel" aria-roledescription="carousel" aria-label="Crypto disponibles" tabindex="0">
+            <button class="crypto-arrow" type="button" data-crypto-direction="-1" aria-label="Crypto précédente">‹</button>
+            <div class="crypto-balance" aria-live="polite">
+              <div class="crypto-name"><span class="crypto-mark" data-asset-mark>US</span><span data-asset-name>USD Coin</span></div>
+              <div class="balance"><span data-asset-balance>250,00</span><span class="currency" data-asset-symbol>USDC</span></div>
+              <p class="sub">≈ <span data-asset-usd>$250.00</span> · solde fictif</p>
+            </div>
+            <button class="crypto-arrow" type="button" data-crypto-direction="1" aria-label="Crypto suivante">›</button>
+          </div>
+          <div class="crypto-dots" id="cryptoDots" aria-label="Crypto sélectionnée"></div>
+          <p class="crypto-hint">Balaye à gauche ou à droite pour changer de crypto</p>
+        </div>
+        <div class="quick-send">
+          <div class="search"><svg class="icon" aria-hidden="true"><use href="#search-icon"/></svg><input id="contactSearch" aria-label="Rechercher un contact de démo" placeholder="Search @handle or address" autocomplete="off" spellcheck="false" /></div>
+          <div class="contacts"><button class="contact" data-contact="demoami"><span class="avatar">DA</span><span>Demo Ami</span></button><button class="contact" data-contact="democafe"><span class="avatar">DC</span><span>Demo Café</span></button><button class="contact" data-contact="demomarche"><span class="avatar">DM</span><span>Demo Marché</span></button></div>
+          <p class="no-results" id="noContacts" role="status" hidden>Aucun contact de démo trouvé.</p>
+        </div>
+        <div class="transfer-actions"><button class="secondary" id="receiveButton"><svg class="icon" aria-hidden="true"><use href="#down-icon"/></svg>Receive</button><button class="primary" data-screen="send"><svg class="icon" aria-hidden="true"><use href="#pay-icon"/></svg>Send</button></div>
+        <div class="actions">
+          <button class="action" data-screen="add"><span class="action-icon"><svg class="icon" aria-hidden="true"><use href="#add-icon"/></svg></span><span>Ajouter</span></button>
+          <button class="action" data-screen="pay"><span class="action-icon"><svg class="icon" aria-hidden="true"><use href="#pay-icon"/></svg></span><span>Payer</span></button>
+          <button class="action" data-screen="vault"><span class="action-icon"><svg class="icon" aria-hidden="true"><use href="#lock-icon"/></svg></span><span>Vault</span></button>
+          <button class="action" data-screen="card"><span class="action-icon"><svg class="icon" aria-hidden="true"><use href="#card-icon"/></svg></span><span>Card</span></button>
+        </div>
+        <div class="section-label">Épargne collective</div>
+        <button class="vault-preview card" data-screen="vault">
+          <span class="row"><span class="tile"><svg class="icon" aria-hidden="true"><use href="#lock-icon"/></svg></span><span class="grow"><strong>Vault vacances</strong><span class="sub">3 membres · accord unanime</span></span><span aria-hidden="true">›</span></span>
+          <span class="vault-summary"><strong><span data-vault>125,00</span> <span>USDC</span></strong><span class="tag">Bloqué</span></span>
+          <span class="lock-caption">Fonds bloqués jusqu’au <span data-unlock-date></span>.</span>
+        </button>
+        <div class="section-label">Activité récente</div>
+        <div id="activity" class="activity" aria-live="polite"></div>
+        <p class="footnote">Achats, paiements et dépôts sont simulés. Les soldes se réinitialisent en rechargeant cette page.</p>
+      </section>
+
+      <section class="screen" id="add" aria-labelledby="add-title" hidden>
+        <div class="screen-head"><button class="back" data-screen="home" aria-label="Retour au portefeuille"><svg class="icon" aria-hidden="true"><use href="#back-icon"/></svg></button><h1 id="add-title" tabindex="-1">Ajouter des crypto</h1></div>
+        <p class="intro">Simule un achat de USDC crédité sur ton compte ATARA.</p>
+        <form id="buyForm" novalidate>
+          <label class="field-label" for="buyAmount">Montant en euros</label>
+          <div class="amount-input"><input id="buyAmount" value="50" inputmode="decimal" autocomplete="off" aria-describedby="buyNote buyNotice" required /><span>EUR</span></div>
+          <div class="quick-amounts" aria-label="Montants prédéfinis"><button type="button" data-amount="25">25 €</button><button type="button" data-amount="50">50 €</button><button type="button" data-amount="100">100 €</button></div>
+          <div class="card details"><div class="detail"><span>Crypto</span><strong>USDC</strong></div><div class="detail"><span>Parcours</span><strong>Achat par carte</strong></div><div class="detail"><span>Réseau de démo</span><strong>Base Sepolia</strong></div></div>
+          <p class="footnote" id="buyNote">Parcours de type MoonPay / on-ramp. Conversion fictive : 1 € = 1 USDC, sans frais simulés. Ce n’est pas un taux de change réel ; aucun prestataire n’est connecté.</p>
+          <button class="primary" type="submit">Simuler l’achat</button><p id="buyNotice" class="notice" role="status" hidden></p>
+        </form>
+      </section>
+
+      <section class="screen" id="pay" aria-labelledby="pay-title" hidden>
+        <div class="screen-head"><button class="back" data-screen="home" aria-label="Retour au portefeuille"><svg class="icon" aria-hidden="true"><use href="#back-icon"/></svg></button><h1 id="pay-title" tabindex="-1">Payer mes courses</h1></div>
+        <p class="intro">Choisis la crypto disponible avec laquelle tu veux payer le commerçant.</p>
+        <form id="payForm" novalidate>
+          <label class="field-label" for="merchant">Adresse du commerçant</label><input class="text-input address" id="merchant" value="0x1111111111111111111111111111111111111111" autocomplete="off" spellcheck="false" aria-describedby="payNotice" required />
+          <label class="field-label">Crypto à payer</label><div id="payAssetPicker" class="asset-picker" role="listbox" aria-label="Choisir la crypto à payer"></div>
+          <label class="field-label" for="payAmount">Montant à payer</label><div class="amount-input"><input id="payAmount" value="12,50" inputmode="decimal" autocomplete="off" aria-describedby="payNotice payBalance" required /><span data-pay-symbol>USDC</span></div>
+          <div class="card details"><div class="detail" id="payBalance"><span>Disponible</span><strong><span data-pay-balance>250,00</span> <span data-pay-symbol>USDC</span></strong></div><div class="detail"><span>Réseau de démo</span><strong>Base Sepolia</strong></div></div>
+          <p class="footnote">Cette simulation n’envoie rien au commerçant. Un paiement réel nécessiterait un commerçant ou un prestataire acceptant la crypto.</p>
+          <button class="primary" type="submit">Simuler le paiement</button><p id="payNotice" class="notice" role="status" hidden></p>
+        </form>
+      </section>
+
+      <section class="screen" id="vault" aria-labelledby="vault-title" hidden>
+        <div class="screen-head"><button class="back" data-screen="home" aria-label="Retour au portefeuille"><svg class="icon" aria-hidden="true"><use href="#back-icon"/></svg></button><h1 id="vault-title" tabindex="-1">Vault collectif</h1></div>
+        <div class="vault-toolbar"><p class="intro">Crée une cagnotte, invite tes contacts et garde le contrôle collectif.</p><button class="secondary compact-button" id="createVaultButton" type="button">+ Créer un Vault</button></div>
+        <form id="createVaultForm" class="card vault-create-card" novalidate hidden><h2>Créer un Vault</h2><p class="sub">Les membres sont inscrits dans les règles publiques puis doivent accepter l’invitation.</p><label class="field-label" for="vaultName">Nom du Vault</label><input class="text-input" id="vaultName" value="Nouvelle cagnotte" autocomplete="off" required /><label class="field-label" for="vaultDays">Fonds bloqués pendant</label><div class="amount-input compact"><input id="vaultDays" value="14" inputmode="numeric" autocomplete="off" required /><span>jours</span></div><label class="field-label" for="createInvite">Inviter un contact</label><input class="text-input" id="createInvite" placeholder="@handle" autocomplete="off" spellcheck="false" aria-controls="createInviteSuggestions" aria-autocomplete="list" required /><div id="createInviteSuggestions" class="contact-suggestions" role="listbox" aria-label="Contacts à inviter" hidden></div><p class="sub">Ajoute au moins un contact : ton compte est inclus automatiquement.</p><button class="primary" type="submit">Créer et envoyer les invitations</button><p id="createVaultNotice" class="notice" role="status" hidden></p></form>
+        <div class="vault-heading"><span class="tile"><svg class="icon" aria-hidden="true"><use href="#lock-icon"/></svg></span><h2 data-vault-name>Vault vacances</h2><p class="sub">Épargner ensemble, décider ensemble.</p><div class="vault-amount"><span data-vault>125,00</span> <span>USDC</span></div></div>
+        <div class="card lock-card"><div class="row"><svg class="icon" aria-hidden="true"><use href="#lock-icon"/></svg><span class="tag" id="vaultLockTag">Fonds bloqués</span></div><p class="lock-date" id="vaultLockDate">Fonds bloqués jusqu’au <span data-unlock-date></span>.</p><p class="sub" id="unlockUtc"></p><p class="lock-rule">Après cette date, <strong><span data-vault-member-count>3</span> membres doivent valider le même retrait</strong>. Aucune libération automatique.</p></div>
+        <div class="section-label">Invitations et membres <span id="vaultMemberStatus">3 / 3 ont accepté les règles</span></div>
+        <div class="members" id="vaultMembers"></div>
+        <div class="card invite-card"><div class="row"><span class="tile"><svg class="icon" aria-hidden="true"><use href="#users-icon"/></svg></span><span class="grow"><strong>Inviter quelqu’un</strong><span class="sub">L’invitation ajoute un membre avant son acceptation.</span></span></div><form id="inviteForm" novalidate><label class="field-label" for="vaultInvite">Handle du contact</label><input class="text-input" id="vaultInvite" placeholder="@marcuschen" autocomplete="off" spellcheck="false" aria-controls="vaultInviteSuggestions" aria-autocomplete="list" required /><div id="vaultInviteSuggestions" class="contact-suggestions" role="listbox" aria-label="Contacts à inviter" hidden></div><button class="secondary" type="submit">Envoyer l’invitation</button><p id="inviteNotice" class="notice" role="status" hidden></p></form></div>
+        <form id="depositForm" novalidate><label class="field-label" for="depositAmount">Ajouter au Vault</label><div class="amount-input compact"><input id="depositAmount" value="25" inputmode="decimal" autocomplete="off" aria-describedby="depositNotice" required /><span>USDC</span></div><p class="sub available">Disponible : <span data-balance>250,00</span> USDC fictifs</p><button class="primary" type="submit">Simuler le dépôt</button><p id="depositNotice" class="notice" role="status" hidden></p></form>
+        <div class="card vault-delete-card"><div class="row"><span class="tile"><svg class="icon" aria-hidden="true"><use href="#lock-icon"/></svg></span><span class="grow"><strong>Supprimer le Vault</strong><span class="sub">Chaque part retourne à son déposant.</span></span></div><p class="footnote">La suppression est collective : tous les membres doivent confirmer. Une fois exécutée, le solde est à zéro et aucune nouvelle opération n’est possible.</p><button class="secondary danger-button" id="deleteVaultButton" type="button">Demander la suppression</button><div id="deleteVaultPanel" hidden><p class="sub">Confirmations : <strong id="deleteApprovalCount">0 / 3</strong></p><button class="secondary" id="approveDeleteButton" type="button">Confirmer pour moi</button><button class="primary danger-button" id="simulateOtherApprovals" type="button">Simuler les confirmations restantes</button><button class="primary danger-button" id="confirmDeleteVault" type="button" hidden>Supprimer et rembourser chaque part</button><p id="deleteVaultNotice" class="notice" role="status" hidden></p></div></div>
+        <p class="footnote">Vault fictif : aucun contrat déployé, aucun USDC transféré.</p>
+      </section>
+      <section class="screen" id="send" aria-labelledby="send-title" hidden>
+        <div class="screen-head"><button class="back" data-screen="home" aria-label="Retour au portefeuille"><svg class="icon" aria-hidden="true"><use href="#back-icon"/></svg></button><h1 id="send-title" tabindex="-1">Send</h1></div>
+        <p class="intro">Envoie la crypto de ton choix à un contact de démonstration.</p>
+        <form id="sendForm" novalidate><label class="field-label" for="recipient">Contact de démo</label><input class="text-input" id="recipient" value="@demoami" autocomplete="off" spellcheck="false" aria-describedby="sendNote sendNotice" aria-controls="contactSuggestions" aria-autocomplete="list" required/><div id="contactSuggestions" class="contact-suggestions" role="listbox" aria-label="Suggestions de contacts" hidden></div><p class="footnote" id="sendNote">Tape @ pour afficher tes contacts par ordre alphabétique.</p><label class="field-label">Crypto à envoyer</label><div id="sendAssetPicker" class="asset-picker" role="listbox" aria-label="Choisir la crypto à envoyer"></div><label class="field-label" for="sendAmount">Montant</label><div class="amount-input"><input id="sendAmount" value="10" inputmode="decimal" autocomplete="off" aria-describedby="sendNotice" required/><span data-send-symbol>USDC</span></div><p class="sub available">Disponible : <span data-send-balance>250,00</span> <span data-send-symbol>USDC</span> fictifs</p><button class="primary" type="submit">Simuler l’envoi</button><p id="sendNotice" class="notice" role="status" hidden></p></form>
+      </section>
+      <section class="screen" id="activity-screen" aria-labelledby="activity-title" hidden>
+        <div class="screen-head"><h1 id="activity-title" tabindex="-1">Activity</h1></div>
+        <div class="search activity-search"><svg class="icon" aria-hidden="true"><use href="#search-icon"/></svg><input id="activitySearch" aria-label="Rechercher dans l’activité" placeholder="Search @handle or note..." autocomplete="off" /></div>
+        <div class="activity-tabs" role="tablist" aria-label="Vues de l’activité"><button class="activity-tab active" data-activity-tab="transactions" role="tab" aria-selected="true">Transactions</button><button class="activity-tab" data-activity-tab="contacts" role="tab" aria-selected="false">Contacts</button><button class="activity-tab" data-activity-tab="groups" role="tab" aria-selected="false">Groups</button></div>
+        <div class="activity-panel" data-activity-panel="transactions"><p class="intro activity-intro">Les opérations de ta session de démonstration.</p><div id="fullActivity" class="activity" aria-live="polite"></div></div>
+        <div class="activity-panel" data-activity-panel="contacts" hidden><p class="intro activity-intro">Les montants échangés et le solde avec chaque contact.</p><div id="contactList" class="thread-list"></div></div>
+        <div class="activity-panel" data-activity-panel="groups" hidden><div class="group-panel-head"><div><p class="intro activity-intro">Partage les dépenses d’une sortie, d’un restaurant ou d’un voyage.</p></div><button class="primary compact-button" data-screen="group-detail">+ New</button></div><div id="groupList" class="group-list"></div></div>
+      </section>
+      <section class="screen" id="contact-detail" aria-labelledby="contact-title" hidden><div class="screen-head"><button class="back" data-screen="activity-screen" aria-label="Retour à l’activité"><svg class="icon" aria-hidden="true"><use href="#back-icon"/></svg></button><h1 id="contact-title" tabindex="-1">Contact</h1></div><div id="contactDetailContent"></div></section>
+      <section class="screen" id="group-detail" aria-labelledby="group-title" hidden><div class="screen-head"><button class="back" data-screen="activity-screen" aria-label="Retour aux groupes"><svg class="icon" aria-hidden="true"><use href="#back-icon"/></svg></button><h1 id="group-title" tabindex="-1">Group</h1></div><div id="groupDetailContent"></div></section>
+      <section class="screen" id="profile" aria-labelledby="profile-title" hidden><div class="screen-head"><h1 id="profile-title" tabindex="-1">Profile</h1></div><div class="profile-identity"><span class="avatar">DM</span><h2>Compte de démonstration</h2><p>@demo.atara</p></div><div class="card details"><div class="detail"><span>Réseau affiché</span><strong>Base Sepolia</strong></div><div class="detail"><span>Mode</span><strong>Simulation locale</strong></div><div class="detail"><span>Solde fictif</span><strong><span data-balance>250,00</span> USDC</strong></div></div><div class="section-label">Compte</div><div class="settings-list"><button class="setting-row" data-screen="security"><span class="tile"><svg class="icon"><use href="#shield-icon"/></svg></span><span class="grow"><strong>Sécurité et récupération</strong><span class="sub">Passkey · 2FA · numéro de secours</span></span><span aria-hidden="true">›</span></button><button class="setting-row" data-screen="card"><span class="tile"><svg class="icon"><use href="#card-icon"/></svg></span><span class="grow"><strong>Carte virtuelle</strong><span class="sub">Dépenser des USDC chez les commerçants</span></span><span aria-hidden="true">›</span></button></div><p class="footnote">Aucun compte personnel, wallet ou prestataire de paiement n’est connecté à cette simulation.</p><div class="profile-links"><button class="secondary" data-screen="welcome">Revenir à l’accueil</button></div></section>
+
+      <section class="screen" id="security" aria-labelledby="security-title" hidden><div class="screen-head"><button class="back" data-screen="profile" aria-label="Retour au profil"><svg class="icon" aria-hidden="true"><use href="#back-icon"/></svg></button><h1 id="security-title" tabindex="-1">Sécurité</h1></div><p class="intro">Protège l’accès au compte et prévois une récupération contrôlée.</p><div class="security-list"><div class="card security-item"><div class="row"><span class="tile"><svg class="icon"><use href="#key-icon"/></svg></span><span class="grow"><strong>Passkey</strong><span class="sub" id="passkeyStatus">Connexion biométrique sur cet appareil</span></span><span class="status-dot" id="passkeyDot" aria-label="Passkey non activée"></span></div><button class="secondary security-action" id="passkeyButton">Ajouter une passkey</button></div><div class="card security-item"><div class="row"><span class="tile"><svg class="icon"><use href="#shield-icon"/></svg></span><span class="grow"><strong>Authentification à 2 facteurs</strong><span class="sub" id="twofaStatus">Application d’authentification recommandée</span></span><span class="status-dot" id="twofaDot" aria-label="2FA non activée"></span></div><button class="secondary security-action" id="twofaButton">Activer la 2FA</button></div></div><form id="backupForm" class="card backup-card" novalidate><div class="row"><span class="tile"><svg class="icon"><use href="#phone-icon"/></svg></span><div class="grow"><strong>Numéro de récupération</strong><span class="sub">Utilisé seulement si tu perds l’accès à ta passkey.</span></div></div><label class="field-label" for="backupPhone">Numéro de téléphone</label><input class="text-input" id="backupPhone" type="tel" inputmode="tel" autocomplete="tel" placeholder="+33 6 00 00 00 00" aria-describedby="backupNote backupNotice"/><p class="footnote" id="backupNote">Dans l’application réelle, le numéro serait vérifié par un code et protégé contre les changements abusifs.</p><button class="primary" type="submit">Enregistrer le numéro</button><p id="backupNotice" class="notice" role="status" hidden></p></form><p class="footnote security-footnote">La simulation ne crée pas de passkey, n’envoie aucun SMS et ne stocke pas ton numéro. L’implémentation réelle utilisera WebAuthn, une app TOTP et un fournisseur SMS.</p></section>
+
+      <section class="screen" id="card" aria-labelledby="card-title" hidden><div class="screen-head"><button class="back" data-screen="home" aria-label="Retour au portefeuille"><svg class="icon"><use href="#back-icon"/></svg></button><h1 id="card-title" tabindex="-1">Carte virtuelle</h1></div><p class="intro">Paie comme avec Apple Pay : ATARA convertit la crypto au moment du paiement, le commerçant reçoit de la fiat.</p><div class="virtual-card"><div class="virtual-card-top"><span>ATARA</span><span>VIRTUAL</span></div><div class="card-chip"></div><div class="virtual-number">•••• &nbsp; •••• &nbsp; •••• &nbsp; 4242</div><div class="virtual-card-bottom"><span>DEMO ACCOUNT</span><span>USDC → EUR</span></div></div><div class="card card-flow"><div class="detail"><span>Wallet</span><strong>USDC sur Base</strong></div><div class="detail"><span>Au paiement</span><strong>Conversion instantanée</strong></div><div class="detail"><span>Commerçant</span><strong>Reçoit des euros</strong></div></div><div class="section-label">Intégrations possibles</div><div class="providers"><div class="provider"><strong>Gnosis Pay</strong><span class="sub">Carte virtuelle · Apple Pay · USDC</span><span class="tag">KYC partenaire</span></div><div class="provider"><strong>Rain</strong><span class="sub">Émission de cartes · Apple Pay · stablecoins</span><span class="tag">KYC / AML</span></div></div><button class="primary" id="applePayButton">Simuler l’ajout à Apple Pay</button><p id="cardNotice" class="notice" role="status" hidden></p><p class="footnote">Carte et conversion non connectées dans la démo. Les limites et le niveau de vérification dépendront du pays, de l’émetteur et du prestataire retenu.</p></section>
+    </main>
+    <nav class="bottom-nav" aria-label="Navigation principale">
+      <button data-screen="home"><svg class="icon" aria-hidden="true"><use href="#home-icon"/></svg><span>Home</span></button>
+      <button data-screen="activity-screen"><svg class="icon" aria-hidden="true"><use href="#activity-icon"/></svg><span>Activity</span></button>
+      <button data-screen="vault"><svg class="icon" aria-hidden="true"><use href="#lock-icon"/></svg><span>Vault</span></button>
+      <button data-screen="profile"><svg class="icon" aria-hidden="true"><use href="#profile-icon"/></svg><span>Profile</span></button>
+    </nav>
+  </div>
+
+  <dialog id="demoDialog" aria-labelledby="dialogTitle"><form method="dialog"><button class="close" aria-label="Fermer">×</button></form><svg width="36" height="36" aria-hidden="true"><use href="#logo"/></svg><h2 id="dialogTitle">Découvrir ATARA</h2><p>Tu es dans la simulation. Utilise le compte de démo pour essayer les achats, les paiements et le Vault, sans inscription ni argent réel.</p><button class="primary" id="enterDemo">Explorer le compte de démo</button></dialog>
+  <dialog id="receiveDialog" aria-labelledby="receiveTitle"><form method="dialog"><button class="close" aria-label="Fermer">×</button></form><svg class="icon" aria-hidden="true"><use href="#down-icon"/></svg><h2 id="receiveTitle">Receive</h2><p>Simule la réception de 25 USDC sur ton compte de démo. Aucun transfert blockchain n’est effectué.</p><button class="primary" id="receiveDemo">Recevoir 25 USDC fictifs</button></dialog>
+  <noscript><p class="noscript">Active JavaScript pour explorer la simulation ATARA.</p></noscript>
+</body>
+</html>

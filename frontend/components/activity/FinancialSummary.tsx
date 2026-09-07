@@ -14,11 +14,6 @@ export const FinancialSummary = ({
   totalSent,
   contactName,
 }: FinancialSummaryProps) => {
-  const netBalance = Number((totalReceived - totalSent).toFixed(2));
-  const absoluteBalance = Math.abs(netBalance).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
   return (
     <MotiView
       from={{ opacity: 0, translateY: -10 }}
@@ -37,7 +32,7 @@ export const FinancialSummary = ({
           className="text-sm uppercase tracking-widest font-mono"
           style={{ color: "rgba(255, 255, 255, 0.4)" }}
         >
-          Financial Summary
+          Échanges avec {contactName}
         </Text>
       </View>
 
@@ -48,7 +43,7 @@ export const FinancialSummary = ({
             className="text-sm uppercase tracking-wide"
             style={{ color: "rgba(255, 255, 255, 0.4)" }}
           >
-            Received
+            Reçu
           </Text>
           <Text className="font-mono text-sm" style={{ color: COLORS.accent }}>
             $
@@ -64,7 +59,7 @@ export const FinancialSummary = ({
             className="text-sm uppercase tracking-wide"
             style={{ color: "rgba(255, 255, 255, 0.4)" }}
           >
-            Sent
+            Envoyé
           </Text>
           <Text
             className="font-mono text-sm"
@@ -97,11 +92,7 @@ export const FinancialSummary = ({
               className="font-mono text-sm"
               style={{ color: "rgba(255, 255, 255, 0.6)" }}
             >
-              {netBalance > 0.009
-                ? `${contactName} owes you $${absoluteBalance}`
-                : netBalance < -0.009
-                  ? `You owe ${contactName} $${absoluteBalance}`
-                  : "Settled"}
+              Estimations en USD. Ces transferts ne constituent pas des dettes.
             </Text>
           </View>
         </View>

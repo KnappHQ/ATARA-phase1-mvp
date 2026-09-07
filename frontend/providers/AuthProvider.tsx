@@ -14,8 +14,10 @@ import {
   useOAuthFlow,
   usePrivy,
 } from "@privy-io/expo";
+import { useLoginWithPasskey } from "@privy-io/expo/passkey";
 import * as Haptics from "expo-haptics";
 
+import { retryPendingSettlements } from "@/services/settlementRecovery.service";
 import { registerUnauthorizedHandler } from "@/services/api";
 import { AuthService } from "@/services/auth.service";
 import {
@@ -46,6 +48,7 @@ type AuthContextValue = {
   isCheckingBackend: boolean;
   isStartingOAuth: boolean;
   oauthError: string | null;
+  startPasskey: () => Promise<void>;
   startOAuth: (provider: OAuthProvider) => Promise<void>;
   registerWithHandle: (params: RegisterWithHandleParams) => Promise<void>;
   checkHandle: (handle: string) => Promise<boolean>;
@@ -84,6 +87,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { user, isReady: isPrivyReady, logout: privyLogout } = usePrivy();
   const { wallets, create } = useEmbeddedEthereumWallet();
   const { start, state: oauthState } = useOAuthFlow();
+  const { loginWithPasskey } = useLoginWithPasskey();
   const { isAuthenticated, isLoading: isAuthLoading } = useAuthStore();
 
   const [hasLoadedSession, setHasLoadedSession] = useState(false);
@@ -101,6 +105,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const embeddedWallets = wallets as PrivyEthereumWallet[];
   const isReady = isPrivyReady && hasLoadedSession && !isAuthLoading;
   const isFullyAuthenticated = isPrivyReady && !!user && isAuthenticated;
+
+  useEffect(() => { if (isFullyAuthenticated) void retryPendingSettlements().catch(() => {}); }, [isFullyAuthenticated]);
 
   const handleSessionLoaded = useCallback(() => {
     setHasLoadedSession(true);
@@ -158,6 +164,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     },
     [start],
   );
+
+  const startPasskey = useCallback(async () => {
+    const relyingParty = process.env.EXPO_PUBLIC_PASSKEY_RP_ID;
+    if (!relyingParty) { setOauthError("La connexion par passkey attend la configuration du domaine."); return; }
+    setIsStartingOAuth(true); setOauthError(null); ignoredAutoLoginUserIdRef.current = null;
+    await useAuthStore.getState().clearJustLoggedOut();
+    try { await loginWithPasskey({ relyingParty: `https://${relyingParty}` }); }
+    catch (error) { setOauthError(error instanceof Error ? error.message : "Connexion non terminée."); }
+    finally { setIsStartingOAuth(false); }
+  }, [loginWithPasskey]);
 
   const registerWithHandle = useCallback(
     async ({ handle }: RegisterWithHandleParams) => {
@@ -235,6 +251,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       isStartingOAuth: isStartingOAuth || oauthState.status === "loading",
       oauthError,
       startOAuth,
+      startPasskey,
       registerWithHandle,
       checkHandle,
       logout,
@@ -252,6 +269,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       onboardingStep,
       registerWithHandle,
       startOAuth,
+      startPasskey,
     ],
   );
 

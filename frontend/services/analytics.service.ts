@@ -4,9 +4,9 @@ export const posthog = new PostHog(
   process.env.EXPO_PUBLIC_POSTHOG_API_KEY ?? "",
   {
     host: process.env.EXPO_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com",
-    disabled: false,
+    disabled: true, // Pilot metrics are collected by consent in feedback; no passive tracking.
     persistence: "file",
-    captureAppLifecycleEvents: true,
+    captureAppLifecycleEvents: false,
     flushAt: 20,
     flushInterval: 10000,
   },
@@ -21,16 +21,8 @@ export const analyticsIdentify = (
     displayName?: string;
   },
 ) => {
-  posthog.identify(distinctId, {
-    handle: properties.handle,
-    ...(properties.email !== undefined && { email: properties.email }),
-    ...(properties.authProvider !== undefined && {
-      auth_provider: properties.authProvider,
-    }),
-    ...(properties.displayName !== undefined && {
-      display_name: properties.displayName,
-    }),
-  });
+  // Never send account identifiers or contact details to analytics.
+
 };
 
 export const analyticsReset = () => {
@@ -45,7 +37,6 @@ export const analyticsScreen = (pathname: string) => {
 export const analyticsEvents = {
   userSignedUp: (properties: { handle: string; authProvider: string }) => {
     posthog.capture("user signed up", {
-      handle: properties.handle,
       auth_provider: properties.authProvider,
     });
   },
@@ -59,7 +50,6 @@ export const analyticsEvents = {
   }) => {
     posthog.capture("transaction sent", {
       token: properties.token,
-      amount_usd: properties.amountUsd,
       is_in_app: properties.isInApp,
       has_note: properties.hasNote,
       is_settlement: properties.isSettlement,
@@ -69,7 +59,6 @@ export const analyticsEvents = {
   transactionFailed: (properties: { token: string; errorMessage: string }) => {
     posthog.capture("transaction send failed", {
       token: properties.token,
-      error_message: properties.errorMessage,
     });
   },
 

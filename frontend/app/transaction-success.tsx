@@ -30,10 +30,10 @@ export default function TransactionSuccess() {
           avatar: transaction.recipientName?.slice(0, 2).toUpperCase() || "UN",
         },
         recipientAddress: transaction.recipientAddress || "",
-        usdValue: transaction.usdValue?.replace("$", "") || "0.00",
+        usdValue: transaction.usdValue?.replace("$", "") || "Voir le reçu réseau",
         txHash: transaction.hash || (params.hash as string) || "",
         gasPaidDisplay:
-          (params.gasPaidDisplay as string) || transaction.gasFee || "0.00",
+          (params.gasPaidDisplay as string) || transaction.gasFee || "Voir le reçu réseau",
         timestamp: transaction.timestamp.toISOString(),
         status: transaction.status,
       }
@@ -48,7 +48,7 @@ export default function TransactionSuccess() {
         },
         usdValue: "0.00",
         txHash: (params.hash as string) || "",
-        gasPaidDisplay: (params.gasPaidDisplay as string) || "0.00",
+        gasPaidDisplay: (params.gasPaidDisplay as string) || "Voir le reçu réseau",
         recipientAddress: "",
         timestamp: new Date().toISOString(),
         status: "pending" as const,

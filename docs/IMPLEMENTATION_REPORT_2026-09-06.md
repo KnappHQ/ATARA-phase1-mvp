@@ -1,5 +1,7 @@
 # Compte rendu d’implémentation ATARA
 
+> Rapport historique. Le [compte rendu du 7 septembre](PILOT_RELEASE_2026-09-07.md) précise les limites : BTC/SOL/XMR sont des actifs de démonstration, la carte n’est pas activée et les déploiements natifs restent distincts.
+
 Date : 6 septembre 2026  
 Branche GitHub : `codex/atara-vault`
 

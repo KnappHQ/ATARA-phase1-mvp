@@ -30,6 +30,7 @@ export const getDemoVaultSnapshot = (account?: string): VaultSnapshot => {
     unlockAt: now + 14 * 24 * 60 * 60,
     chainTimestamp: now,
     balance: oneHundredTwentyFiveUsdc,
+    totalWithdrawn: "0",
     totalDeposited: oneHundredTwentyFiveUsdc,
     maxTotalDeposits: "10000000000",
     acceptedCount: members.length,

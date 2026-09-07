@@ -25,9 +25,12 @@ export interface Group {
   createdAt: string;
   memberCount: number;
   userNetBalance: number;
+  assetSymbol: string;
 }
 
 export interface GroupExpenseDetail {
+  assetSymbol: string;
+  splits: GroupDetailResponse["expenses"][number]["splits"];
   id: string;
   paidById: string;
   paidByName: string;
@@ -42,9 +45,12 @@ export interface GroupMemberBalance {
   displayName: string | null;
   smartAccountAddress: string | null;
   netBalance: number;
+  owedByMe: number;
+  owedToMe: number;
 }
 
 export interface GroupDetail {
+  assetSymbol: string;
   id: string;
   name: string;
   description: string | null;
@@ -68,6 +74,7 @@ function mapSummaryToGroup(s: GroupSummaryResponse): Group {
     }),
     memberCount: s.memberCount,
     userNetBalance: s.userNetBalance,
+    assetSymbol: s.assetSymbol,
   };
 }
 
@@ -94,6 +101,7 @@ export function mapSearchUserToMember(u: SearchUserResult): GroupMember {
 function mapDetailResponse(d: GroupDetailResponse): GroupDetail {
   return {
     id: d.id,
+    assetSymbol: d.assetSymbol,
     name: d.name,
     description: d.description,
     createdById: d.createdById,
@@ -111,6 +119,8 @@ function mapDetailResponse(d: GroupDetailResponse): GroupDetail {
     })),
     expenses: d.expenses.map((e) => ({
       id: e.id,
+      assetSymbol: e.assetSymbol,
+      splits: e.splits ?? [],
       paidById: e.paidById,
       paidByName: e.paidBy.displayName || `@${e.paidBy.handle}`,
       amount: parseFloat(e.amount),
@@ -127,6 +137,8 @@ function mapDetailResponse(d: GroupDetailResponse): GroupDetail {
       displayName: b.displayName,
       smartAccountAddress: b.smartAccountAddress ?? null,
       netBalance: b.netBalance,
+      owedByMe: b.owedByMe,
+      owedToMe: b.owedToMe,
     })),
   };
 }
@@ -150,7 +162,7 @@ interface GroupState {
   addExpense: (
     groupId: string,
     description: string,
-    amount: number,
+    amount: number, clientRequestId: string, customSplits?: { userId: string; amount: string }[],
   ) => Promise<void>;
   clearDetail: () => void;
   clearError: () => void;
@@ -202,8 +214,8 @@ export const useGroupStore = create<GroupState>((set, get) => ({
     }
   },
 
-  addExpense: async (groupId, description, amount) => {
-    await GroupService.addExpense(groupId, description, amount);
+  addExpense: async (groupId, description, amount, clientRequestId, customSplits) => {
+    await GroupService.addExpense(groupId, description, amount, clientRequestId, customSplits);
     await get().fetchGroupDetail(groupId);
   },
 

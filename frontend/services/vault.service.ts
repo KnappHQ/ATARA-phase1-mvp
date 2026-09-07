@@ -39,6 +39,7 @@ export type VaultSnapshot = {
   chainTimestamp: number;
   balance: string;
   totalDeposited: string;
+  totalWithdrawn: string;
   maxTotalDeposits: string;
   acceptedCount: number;
   proposalId: number;
@@ -90,6 +91,7 @@ export const VaultService = {
       chainTimestamp: Number(raw.chainTimestamp),
       balance: raw.balance.toString(),
       totalDeposited: raw.totalDeposited.toString(),
+      totalWithdrawn: raw.totalWithdrawn.toString(),
       maxTotalDeposits: raw.maxTotalDeposits.toString(),
       acceptedCount: Number(raw.acceptedCount),
       proposalId: Number(raw.proposalId),

@@ -12,6 +12,7 @@ export default function Onboarding() {
     isStartingOAuth,
     oauthError,
     startOAuth,
+    startPasskey,
     registerWithHandle,
     checkHandle,
   } = useAuth();
@@ -24,6 +25,7 @@ export default function Onboarding() {
           isStartingOAuth={isStartingOAuth}
           oauthError={oauthError}
           onStartOAuth={startOAuth}
+          onStartPasskey={startPasskey}
         />
       )}
 

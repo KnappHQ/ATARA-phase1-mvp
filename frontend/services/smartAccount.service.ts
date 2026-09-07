@@ -256,62 +256,46 @@ export class SmartAccountService {
     overrides?: Record<string, unknown>,
   ): Promise<TransactionResult> {
     const pendingKey = `atara.pending-call-bundle.${CHAIN_ID}.${this.smartAccountAddress.toLowerCase()}`;
+    const fingerprint = JSON.stringify(calls.map(c => [c.target.toLowerCase(), String(c.value ?? 0n), c.data.toLowerCase()]));
     const waitForBundle = async (id: string) => {
-      const status = await this.client.waitForCallsStatus({
-        id,
-        timeout: 120_000,
-        throwOnFailure: true,
-      });
+      const status = await this.client.waitForCallsStatus({ id, timeout: 120_000, throwOnFailure: false });
+      if (status.status === "failure") throw Object.assign(new Error("Previous operation failed on chain"), { definitiveFailure: true });
       const txHash = status.receipts?.[0]?.transactionHash;
-      if (status.status === "failure" || !txHash) {
-        throw new Error("Transaction completed without a receipt hash");
-      }
+      if (!txHash) throw new Error("Receipt not available yet. Keep the pending operation and retry its verification.");
       return { hash: txHash, success: true } as TransactionResult;
     };
-
-    // A mobile app can be closed after sendCalls() but before confirmation. In
-    // that case resume the same bundle instead of submitting a duplicate.
-    const pendingId = await AsyncStorage.getItem(pendingKey);
-    if (pendingId) {
-      try {
-        const result = await waitForBundle(pendingId);
+    const stored = await AsyncStorage.getItem(pendingKey);
+    if (stored) {
+      let pending: { id: string; fingerprint?: string };
+      try { pending = JSON.parse(stored); } catch { pending = { id: stored }; }
+      let result: TransactionResult | undefined;
+      try { result = await waitForBundle(pending.id); }
+      catch (error: any) {
+        if (!error?.definitiveFailure) throw new Error("An earlier operation is still unverified. No new operation was sent. Retry after checking Activity.");
         await AsyncStorage.removeItem(pendingKey);
+      }
+      if (result) {
+        await AsyncStorage.removeItem(pendingKey);
+        if (pending.fingerprint !== fingerprint) throw new Error(`Earlier operation confirmed: ${result.hash}. Check Activity before starting a different payment.`);
         return result;
-      } catch (error: any) {
-        if (error?.name === "WaitForCallsStatusTimeoutError") {
-          throw new Error("Transaction still pending. Reopen the app to resume it.");
-        }
-        await AsyncStorage.removeItem(pendingKey);
       }
     }
-
-    const { id } = await this.client.sendCalls({
-      account: this.smartAccountAddress,
-      calls: calls.map((call) => ({
-        to: call.target,
-        value: call.value ?? 0n,
-        data: call.data,
-      })),
+    const { id } = await this.client.sendCalls({ account: this.smartAccountAddress,
+      calls: calls.map(call => ({ to: call.target, value: call.value ?? 0n, data: call.data })),
       ...(overrides ? { capabilities: overrides } : {}),
     });
-    await AsyncStorage.setItem(pendingKey, id);
+    await AsyncStorage.setItem(pendingKey, JSON.stringify({ id, fingerprint }));
     try {
-      const result = await waitForBundle(id);
-      await AsyncStorage.removeItem(pendingKey);
-      return result;
+      const result = await waitForBundle(id); await AsyncStorage.removeItem(pendingKey); return result;
     } catch (error: any) {
-      if (error?.name === "WaitForCallsStatusTimeoutError") {
-        throw new Error("Transaction still pending. Reopen the app to resume it.");
-      }
-      await AsyncStorage.removeItem(pendingKey);
+      if (error?.definitiveFailure) await AsyncStorage.removeItem(pendingKey);
       throw error;
     }
   }
 
-  private getGaslessCapabilities(): Record<string, unknown> | undefined {
-    return this.gasPolicyId
-      ? { paymaster: { policyId: this.gasPolicyId } }
-      : undefined;
+  private getGaslessCapabilities(): Record<string, unknown> {
+    if (!this.gasPolicyId) throw new Error("Le sponsoring des frais doit être configuré avant les paiements de la bêta.");
+    return { paymaster: { policyId: this.gasPolicyId } };
   }
 
   async sendETHWithGas(

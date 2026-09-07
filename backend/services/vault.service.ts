@@ -29,6 +29,7 @@ const normalizeSnapshot = (raw: any) => ({
   chainTimestamp: Number(raw.chainTimestamp.toString()),
   balance: raw.balance.toString(),
   totalDeposited: raw.totalDeposited.toString(),
+  totalWithdrawn: raw.totalWithdrawn.toString(),
   maxTotalDeposits: raw.maxTotalDeposits.toString(),
   acceptedCount: Number(raw.acceptedCount.toString()),
   proposalId: Number(raw.proposalId.toString()),

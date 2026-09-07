@@ -17,6 +17,7 @@ contract AtaraGroupVault is ReentrancyGuard {
     uint64 public immutable unlockAt;
     uint256 public immutable maxTotalDeposits;
     uint256 public totalDeposited;
+    uint256 public totalWithdrawn;
     uint256 public acceptedCount;
     uint256 public proposalId;
     uint256 public cancellationApprovalCount;
@@ -45,6 +46,7 @@ contract AtaraGroupVault is ReentrancyGuard {
         uint256 chainTimestamp;
         uint256 balance;
         uint256 totalDeposited;
+        uint256 totalWithdrawn;
         uint256 maxTotalDeposits;
         uint256 acceptedCount;
         uint256 proposalId;
@@ -172,6 +174,7 @@ contract AtaraGroupVault is ReentrancyGuard {
         _checkProposal(id);
         if (proposal.approvalCount != members.length) revert UnanimityRequired();
         proposal.executed = true;
+        totalWithdrawn += proposal.amount;
         token.safeTransfer(proposal.recipient, proposal.amount);
         emit Withdrawn(id, proposal.recipient, proposal.amount);
     }
@@ -195,7 +198,7 @@ contract AtaraGroupVault is ReentrancyGuard {
         // Contributions are immutable deposit records. Once a withdrawal has
         // paid out, they no longer describe the remaining pool, so an exact
         // per-member refund would be unsafe and is permanently unavailable.
-        if (proposalId != 0 && proposal.executed) revert RefundUnavailable();
+        if (totalWithdrawn != 0) revert RefundUnavailable();
         if (proposalId != 0 && !proposal.executed && !proposal.cancelled && block.timestamp < proposal.expiresAt) {
             revert ActiveProposal();
         }
@@ -227,6 +230,7 @@ contract AtaraGroupVault is ReentrancyGuard {
         s.chainTimestamp = block.timestamp;
         s.balance = token.balanceOf(address(this));
         s.totalDeposited = totalDeposited;
+        s.totalWithdrawn = totalWithdrawn;
         s.maxTotalDeposits = maxTotalDeposits;
         s.acceptedCount = acceptedCount;
         s.proposalId = proposalId;
