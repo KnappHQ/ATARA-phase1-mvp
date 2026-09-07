@@ -3,6 +3,7 @@ import { authService } from "../services/auth.service";
 import { catchAsync } from "../utils/catchAsync";
 import { ErrorHandler } from "../utils/errorHandler";
 import { verifyLoginSignature } from "../utils/signatureVerifier";
+import { assertSmartAccountOwnedBySigner } from "../services/smartAccountOwnership.service";
 
 export const authController = {
   register: catchAsync(
@@ -32,6 +33,7 @@ export const authController = {
       }
 
       verifyLoginSignature(signerAddress, message, signature, "Register");
+      await assertSmartAccountOwnedBySigner(signerAddress, smartAccountAddress);
 
       if (handle.length < 3 || handle.length > 20) {
         throw new ErrorHandler(
@@ -74,8 +76,6 @@ export const authController = {
       );
     }
 
-    // Verify signature for security
-    // This ensures only the wallet owner can log in
     verifyLoginSignature(signerAddress, message, signature, "Login");
 
     const { user, token } = await authService.login(signerAddress);
