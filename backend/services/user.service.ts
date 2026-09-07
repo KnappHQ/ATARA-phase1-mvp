@@ -98,6 +98,30 @@ class UserService {
         data: { userId: null, handle: null },
       });
 
+      // Remove share/payment-link records that directly identify this account.
+      // Keep PaymentUse rows: their opaque reference IDs are part of the
+      // anti-replay ledger and prevent a previously used chain receipt from
+      // being accepted again after account deletion.
+      const createdGroupIds = (
+        await tx.group.findMany({
+          where: { createdById: userId },
+          select: { id: true },
+        })
+      ).map((group) => group.id);
+
+      await tx.paymentRequest.deleteMany({ where: { creatorId: userId } });
+      await tx.settlementIntent.deleteMany({
+        where: {
+          OR: [
+            { senderId: userId },
+            { receiverId: userId },
+            ...(createdGroupIds.length
+              ? [{ groupId: { in: createdGroupIds } }]
+              : []),
+          ],
+        },
+      });
+
       await tx.transaction.updateMany({
         where: { receiverId: userId },
         data: { receiverId: null },
