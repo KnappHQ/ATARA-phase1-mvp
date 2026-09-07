@@ -2,10 +2,25 @@ import { Request, Response, NextFunction } from "express";
 import { authService } from "../services/auth.service";
 import { catchAsync } from "../utils/catchAsync";
 import { ErrorHandler } from "../utils/errorHandler";
-import { verifyLoginSignature } from "../utils/signatureVerifier";
 import { assertSmartAccountOwnedBySigner } from "../services/smartAccountOwnership.service";
 
 export const authController = {
+  challenge: catchAsync(
+    async (req: Request, res: Response, next: NextFunction) => {
+      const { signerAddress, purpose } = req.body;
+
+      if (!signerAddress || (purpose !== "login" && purpose !== "register")) {
+        throw new ErrorHandler(
+          "Please provide signerAddress and purpose (login or register)",
+          400,
+        );
+      }
+
+      const challenge = await authService.createChallenge(signerAddress, purpose);
+      res.status(201).json({ success: true, ...challenge });
+    },
+  ),
+
   register: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
       const {
@@ -27,12 +42,17 @@ export const authController = {
 
       if (!message || !signature) {
         throw new ErrorHandler(
-          "Please sign the registration message to prove wallet ownership",
+          "Please sign the registration challenge to prove wallet ownership",
           400,
         );
       }
 
-      verifyLoginSignature(signerAddress, message, signature, "Register");
+      await authService.verifyChallenge(
+        signerAddress,
+        "register",
+        message,
+        signature,
+      );
       await assertSmartAccountOwnedBySigner(signerAddress, smartAccountAddress);
 
       if (handle.length < 3 || handle.length > 20) {
@@ -76,7 +96,12 @@ export const authController = {
       );
     }
 
-    verifyLoginSignature(signerAddress, message, signature, "Login");
+    await authService.verifyChallenge(
+      signerAddress,
+      "login",
+      message,
+      signature,
+    );
 
     const { user, token } = await authService.login(signerAddress);
 
@@ -87,6 +112,13 @@ export const authController = {
       user,
     });
   }),
+
+  logoutAll: catchAsync(
+    async (req: Request, res: Response, next: NextFunction) => {
+      await authService.logoutAll(req.user.id);
+      res.status(200).json({ success: true, message: "All sessions revoked" });
+    },
+  ),
 
   checkHandle: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
