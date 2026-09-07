@@ -21,6 +21,7 @@ model User {
   totpEnabled            Boolean  @default(false)
   recoveryPhone          String?
   recoveryPhoneVerifiedAt DateTime?
+  tokenVersion           Int      @default(0)
   subscriptionTier       SubscriptionTier   @default(FREE)
   subscriptionStatus     SubscriptionStatus @default(INACTIVE)
   subscriptionProvider   String?
@@ -37,6 +38,20 @@ model User {
   expenseSplits    GroupExpenseSplit[]
   feedbacks        Feedback[]
   recoveryCodes    RecoveryCode[]
+}
+
+model AuthChallenge {
+  id         String    @id @default(uuid())
+  nonce      String    @unique
+  address    String
+  purpose    String
+  message    String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([address, purpose])
+  @@index([expiresAt])
 }
 
 model RecoveryCode {
