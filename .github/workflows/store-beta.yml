@@ -47,6 +47,24 @@ jobs:
       - name: Contract checks
         working-directory: contracts
         run: npm ci && npm test && npm run abi:check
+      - name: Release ownership and Vault preflight
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const app = JSON.parse(fs.readFileSync('frontend/app.json', 'utf8'));
+          const eas = JSON.parse(fs.readFileSync('frontend/eas.json', 'utf8'));
+          const owner = app?.expo?.owner;
+          const factory = eas?.build?.beta?.env?.EXPO_PUBLIC_VAULT_FACTORY_ADDRESS;
+          if (!owner || owner === 'karankoder') {
+            console.error('Expo ownership has not been transferred to the ATARA-owned account/organization yet.');
+            process.exit(1);
+          }
+          if (!factory || !/^0x[a-fA-F0-9]{40}$/.test(factory) || /^0x0{40}$/i.test(factory)) {
+            console.error('Vault factory is not deployed/configured for the beta build.');
+            process.exit(1);
+          }
+          console.log(`Release preflight OK: Expo owner=${owner}, Vault factory=${factory}`);
+          NODE
 
   build-and-submit:
     needs: verify
