@@ -16,6 +16,7 @@ jobs:
         working-directory: frontend
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      NO_COLOR: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -31,14 +32,20 @@ jobs:
             exit 1
           fi
       - name: Fetch production environment variable metadata
-        run: npx eas-cli@latest env:list --environment production --json > /tmp/eas-env.json
+        run: npx eas-cli@latest env:list production --format short > /tmp/eas-env.txt
       - name: Print variable names only
         run: |
           node <<'NODE'
           const fs = require('fs');
-          const data = JSON.parse(fs.readFileSync('/tmp/eas-env.json', 'utf8'));
-          const rows = Array.isArray(data) ? data : (data.variables || data.environmentVariables || []);
-          const names = rows.map((v) => v.name || v.key).filter(Boolean).sort();
+          const text = fs.readFileSync('/tmp/eas-env.txt', 'utf8');
+          const stripAnsi = (s) => s.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
+          const names = [...new Set(text
+            .split(/\r?\n/)
+            .map(stripAnsi)
+            .filter((line) => line.includes('='))
+            .map((line) => line.slice(0, line.indexOf('=')).trim())
+            .filter((name) => /^[A-Z0-9_]+$/.test(name))
+          )].sort();
           console.log('EAS_PRODUCTION_VARIABLE_NAMES');
           for (const name of names) console.log(`- ${name}`);
           console.log(`TOTAL=${names.length}`);
