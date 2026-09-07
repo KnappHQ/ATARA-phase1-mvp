@@ -12,6 +12,9 @@ on:
           - all
           - ios
           - android
+  push:
+    branches:
+      - release/store-beta
 
 permissions:
   contents: read
@@ -68,8 +71,8 @@ jobs:
             exit 1
           fi
       - name: Build and submit iOS beta
-        if: ${{ inputs.platform == 'all' || inputs.platform == 'ios' }}
+        if: ${{ github.event_name == 'push' || inputs.platform == 'all' || inputs.platform == 'ios' }}
         run: npx eas-cli@latest build --platform ios --profile beta --auto-submit --non-interactive --no-wait
       - name: Build and submit Android beta
-        if: ${{ inputs.platform == 'all' || inputs.platform == 'android' }}
+        if: ${{ github.event_name == 'push' || inputs.platform == 'all' || inputs.platform == 'android' }}
         run: npx eas-cli@latest build --platform android --profile beta --auto-submit --non-interactive --no-wait
