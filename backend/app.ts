@@ -34,8 +34,13 @@ const corsOptions: CorsOptions =
   NODE_ENV === "production"
     ? {
         origin: (origin, callback) => {
-          // Allow requests without an Origin header (mobile apps, curl, server-to-server).
-          if (!origin) return callback(null, true);
+          // A missing Origin used to be waved through, which made the
+          // allow-list meaningless for every non-browser caller. The mobile app
+          // issues native requests and is not subject to browser CORS at all,
+          // so refusing here costs it nothing.
+          if (!origin) {
+            return callback(new ErrorHandler("CORS: Origin required", 403));
+          }
 
           if (CORS_ALLOWED_ORIGINS.includes(origin)) {
             return callback(null, true);
@@ -59,7 +64,8 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-app.use(express.json());
+// Explicit rather than relying on body-parser's implicit 100kb default.
+app.use(express.json({ limit: "100kb" }));
 
 app.use("/api/v1", rootRouter);
 
