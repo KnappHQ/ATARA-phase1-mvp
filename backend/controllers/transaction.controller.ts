@@ -2,7 +2,6 @@ import { Request, Response, NextFunction } from "express";
 import { transactionService } from "../services/transaction.service";
 import { catchAsync } from "../utils/catchAsync";
 import { ErrorHandler } from "../utils/errorHandler";
-import type { TxStatus } from "@prisma/client";
 import { TRANSACTION_CATEGORIES } from "../utils/constants";
 
 export const transactionController = {
@@ -26,24 +25,10 @@ export const transactionController = {
   syncTransaction: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
       const senderProfile = req.user;
-      const {
-        receiverAddress,
-        txHash,
-        userOpHash,
-        amount,
-        rawAmountWei,
-        assetSymbol,
-        category,
-        userNote,
-      } = req.body;
+      const { receiverAddress, txHash, assetSymbol, category, userNote } =
+        req.body;
 
-      if (
-        !receiverAddress ||
-        !txHash ||
-        !amount ||
-        !rawAmountWei ||
-        !assetSymbol
-      ) {
+      if (!receiverAddress || !txHash || !assetSymbol) {
         throw new ErrorHandler("Missing required transaction data", 400);
       }
 
@@ -51,8 +36,6 @@ export const transactionController = {
         senderProfile,
         receiverAddress,
         txHash,
-        amount,
-        rawAmountWei,
         assetSymbol,
         category,
         userNote,
@@ -99,11 +82,11 @@ export const transactionController = {
   updateTransaction: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
       const { transactionId } = req.params;
-      const { category, userNote, status } = req.body;
+      const { category, userNote } = req.body;
 
-      if (!category && !userNote && !status) {
+      if (!category && !userNote) {
         throw new ErrorHandler(
-          "Please provide category, userNote, or status to update",
+          "Please provide category or userNote to update",
           400,
         );
       }
@@ -118,16 +101,11 @@ export const transactionController = {
         );
       }
 
-      if (status && !["PENDING", "COMPLETED", "FAILED"].includes(status)) {
-        throw new ErrorHandler("Invalid status value", 400);
-      }
-
       const userId = req.user.id;
 
       const transaction = await transactionService.updateTransaction(
         userId,
         transactionId,
-        status as TxStatus,
         category,
         userNote,
       );
