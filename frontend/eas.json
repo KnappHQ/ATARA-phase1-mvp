@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 0.54.0"
+    "version": ">= 15.0.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -16,11 +17,41 @@
         "buildType": "apk"
       }
     },
-    "production": {
+    "beta": {
       "distribution": "store",
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_NETWORK": "base-sepolia",
+        "EXPO_PUBLIC_DEMO_MODE": "false",
+        "EXPO_PUBLIC_ENABLE_SMS_BACKUP": "false",
+        "EXPO_PUBLIC_ONRAMP_PROVIDER": "moonpay"
+      },
       "android": {
         "buildType": "app-bundle"
       }
+    },
+    "production": {
+      "distribution": "store",
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  },
+  "submit": {
+    "beta": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "completed"
+      },
+      "ios": {}
+    },
+    "production": {
+      "android": {
+        "track": "production",
+        "releaseStatus": "draft"
+      },
+      "ios": {}
     }
   }
 }
