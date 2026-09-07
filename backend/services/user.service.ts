@@ -13,6 +13,11 @@ class UserService {
         displayName: true,
         smartAccountAddress: true,
         authProvider: true,
+        subscriptionTier: true,
+        subscriptionStatus: true,
+        subscriptionProvider: true,
+        subscriptionProductId: true,
+        subscriptionExpiresAt: true,
         createdAt: true,
       },
     });
@@ -75,6 +80,11 @@ class UserService {
         displayName: true,
         smartAccountAddress: true,
         authProvider: true,
+        subscriptionTier: true,
+        subscriptionStatus: true,
+        subscriptionProvider: true,
+        subscriptionProductId: true,
+        subscriptionExpiresAt: true,
       },
     });
 
@@ -83,22 +93,17 @@ class UserService {
 
   public async deleteAccount(userId: string) {
     await prisma.$transaction(async (tx) => {
-      // Keep anonymous feedback content, but remove its link to the user.
       await tx.feedback.updateMany({
         where: { userId },
         data: { userId: null, handle: null },
       });
 
-      // Preserve incoming transfers for the sender while removing the deleted
-      // account as their identified recipient. Sent transfers are deleted.
       await tx.transaction.updateMany({
         where: { receiverId: userId },
         data: { receiverId: null },
       });
       await tx.transaction.deleteMany({ where: { senderId: userId } });
 
-      // Remove group data owned by or directly tied to the account. Cascades
-      // on groups/expenses take care of their dependent rows.
       await tx.groupExpenseSplit.deleteMany({ where: { userId } });
       await tx.groupExpense.deleteMany({ where: { paidById: userId } });
       await tx.group.deleteMany({ where: { createdById: userId } });
@@ -135,9 +140,6 @@ class UserService {
     return users;
   }
 
-  // The recipient picker uses this list for the @ suggestions. Keep enough
-  // counterparties to cover the account's contact history, then sort locally
-  // in the client for an alphabetical, instant picker.
   public async getRecentContacts(userId: string, limit: number = 100) {
     const recentTx = await prisma.transaction.findMany({
       where: {
