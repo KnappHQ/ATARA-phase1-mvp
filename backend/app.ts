@@ -30,16 +30,30 @@ validateRequiredEnv();
 
 app.use(helmet());
 
+/** This service's own public origin, when it is deployed behind one. */
+const selfOrigin = () =>
+  (process.env.PUBLIC_PAYMENT_ORIGIN || process.env.RENDER_EXTERNAL_URL || "")
+    .replace(/\/$/, "");
+
 const corsOptions: CorsOptions =
   NODE_ENV === "production"
     ? {
         origin: (origin, callback) => {
-          // A missing Origin used to be waved through, which made the
-          // allow-list meaningless for every non-browser caller. The mobile app
-          // issues native requests and is not subject to browser CORS at all,
-          // so refusing here costs it nothing.
+          // No Origin header means the caller is not a browser: the mobile app,
+          // Render's health probe, a server-to-server call. CORS is a browser
+          // control and cannot protect any of those - authentication does.
+          // Refusing them here would only break them.
           if (!origin) {
-            return callback(new ErrorHandler("CORS: Origin required", 403));
+            return callback(null, true);
+          }
+
+          // The public payment page is served by this same service, and a
+          // same-origin POST still carries an Origin header. Without this, that
+          // page's /confirm call is refused whenever CORS_ALLOWED_ORIGINS is
+          // unset - which is how render.yaml deploys the service today.
+          const self = selfOrigin();
+          if (self && origin === self) {
+            return callback(null, true);
           }
 
           if (CORS_ALLOWED_ORIGINS.includes(origin)) {
