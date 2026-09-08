@@ -11,4 +11,5 @@ export const VAULT_USDC_DECIMALS = 6;
 export const isVaultConfigured =
   APP_NETWORK === "base-sepolia" &&
   CHAIN_ID === VAULT_CHAIN_ID &&
+  !/^0x0{40}$/i.test(VAULT_FACTORY_ADDRESS) &&
   isAddress(VAULT_FACTORY_ADDRESS as `0x${string}`);

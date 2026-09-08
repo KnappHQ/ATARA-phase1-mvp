@@ -1,7 +1,6 @@
-export const PRIVACY_POLICY_LAST_UPDATED = "07/09/2026";
+export const PRIVACY_POLICY_LAST_UPDATED = "08/09/2026";
 
-export const PRIVACY_POLICY_FOOTER_TEXT =
-  "ATARA LTD — privacy@atara.finance";
+export const PRIVACY_POLICY_FOOTER_TEXT = "ATARA LTD — privacy@atara.finance";
 
 export interface PrivacyPolicySection {
   title: string;
@@ -91,7 +90,7 @@ export const PRIVACY_POLICY_SECTIONS: PrivacyPolicySection[] = [
   {
     title: "12. Account deletion",
     body: [
-      "You can request deletion from the Profile section of the ATARA app. Account deletion removes or disconnects eligible off-chain account information in accordance with our retention obligations. Public blockchain records cannot be deleted.",
+      "You can request deletion from the Profile section of the ATARA app. Account deletion removes or disconnects eligible off-chain account information in accordance with our retention obligations. Shared expenses, debts and payment receipts remain under a deleted-account label to preserve other members’ records and prevent receipt reuse. Public blockchain records cannot be deleted.",
     ],
   },
   {

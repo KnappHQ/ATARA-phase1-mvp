@@ -1,9 +1,17 @@
 import { MotiView } from "moti";
 import { Search, X } from "lucide-react-native";
 import { useState, useEffect, useMemo } from "react";
-import { View, TextInput, TouchableOpacity, Text, ScrollView } from "react-native";
+import {
+  View,
+  TextInput,
+  TouchableOpacity,
+  Text,
+  ScrollView,
+} from "react-native";
 import * as Haptics from "expo-haptics";
 import { useContactStore, Contact } from "@/stores/useContactStore";
+import { useAddressBookStore } from "@/stores/useAddressBookStore";
+import { buildAddressContact } from "@/utils/format";
 import debounce from "@/utils/debounce";
 import { useRouter } from "expo-router";
 
@@ -19,6 +27,7 @@ export const QuickSendBar = () => {
     searchContacts,
   } = useContactStore();
   const router = useRouter();
+  const addressBook = useAddressBookStore((state) => state.contacts);
 
   useEffect(() => {
     getRecentContacts();
@@ -27,7 +36,7 @@ export const QuickSendBar = () => {
   const debouncedSearch = useMemo(
     () =>
       debounce(async (query: string) => {
-        if (query.trim() && query.trim() !== "@") {
+        if (query.trim().replace(/^@/, "").length >= 3) {
           await searchContacts(query);
         }
       }, 500),
@@ -63,15 +72,15 @@ export const QuickSendBar = () => {
     avatar: (contact.name || contact.handle).slice(0, 2).toUpperCase(),
   }));
 
-  const searchContactsDisplay = searchResults.slice(0, 3).map((contact) => ({
-    ...contact,
-    displayName: contact.name || contact.handle,
-    avatar: (contact.name || contact.handle).slice(0, 2).toUpperCase(),
-  }));
-
   const allKnownContacts = Array.from(
     new Map(
-      [...favoriteContacts, ...recentContacts].map((contact) => [contact.id, contact]),
+      [
+        ...favoriteContacts,
+        ...recentContacts,
+        ...Object.entries(addressBook).map(([address, name]) =>
+          buildAddressContact(address, name),
+        ),
+      ].map((contact) => [contact.id, contact]),
     ).values(),
   )
     .sort((a, b) => {
@@ -85,12 +94,33 @@ export const QuickSendBar = () => {
       avatar: (contact.name || contact.handle).slice(0, 2).toUpperCase(),
     }));
 
-  const displayContacts = searchQuery === "@"
-    ? allKnownContacts
-    : searchQuery
-      ? searchContactsDisplay
-      : quickContacts;
-  const isLoading = searchQuery ? isLoadingSearch : isLoadingRecents;
+  const normalizedQuery = searchQuery
+    .trim()
+    .replace(/^@/, "")
+    .toLocaleLowerCase();
+  const remote = normalizedQuery.length >= 3 ? searchResults : [];
+  const matches = Array.from(
+    new Map([...remote, ...allKnownContacts].map((c) => [c.id, c])).values(),
+  )
+    .filter((c) =>
+      [c.handle, c.name || "", c.smartAccountAddress].some((label) =>
+        label.toLocaleLowerCase().includes(normalizedQuery),
+      ),
+    )
+    .sort((a, b) =>
+      (a.name || a.handle).localeCompare(b.name || b.handle, undefined, {
+        sensitivity: "base",
+      }),
+    )
+    .map((c) => ({
+      ...c,
+      displayName: c.name || c.handle,
+      avatar: (c.name || c.handle).slice(0, 2).toUpperCase(),
+    }));
+  const displayContacts = searchQuery.trim() ? matches : quickContacts;
+  const isLoading = searchQuery.trim()
+    ? normalizedQuery.length >= 3 && isLoadingSearch && !displayContacts.length
+    : isLoadingRecents;
 
   return (
     <View className="gap-4">
@@ -116,11 +146,11 @@ export const QuickSendBar = () => {
         )}
       </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 8, paddingRight: 4 }}
-        >
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ gap: 8, paddingRight: 4 }}
+      >
         {isLoading ? (
           <>
             {[1, 2, 3].map((i) => (

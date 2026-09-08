@@ -43,10 +43,11 @@ export const authentication = async (
         publicAddress: true,
         smartAccountAddress: true,
         tokenVersion: true,
+        deletedAt: true,
       },
     });
 
-    if (!user) {
+    if (!user || user.deletedAt) {
       return next(
         new ErrorHandler(
           "The user belonging to this token no longer exists",
