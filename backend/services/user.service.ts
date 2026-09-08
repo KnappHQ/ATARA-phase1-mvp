@@ -1,10 +1,13 @@
+import crypto from "node:crypto";
+import { Prisma } from "@prisma/client";
 import prisma from "../config/prisma";
 import { ErrorHandler } from "../utils/errorHandler";
+import { USER_SEARCH_SELECT, buildSearchFilter } from "../utils/userSearch";
 
 class UserService {
   public async getProfile(userId: string) {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, deletedAt: null },
       select: {
         id: true,
         handle: true,
@@ -92,76 +95,97 @@ class UserService {
   }
 
   public async deleteAccount(userId: string) {
-    await prisma.$transaction(async (tx) => {
-      await tx.feedback.updateMany({
-        where: { userId },
-        data: { userId: null, handle: null },
-      });
+    await prisma.$transaction(
+      async (tx) => {
+        await tx.feedback.updateMany({
+          where: { userId },
+          data: { userId: null, handle: null },
+        });
 
-      // Remove share/payment-link records that directly identify this account.
-      // Keep PaymentUse rows: their opaque reference IDs are part of the
-      // anti-replay ledger and prevent a previously used chain receipt from
-      // being accepted again after account deletion.
-      const createdGroupIds = (
-        await tx.group.findMany({
+        // Retain shared ledger rows and replay protection. Deleting an account
+        // must never erase another member's expenses, payments or acknowledged debt.
+        const account = await tx.user.findUniqueOrThrow({
+          where: { id: userId },
+        });
+        if (account.publicAddress) {
+          await tx.authChallenge.deleteMany({
+            where: { address: account.publicAddress },
+          });
+        }
+        await tx.paymentRequest.deleteMany({
+          where: { creatorId: userId, paidAt: null },
+        });
+        await tx.settlementIntent.deleteMany({
+          where: {
+            settledAt: null,
+            OR: [{ senderId: userId }, { receiverId: userId }],
+          },
+        });
+        await tx.recoveryCode.deleteMany({ where: { userId } });
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            deletedAt: new Date(),
+            handle: `deleted_${crypto.randomBytes(6).toString("hex")}`,
+            displayName: "Compte supprimé",
+            email: null,
+            profilePicUrl: null,
+            authProvider: null,
+            publicAddress: null,
+            smartAccountAddress: null,
+            totpSecretEncrypted: null,
+            totpPendingSecret: null,
+            totpPendingCreatedAt: null,
+            totpEnabled: false,
+            recoveryPhone: null,
+            recoveryPhoneVerifiedAt: null,
+            subscriptionTier: "FREE",
+            subscriptionStatus: "INACTIVE",
+            subscriptionProvider: null,
+            subscriptionProductId: null,
+            subscriptionExpiresAt: null,
+            tokenVersion: { increment: 1 },
+          },
+        });
+        // Let a remaining member administer the group after its creator leaves.
+        const groups = await tx.group.findMany({
           where: { createdById: userId },
           select: { id: true },
-        })
-      ).map((group) => group.id);
-
-      await tx.paymentRequest.deleteMany({ where: { creatorId: userId } });
-      await tx.settlementIntent.deleteMany({
-        where: {
-          OR: [
-            { senderId: userId },
-            { receiverId: userId },
-            ...(createdGroupIds.length
-              ? [{ groupId: { in: createdGroupIds } }]
-              : []),
-          ],
-        },
-      });
-
-      await tx.transaction.updateMany({
-        where: { receiverId: userId },
-        data: { receiverId: null },
-      });
-      await tx.transaction.deleteMany({ where: { senderId: userId } });
-
-      await tx.groupExpenseSplit.deleteMany({ where: { userId } });
-      await tx.groupExpense.deleteMany({ where: { paidById: userId } });
-      await tx.group.deleteMany({ where: { createdById: userId } });
-      await tx.groupMember.deleteMany({ where: { userId } });
-
-      await tx.user.delete({ where: { id: userId } });
-    });
+        });
+        for (const group of groups) {
+          const successor = await tx.groupMember.findFirst({
+            where: {
+              groupId: group.id,
+              userId: { not: userId },
+              user: { deletedAt: null },
+            },
+            orderBy: [{ joinedAt: "asc" }, { id: "asc" }],
+          });
+          if (successor)
+            await tx.group.update({
+              where: { id: group.id },
+              data: { createdById: successor.userId },
+            });
+        }
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
   }
 
   public async searchUsers(query: string) {
-    const cleanQuery = query.replace("@", "").toLowerCase();
+    const where = buildSearchFilter(query);
 
-    const users = await prisma.user.findMany({
-      where: {
-        OR: [
-          { handle: { contains: cleanQuery, mode: "insensitive" } },
-          { displayName: { contains: cleanQuery, mode: "insensitive" } },
-          {
-            smartAccountAddress: { contains: cleanQuery, mode: "insensitive" },
-          },
-        ],
-      },
+    // Too short to be a lookup. Returning nothing beats returning a slice of
+    // the directory.
+    if (!where) {
+      return [];
+    }
+
+    return prisma.user.findMany({
+      where: { AND: [where, { deletedAt: null }] },
       take: 5,
-      select: {
-        id: true,
-        handle: true,
-        displayName: true,
-        profilePicUrl: true,
-        publicAddress: true,
-        smartAccountAddress: true,
-      },
+      select: USER_SEARCH_SELECT,
     });
-
-    return users;
   }
 
   public async getRecentContacts(userId: string, limit: number = 100) {
@@ -179,6 +203,7 @@ class UserService {
         sender: {
           select: {
             id: true,
+            deletedAt: true,
             handle: true,
             displayName: true,
             profilePicUrl: true,
@@ -189,6 +214,7 @@ class UserService {
         receiver: {
           select: {
             id: true,
+            deletedAt: true,
             handle: true,
             displayName: true,
             profilePicUrl: true,
@@ -205,7 +231,13 @@ class UserService {
 
     for (const tx of recentTx) {
       const counterparty = tx.senderId === userId ? tx.receiver : tx.sender;
-      if (!counterparty || seen.has(counterparty.id)) continue;
+      if (
+        !counterparty ||
+        counterparty.deletedAt ||
+        !counterparty.smartAccountAddress ||
+        seen.has(counterparty.id)
+      )
+        continue;
       seen.add(counterparty.id);
       contacts.push(counterparty);
       if (contacts.length === limit) break;
@@ -229,7 +261,7 @@ class UserService {
     };
 
     const user = await prisma.user.findUnique({
-      where: { handle: handle.toLowerCase() },
+      where: { handle: handle.toLowerCase(), deletedAt: null },
       select: selectFields,
     });
 

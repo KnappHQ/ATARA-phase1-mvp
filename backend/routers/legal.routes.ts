@@ -38,7 +38,7 @@ router.get("/privacy", (_req, res) => {
       <h2>Why we process it</h2><p>We process data to operate and secure the Service, authenticate users, prevent fraud and abuse, provide support, comply with law and improve ATARA.</p>
       <h2>Providers and transfers</h2><p>ATARA uses specialist providers for authentication and wallet infrastructure, blockchain connectivity, hosting/database services and error monitoring. Some providers may process data outside the UK or EEA under applicable transfer safeguards.</p>
       <h2>Blockchain data</h2><p>Public blockchain records can be permanent and cannot generally be deleted or changed by ATARA.</p>
-      <h2>Retention and deletion</h2><p>Eligible off-chain account data is removed or disconnected when an account is deleted, subject to legal, security and fraud-prevention retention requirements. Minimal anti-replay payment records may be retained to prevent reuse of blockchain receipts.</p>
+      <h2>Retention and deletion</h2><p>Eligible off-chain account data is removed or disconnected when an account is deleted, subject to legal, security and fraud-prevention retention requirements. Shared expenses, debts and payment receipts remain associated with a deleted-account label to preserve other members’ records. Minimal anti-replay payment records are retained to prevent reuse of blockchain receipts.</p>
       <h2>Your rights</h2><p>Depending on applicable law, you may request access, correction, erasure, restriction, objection or portability. Contact <a href="mailto:privacy@atara.finance">privacy@atara.finance</a>.</p>
       <h2>Contact</h2><p>${COMPANY.name}, ${COMPANY.address}<br/><a href="mailto:privacy@atara.finance">privacy@atara.finance</a></p>`,
     ),

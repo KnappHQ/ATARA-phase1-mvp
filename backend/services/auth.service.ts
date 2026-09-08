@@ -11,7 +11,8 @@ import {
 } from "../utils/signatureVerifier";
 
 const AUTH_DOMAIN = process.env.AUTH_DOMAIN || "atara.finance";
-const AUTH_CHAIN_ID = process.env.ALCHEMY_NETWORK === "base-mainnet" ? 8453 : 84532;
+const AUTH_CHAIN_ID =
+  process.env.ALCHEMY_NETWORK === "base-mainnet" ? 8453 : 84532;
 const AUTH_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const TOKEN_TTL = "7d";
 
@@ -19,7 +20,7 @@ class AuthService {
   private generateToken(user: {
     id: string;
     handle: string;
-    publicAddress: string;
+    publicAddress: string | null;
     smartAccountAddress?: string | null;
     tokenVersion: number;
   }) {
@@ -108,7 +109,10 @@ class AuthService {
       challenge.expiresAt <= now ||
       parsed.expiresAt.getTime() !== challenge.expiresAt.getTime()
     ) {
-      throw new ErrorHandler("Authentication challenge expired or already used", 401);
+      throw new ErrorHandler(
+        "Authentication challenge expired or already used",
+        401,
+      );
     }
 
     if (!signature || !verifySignature(message, signature, parsed.wallet)) {
@@ -128,7 +132,10 @@ class AuthService {
     });
 
     if (consumed.count !== 1) {
-      throw new ErrorHandler("Authentication challenge expired or already used", 401);
+      throw new ErrorHandler(
+        "Authentication challenge expired or already used",
+        401,
+      );
     }
   }
 
@@ -190,7 +197,7 @@ class AuthService {
       where: { publicAddress: normalizedAddress },
     });
 
-    if (!user) {
+    if (!user || user.deletedAt) {
       throw new ErrorHandler("Account not found. Please register.", 404);
     }
 

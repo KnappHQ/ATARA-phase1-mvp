@@ -13,6 +13,7 @@
       }
     },
     "preview": {
+      "extends": "beta",
       "distribution": "internal",
       "android": {
         "buildType": "apk"
@@ -41,6 +42,11 @@
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_NETWORK": "base-mainnet",
+        "EXPO_PUBLIC_DEMO_MODE": "false",
+        "EXPO_PUBLIC_ENABLE_SMS_BACKUP": "false"
       }
     }
   },

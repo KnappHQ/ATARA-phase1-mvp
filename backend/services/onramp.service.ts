@@ -7,6 +7,7 @@ import {
   MOONPAY_SECRET_KEY,
   MOONPAY_WIDGET_URL,
   ONRAMP_REDIRECT_URL,
+  NETWORK,
 } from "../utils/constants";
 import { ErrorHandler } from "../utils/errorHandler";
 
@@ -36,6 +37,21 @@ export const buildMoonPayWidgetUrl = (input: MoonPaySessionInput): string => {
   }
 
   const url = new URL(MOONPAY_WIDGET_URL);
+  // A beta checkout must never charge real money or imply delivery to Sepolia.
+  const allowedHost =
+    NETWORK === "base-mainnet" ? "buy.moonpay.com" : "buy-sandbox.moonpay.com";
+  if (
+    url.protocol !== "https:" ||
+    url.hostname !== allowedHost ||
+    url.username ||
+    url.password ||
+    url.port
+  ) {
+    throw new ErrorHandler(
+      "The on-ramp URL does not match the configured network",
+      503,
+    );
+  }
   const params: Array<[string, string]> = [
     ["apiKey", MOONPAY_API_KEY],
     ["currencyCode", MOONPAY_CURRENCY_CODE],
@@ -65,7 +81,8 @@ export const buildMoonPayWidgetUrl = (input: MoonPaySessionInput): string => {
 
 export const createMoonPaySession = (input: MoonPaySessionInput) => ({
   provider: "moonpay",
-  network: "base-sepolia",
+  network: NETWORK === "base-mainnet" ? "base-mainnet" : "sandbox",
+  mode: NETWORK === "base-mainnet" ? "live" : "sandbox",
   currencyCode: MOONPAY_CURRENCY_CODE,
   walletAddress: input.walletAddress,
   url: buildMoonPayWidgetUrl(input),
