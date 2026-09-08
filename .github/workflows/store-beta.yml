@@ -92,7 +92,13 @@ jobs:
         run: |
           ARGS=()
           if [ "$SUBMIT_BUILD" = true ]; then ARGS+=(--auto-submit-with-profile beta); fi
-          npx eas-cli@latest build --platform "$BUILD_PLATFORM" --profile "$BUILD_PROFILE" --non-interactive --wait --json "${ARGS[@]}" > build-results.json
+          RESULTS_FILE="$RUNNER_TEMP/eas-build-results.json"
+          set +e
+          npx eas-cli@latest build --platform "$BUILD_PLATFORM" --profile "$BUILD_PROFILE" --non-interactive --wait --json "${ARGS[@]}" > "$RESULTS_FILE"
+          BUILD_STATUS=$?
+          set -e
+          cp "$RESULTS_FILE" build-results.json
+          exit "$BUILD_STATUS"
       - name: Preserve build results
         if: always()
         uses: actions/upload-artifact@v4
