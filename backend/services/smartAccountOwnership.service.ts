@@ -8,6 +8,26 @@ type FetchLike = typeof fetch;
 type SmartAccountOwnershipOptions = {
   apiKey?: string;
   fetchImpl?: FetchLike;
+  accountTypes?: string[];
+};
+
+/**
+ * Account types to try when deriving the expected smart account.
+ *
+ * A single hard-coded type rejects any user whose account was created with a
+ * different one - a false negative that blocks registration and is hard to
+ * diagnose. Override with SMART_ACCOUNT_TYPES (comma-separated) when the
+ * deployment uses another type.
+ */
+export const DEFAULT_SMART_ACCOUNT_TYPES = ["sma-b"];
+
+const configuredAccountTypes = (): string[] => {
+  const configured = (process.env.SMART_ACCOUNT_TYPES || "")
+    .split(",")
+    .map((type) => type.trim())
+    .filter(Boolean);
+
+  return configured.length ? configured : DEFAULT_SMART_ACCOUNT_TYPES;
 };
 
 const normalizeAddress = (address: string, label: string): string => {
@@ -21,6 +41,7 @@ const normalizeAddress = (address: string, label: string): string => {
 export const resolveExpectedSmartAccountAddress = async (
   signerAddress: string,
   options: SmartAccountOwnershipOptions = {},
+  accountType: string = configuredAccountTypes()[0],
 ): Promise<string> => {
   const normalizedSigner = normalizeAddress(signerAddress, "signer");
   const apiKey = options.apiKey ?? process.env.ALCHEMY_API_KEY;
@@ -47,7 +68,7 @@ export const resolveExpectedSmartAccountAddress = async (
           params: [
             {
               signerAddress: normalizedSigner,
-              creationHint: { accountType: "sma-b" },
+              creationHint: { accountType },
             },
           ],
         }),
@@ -100,15 +121,28 @@ export const assertSmartAccountOwnedBySigner = async (
     smartAccountAddress,
     "smart account",
   );
-  const expectedSmartAccount = await resolveExpectedSmartAccountAddress(
-    signerAddress,
-    options,
-  );
+  const accountTypes = options.accountTypes?.length
+    ? options.accountTypes
+    : configuredAccountTypes();
 
-  if (normalizedSmartAccount !== expectedSmartAccount) {
-    throw new ErrorHandler(
-      "Smart account does not belong to the authenticated wallet",
-      400,
+  // Accept as soon as one candidate type derives the claimed address; only
+  // refuse once every candidate has been tried. An RPC failure still propagates
+  // as a 503 from resolveExpectedSmartAccountAddress - unverifiable is never
+  // treated as verified.
+  for (const accountType of accountTypes) {
+    const expectedSmartAccount = await resolveExpectedSmartAccountAddress(
+      signerAddress,
+      options,
+      accountType,
     );
+
+    if (normalizedSmartAccount === expectedSmartAccount) {
+      return;
+    }
   }
+
+  throw new ErrorHandler(
+    "Smart account does not belong to the authenticated wallet",
+    400,
+  );
 };

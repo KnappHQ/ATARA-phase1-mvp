@@ -3,6 +3,7 @@ import { authService } from "../services/auth.service";
 import { catchAsync } from "../utils/catchAsync";
 import { ErrorHandler } from "../utils/errorHandler";
 import { assertSmartAccountOwnedBySigner } from "../services/smartAccountOwnership.service";
+import { normalizeHandle } from "../utils/profileValidation";
 
 export const authController = {
   challenge: catchAsync(
@@ -55,22 +56,12 @@ export const authController = {
       );
       await assertSmartAccountOwnedBySigner(signerAddress, smartAccountAddress);
 
-      if (handle.length < 3 || handle.length > 20) {
-        throw new ErrorHandler(
-          "Handle must be between 3 and 20 characters",
-          400,
-        );
-      }
-
-      if (!/^[a-z0-9_]+$/.test(handle)) {
-        throw new ErrorHandler(
-          "Handle can only contain lowercase letters, numbers, and underscores",
-          400,
-        );
-      }
+      // Same definition of a valid handle as `PATCH /user/me`, so registration
+      // and profile update cannot drift apart.
+      const normalizedHandle = normalizeHandle(handle);
 
       const { user, token } = await authService.register(
-        handle,
+        normalizedHandle,
         signerAddress,
         smartAccountAddress,
         email,
@@ -128,7 +119,12 @@ export const authController = {
         throw new ErrorHandler("Handle must be at least 3 characters", 400);
       }
 
-      const available = await authService.checkHandle(handle);
+      // Handles are stored canonically lowercase, so availability must be
+      // checked in that form - otherwise "Alice" reports free while "alice"
+      // exists, and registration then fails with a 409.
+      const available = await authService.checkHandle(
+        handle.trim().toLowerCase(),
+      );
 
       res.status(200).json({
         success: true,

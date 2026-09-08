@@ -1,15 +1,28 @@
+/**
+ * Escape a value before it is interpolated into an HTML template.
+ *
+ * Every user-controlled value must go through this. `message` was already
+ * escaped; `handle` was not - and a handle is user-controlled (it is written by
+ * `PATCH /user/me`), so a hostile one executed in the inbox of whoever reads
+ * the feedback mail.
+ */
+export const escapeHtml = (value: string): string =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
 export const feedbackEmailHtml = (
   id: string,
   handle: string | undefined,
   message: string,
   createdAt: Date = new Date(),
 ): string => {
-  const displayHandle = handle ? `@${handle}` : "anonymous";
-  const escapedMessage = message
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\n/g, "<br/>");
+  const displayHandle = handle ? `@${escapeHtml(handle)}` : "anonymous";
+  // Line breaks are turned into markup only after escaping, never before.
+  const escapedMessage = escapeHtml(message).replace(/\n/g, "<br/>");
+  const escapedId = escapeHtml(id);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -46,7 +59,7 @@ export const feedbackEmailHtml = (
                 <tr>
                   <td>
                     <span style="font-size:11px;color:rgba(247,247,243,0.35);text-transform:uppercase;letter-spacing:1px;">ID</span><br/>
-                    <span style="font-size:12px;color:rgba(247,247,243,0.35);font-family:monospace;">${id}</span>
+                    <span style="font-size:12px;color:rgba(247,247,243,0.35);font-family:monospace;">${escapedId}</span>
                   </td>
                 </tr>
               </table>

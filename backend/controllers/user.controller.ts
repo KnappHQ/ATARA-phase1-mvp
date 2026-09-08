@@ -2,6 +2,12 @@ import { Request, Response, NextFunction } from "express";
 import { userService } from "../services/user.service";
 import { catchAsync } from "../utils/catchAsync";
 import { ErrorHandler } from "../utils/errorHandler";
+import {
+  normalizeDisplayName,
+  normalizeEmail,
+  normalizeHandle,
+  normalizeProfilePicUrl,
+} from "../utils/profileValidation";
 
 export const userController = {
   getMe: catchAsync(async (req: Request, res: Response, next: NextFunction) => {
@@ -20,16 +26,36 @@ export const userController = {
       const userId = req.user.id;
       const { handle, email, profilePicUrl, displayName } = req.body;
 
-      if (!handle && !email && !profilePicUrl && !displayName) {
+      if (
+        handle === undefined &&
+        email === undefined &&
+        profilePicUrl === undefined &&
+        displayName === undefined
+      ) {
         throw new ErrorHandler("No changes provided", 400);
       }
 
-      const updatedUser = await userService.updateProfile(userId, {
-        handle,
-        email,
-        profilePicUrl,
-        displayName,
-      });
+      // Only the fields actually supplied are validated and forwarded, so an
+      // absent key never overwrites a stored value. Every supplied one is
+      // normalized before it reaches the database - these values end up in
+      // handle lookups, in the app's UI, and in the feedback email.
+      const changes: {
+        handle?: string;
+        email?: string;
+        profilePicUrl?: string;
+        displayName?: string;
+      } = {};
+
+      if (handle !== undefined) changes.handle = normalizeHandle(handle);
+      if (email !== undefined) changes.email = normalizeEmail(email);
+      if (profilePicUrl !== undefined) {
+        changes.profilePicUrl = normalizeProfilePicUrl(profilePicUrl);
+      }
+      if (displayName !== undefined) {
+        changes.displayName = normalizeDisplayName(displayName);
+      }
+
+      const updatedUser = await userService.updateProfile(userId, changes);
 
       res.status(200).json({
         success: true,
