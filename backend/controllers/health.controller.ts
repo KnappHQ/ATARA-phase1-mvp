@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from "express";
 import { catchAsync } from "../utils/catchAsync";
 import prisma from "../config/prisma";
-import { NODE_ENV, NETWORK } from "../utils/constants";
+import { NETWORK } from "../utils/constants";
+import { logError } from "../utils/logger";
 
 export const healthController = {
   backendHealth: catchAsync(
@@ -24,9 +25,9 @@ export const healthController = {
           db_status: "connected",
         });
       } catch (error) {
-        if (NODE_ENV !== "production") {
-          console.error("DB Health Error:", error);
-        }
+        // Logged in production too: a database that stops answering is exactly
+        // the event this endpoint exists to surface.
+        logError("db_health_check_failed", error);
 
         return res.status(500).json({
           db_status: "disconnected",

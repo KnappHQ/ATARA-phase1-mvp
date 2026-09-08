@@ -1,5 +1,6 @@
 import prisma from "../config/prisma";
 import { ErrorHandler } from "../utils/errorHandler";
+import { USER_SEARCH_SELECT, buildSearchFilter } from "../utils/userSearch";
 
 class UserService {
   public async getProfile(userId: string) {
@@ -138,30 +139,19 @@ class UserService {
   }
 
   public async searchUsers(query: string) {
-    const cleanQuery = query.replace("@", "").toLowerCase();
+    const where = buildSearchFilter(query);
 
-    const users = await prisma.user.findMany({
-      where: {
-        OR: [
-          { handle: { contains: cleanQuery, mode: "insensitive" } },
-          { displayName: { contains: cleanQuery, mode: "insensitive" } },
-          {
-            smartAccountAddress: { contains: cleanQuery, mode: "insensitive" },
-          },
-        ],
-      },
+    // Too short to be a lookup. Returning nothing beats returning a slice of
+    // the directory.
+    if (!where) {
+      return [];
+    }
+
+    return prisma.user.findMany({
+      where,
       take: 5,
-      select: {
-        id: true,
-        handle: true,
-        displayName: true,
-        profilePicUrl: true,
-        publicAddress: true,
-        smartAccountAddress: true,
-      },
+      select: USER_SEARCH_SELECT,
     });
-
-    return users;
   }
 
   public async getRecentContacts(userId: string, limit: number = 100) {
