@@ -56,6 +56,10 @@ jobs:
 
   build:
     needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [android, ios]
     runs-on: ubuntu-latest
     timeout-minutes: 120
     defaults:
@@ -63,7 +67,7 @@ jobs:
         working-directory: frontend
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      BUILD_PLATFORM: ${{ inputs.platform || 'all' }}
+      BUILD_PLATFORM: ${{ matrix.platform }}
       BUILD_PROFILE: ${{ inputs.profile || 'beta' }}
       SUBMIT_BUILD: ${{ inputs.submit || 'false' }}
     steps:
@@ -73,8 +77,21 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
+      - name: Select requested platform
+        id: selection
+        run: |
+          ENABLED=false
+          if [ -z "${{ inputs.platform }}" ] || [ "${{ inputs.platform }}" = all ] || [ "${{ inputs.platform }}" = "$BUILD_PLATFORM" ]; then
+            ENABLED=true
+          fi
+          if [ "$BUILD_PROFILE" = preview ] && [ "$BUILD_PLATFORM" = ios ]; then
+            ENABLED=false
+          fi
+          echo "enabled=$ENABLED" >> "$GITHUB_OUTPUT"
+      - if: steps.selection.outputs.enabled == 'true'
+        run: npm ci
       - name: Check Expo authentication and requested distribution
+        if: steps.selection.outputs.enabled == 'true'
         run: |
           if [ -z "$EXPO_TOKEN" ]; then
             echo "Configure the EXPO_TOKEN repository secret for tk41s-team. No Expo build was started."
@@ -89,6 +106,7 @@ jobs:
             exit 1
           fi
       - name: Build and wait for signed artifacts
+        if: steps.selection.outputs.enabled == 'true'
         run: |
           ARGS=()
           if [ "$SUBMIT_BUILD" = true ]; then ARGS+=(--auto-submit-with-profile beta); fi
@@ -100,9 +118,9 @@ jobs:
           cp "$RESULTS_FILE" build-results.json
           exit "$BUILD_STATUS"
       - name: Preserve build results
-        if: always()
+        if: always() && steps.selection.outputs.enabled == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: eas-build-results
+          name: eas-build-results-${{ matrix.platform }}
           path: frontend/build-results.json
           if-no-files-found: warn
