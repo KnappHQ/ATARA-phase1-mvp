@@ -3,12 +3,7 @@ import "./utils/config";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import cors, { CorsOptions } from "cors";
-import {
-  CORS_ALLOWED_ORIGINS,
-  JWT_SECRET,
-  NODE_ENV,
-  PORT,
-} from "./utils/constants";
+import { CORS_ALLOWED_ORIGINS, JWT_SECRET, NODE_ENV } from "./utils/constants";
 import rootRouter from "./routers";
 import { errorMiddleware } from "./middleware/error.middleware";
 import { ErrorHandler } from "./utils/errorHandler";
@@ -85,8 +80,7 @@ app.use("/api/v1", rootRouter);
 
 app.use(errorMiddleware);
 
-app.listen(PORT, "0.0.0.0", () => {
-  if (NODE_ENV !== "production") {
-    console.log(`Server running on port ${PORT}`);
-  }
-});
+// Listening is server.ts's job. Keeping it out of here is what lets the test
+// suite import the fully wired app and drive it over HTTP without binding a
+// port.
+export default app;

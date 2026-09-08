@@ -1,13 +1,13 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "main": "dist/app.js",
+  "main": "dist/server.js",
   "license": "MIT",
   "scripts": {
     "build": "tsc && node scripts/copy-public.cjs",
     "test": "node --test tests/*.test.js",
-    "start": "prisma migrate deploy && node dist/app.js",
-    "dev": "nodemon app.ts",
+    "start": "prisma migrate deploy && node dist/server.js",
+    "dev": "nodemon server.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -35,6 +35,7 @@
     "jsdom": "^30.0.1",
     "nodemon": "^3.1.11",
     "prisma": "^7.1.0",
+    "supertest": "^7.2.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }
