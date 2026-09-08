@@ -13,7 +13,7 @@ import rootRouter from "./routers";
 import { errorMiddleware } from "./middleware/error.middleware";
 import { ErrorHandler } from "./utils/errorHandler";
 
-const app: Application = express();
+export const app: Application = express();
 
 app.set("trust proxy", 1);
 
@@ -32,8 +32,11 @@ app.use(helmet());
 
 /** This service's own public origin, when it is deployed behind one. */
 const selfOrigin = () =>
-  (process.env.PUBLIC_PAYMENT_ORIGIN || process.env.RENDER_EXTERNAL_URL || "")
-    .replace(/\/$/, "");
+  (
+    process.env.PUBLIC_PAYMENT_ORIGIN ||
+    process.env.RENDER_EXTERNAL_URL ||
+    ""
+  ).replace(/\/$/, "");
 
 const corsOptions: CorsOptions =
   NODE_ENV === "production"
@@ -85,8 +88,9 @@ app.use("/api/v1", rootRouter);
 
 app.use(errorMiddleware);
 
-app.listen(PORT, "0.0.0.0", () => {
-  if (NODE_ENV !== "production") {
-    console.log(`Server running on port ${PORT}`);
-  }
-});
+if (require.main === module)
+  app.listen(PORT, "0.0.0.0", () => {
+    if (NODE_ENV !== "production") {
+      console.log(`Server running on port ${PORT}`);
+    }
+  });

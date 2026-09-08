@@ -37,5 +37,10 @@
     "prisma": "^7.1.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "@ethersproject/providers": {
+      "ws": "8.21.3"
+    }
   }
 }

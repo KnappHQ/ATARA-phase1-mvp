@@ -90,7 +90,7 @@ export const ContactsList = ({
       debounce(async (query: string) => {
         // A lone @ is an explicit “show my contacts” affordance. Keep this
         // local so suggestions appear immediately and stay alphabetized.
-        if (query.trim() && query.trim() !== "@") {
+        if (query.trim().replace(/^@/, "").length >= 3) {
           await searchContacts(query);
         }
       }, 500),
@@ -107,15 +107,6 @@ export const ContactsList = ({
     }
   }, [searchQuery, debouncedSearch]);
 
-  // Nickname matches from local address book
-  const nicknameResults: Contact[] = searchQuery.trim()
-    ? Object.entries(addressBook)
-        .filter(([, nickname]) =>
-          nickname.toLowerCase().includes(searchQuery.trim().toLowerCase()),
-        )
-        .map(([address, nickname]) => buildAddressContact(address, nickname))
-    : [];
-
   const knownContacts = useMemo(() => {
     const contactsById = new Map<string, Contact>();
     [...favoriteContacts, ...recentContacts].forEach((contact) => {
@@ -130,25 +121,39 @@ export const ContactsList = ({
     return sortContactsAlphabetically(Array.from(contactsById.values()));
   }, [addressBook, favoriteContacts, recentContacts]);
 
+  const normalizedQuery = searchQuery
+    .trim()
+    .replace(/^@/, "")
+    .toLocaleLowerCase();
   const isAllContactsQuery = searchQuery.trim() === "@";
-  const mergedSearchResults: Contact[] = searchQuery.trim()
-    ? [
-        ...nicknameResults,
-        ...searchResults
-          .filter((r) => !nicknameResults.some((n) => n.id === r.id))
-          .map((r) => {
-            const saved = addressBook[r.smartAccountAddress?.toLowerCase()];
-            return saved ? { ...r, name: saved } : r;
-          }),
-      ]
-    : [];
-
-  const displayContacts = isAllContactsQuery
-    ? knownContacts
-    : searchQuery
-      ? sortContactsAlphabetically(mergedSearchResults)
-      : sortContactsAlphabetically(recentContacts);
-  const isLoading = searchQuery ? isLoadingSearch : isLoadingRecents;
+  const localMatches = knownContacts.filter((contact) =>
+    [contact.handle, contact.name || ""].some((label) =>
+      label.replace(/^@/, "").toLocaleLowerCase().includes(normalizedQuery),
+    ),
+  );
+  const matchingRemote =
+    normalizedQuery.length >= 3
+      ? searchResults.filter((contact) =>
+          [
+            contact.handle,
+            contact.name || "",
+            contact.smartAccountAddress,
+          ].some((label) =>
+            label.toLocaleLowerCase().includes(normalizedQuery),
+          ),
+        )
+      : [];
+  const merged = Array.from(
+    new Map(
+      [...matchingRemote, ...localMatches].map((c) => [c.id, c]),
+    ).values(),
+  );
+  const displayContacts = searchQuery.trim()
+    ? sortContactsAlphabetically(merged)
+    : sortContactsAlphabetically(recentContacts);
+  const isLoading = searchQuery.trim()
+    ? normalizedQuery.length >= 3 && isLoadingSearch && !displayContacts.length
+    : isLoadingRecents;
   const hasQuery = searchQuery.trim().length > 0;
   const showResults = displayContacts.length > 0;
 

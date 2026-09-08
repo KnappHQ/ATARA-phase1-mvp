@@ -4,17 +4,23 @@ on:
   workflow_dispatch:
     inputs:
       platform:
-        description: Platform to build and submit
+        description: Platform to build
         required: true
         default: all
         type: choice
-        options:
-          - all
-          - ios
-          - android
+        options: [all, ios, android]
+      profile:
+        description: beta for stores; preview for an installable Android APK
+        required: true
+        default: beta
+        type: choice
+        options: [beta, preview]
+      submit:
+        description: Submit successful beta builds to TestFlight / Google Play internal testing
+        type: boolean
+        default: false
   push:
-    branches:
-      - release/store-beta
+    branches: [release/store-beta]
 
 permissions:
   contents: read
@@ -41,39 +47,25 @@ jobs:
         env:
           DATABASE_URL: postgresql://ci:ci@localhost:5432/atara
         run: npm ci && npm run build && npm test
-      - name: Frontend checks
+      - name: Frontend checks including both native bundles
         working-directory: frontend
-        run: npm ci && npm run lint && npm run typecheck
+        run: npm ci && npm run lint && npm run typecheck && npm run bundle:native && node --test scripts/release-preflight.test.cjs
       - name: Contract checks
         working-directory: contracts
         run: npm ci && npm test && npm run abi:check
-      - name: Release ownership and Vault preflight
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const app = JSON.parse(fs.readFileSync('frontend/app.json', 'utf8'));
-          const eas = JSON.parse(fs.readFileSync('frontend/eas.json', 'utf8'));
-          const owner = app?.expo?.owner;
-          const factory = eas?.build?.beta?.env?.EXPO_PUBLIC_VAULT_FACTORY_ADDRESS;
-          if (!owner || owner === 'karankoder') {
-            console.error('Expo ownership has not been transferred to the ATARA-owned account/organization yet.');
-            process.exit(1);
-          }
-          if (!factory || !/^0x[a-fA-F0-9]{40}$/.test(factory) || /^0x0{40}$/i.test(factory)) {
-            console.error('Vault factory is not deployed/configured for the beta build.');
-            process.exit(1);
-          }
-          console.log(`Release preflight OK: Expo owner=${owner}, Vault factory=${factory}`);
-          NODE
 
-  build-and-submit:
+  build:
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     defaults:
       run:
         working-directory: frontend
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      BUILD_PLATFORM: ${{ inputs.platform || 'all' }}
+      BUILD_PROFILE: ${{ inputs.profile || 'beta' }}
+      SUBMIT_BUILD: ${{ inputs.submit || 'false' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -82,15 +74,29 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
-      - name: Ensure Expo authentication is configured
+      - name: Check Expo authentication and requested distribution
         run: |
           if [ -z "$EXPO_TOKEN" ]; then
-            echo "Missing repository secret EXPO_TOKEN"
+            echo "Configure the EXPO_TOKEN repository secret for tk41s-team. No Expo build was started."
             exit 1
           fi
-      - name: Build and submit iOS beta
-        if: ${{ github.event_name == 'push' || inputs.platform == 'all' || inputs.platform == 'ios' }}
-        run: npx eas-cli@latest build --platform ios --profile beta --auto-submit --non-interactive --no-wait
-      - name: Build and submit Android beta
-        if: ${{ github.event_name == 'push' || inputs.platform == 'all' || inputs.platform == 'android' }}
-        run: npx eas-cli@latest build --platform android --profile beta --auto-submit --non-interactive --no-wait
+          if [ "$BUILD_PROFILE" = preview ] && [ "$BUILD_PLATFORM" != android ]; then
+            echo "Choose android for the preview APK. iOS beta uses TestFlight."
+            exit 1
+          fi
+          if [ "$BUILD_PROFILE" = preview ] && [ "$SUBMIT_BUILD" = true ]; then
+            echo "An internal APK cannot be submitted to stores. Choose beta."
+            exit 1
+          fi
+      - name: Build and wait for signed artifacts
+        run: |
+          ARGS=()
+          if [ "$SUBMIT_BUILD" = true ]; then ARGS+=(--auto-submit-with-profile beta); fi
+          npx eas-cli@latest build --platform "$BUILD_PLATFORM" --profile "$BUILD_PROFILE" --non-interactive --wait --json "${ARGS[@]}" > build-results.json
+      - name: Preserve build results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eas-build-results
+          path: frontend/build-results.json
+          if-no-files-found: warn
