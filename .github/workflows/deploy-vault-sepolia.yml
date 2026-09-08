@@ -52,17 +52,31 @@ jobs:
           NODE
       - name: Deploy immutable Vault factory
         run: npm run deploy:sepolia
-      - name: Verify deployment
+      # Recorded before anything that can fail. Past this point the factory is
+      # live on-chain and paid for; losing its address to a failed later step
+      # would mean deploying a second one to find out where the first went.
+      - name: Record the deployed address
         run: |
           MANIFEST=$(ls -t deployments/*.json | head -n 1)
           FACTORY=$(node -e "console.log(require('./' + process.argv[1]).factory)" "$MANIFEST")
-          VAULT_FACTORY_ADDRESS="$FACTORY" npm run verify:deployment
           echo "VAULT_FACTORY_ADDRESS=$FACTORY" >> "$GITHUB_ENV"
-          echo "### ATARA Vault Base Sepolia" >> "$GITHUB_STEP_SUMMARY"
-          echo "Factory: \`$FACTORY\`" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "### ATARA Vault Base Sepolia"
+            echo "Factory: \`$FACTORY\`"
+            echo ""
+            echo "Next, from a checkout:"
+            echo '```'
+            echo "cd contracts && npm run set:factory -- $FACTORY"
+            echo '```'
+            echo "then open a pull request. Also set \`VAULT_FACTORY_ADDRESS=$FACTORY\` on the backend."
+          } >> "$GITHUB_STEP_SUMMARY"
+      # Always uploaded, so the manifest survives a failed verification.
       - name: Upload deployment manifest
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: atara-vault-base-sepolia
           path: contracts/deployments/*.json
           if-no-files-found: error
+      - name: Verify deployment
+        run: npm run verify:sepolia
