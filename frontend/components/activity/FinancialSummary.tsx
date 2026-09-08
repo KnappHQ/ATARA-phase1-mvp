@@ -32,7 +32,7 @@ export const FinancialSummary = ({
           className="text-sm uppercase tracking-widest font-mono"
           style={{ color: "rgba(255, 255, 255, 0.4)" }}
         >
-          Financial Summary
+          Échanges avec {contactName}
         </Text>
       </View>
 
@@ -43,7 +43,7 @@ export const FinancialSummary = ({
             className="text-sm uppercase tracking-wide"
             style={{ color: "rgba(255, 255, 255, 0.4)" }}
           >
-            Received
+            Reçu
           </Text>
           <Text className="font-mono text-sm" style={{ color: COLORS.accent }}>
             $
@@ -59,7 +59,7 @@ export const FinancialSummary = ({
             className="text-sm uppercase tracking-wide"
             style={{ color: "rgba(255, 255, 255, 0.4)" }}
           >
-            Sent
+            Envoyé
           </Text>
           <Text
             className="font-mono text-sm"
@@ -79,7 +79,6 @@ export const FinancialSummary = ({
         style={{ backgroundColor: "rgba(255, 255, 255, 0.1)" }}
       />
 
-      {/* Net Balance Display - Always show Settled */}
       <View className="flex-row items-center justify-between">
         <View className="flex-1">
           <View className="flex-row items-center gap-2">
@@ -93,7 +92,7 @@ export const FinancialSummary = ({
               className="font-mono text-sm"
               style={{ color: "rgba(255, 255, 255, 0.6)" }}
             >
-              Settled
+              Estimations en USD. Ces transferts ne constituent pas des dettes.
             </Text>
           </View>
         </View>

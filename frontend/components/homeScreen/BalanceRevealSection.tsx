@@ -12,8 +12,8 @@ import Animated, {
   runOnJS,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { AnimatedCounter } from "./AnimatedCounter";
 import { BalanceSkeleton } from "./BalanceSkeleton";
+import { AssetBalanceCarousel } from "./AssetBalanceCarousel";
 import { useWalletStore } from "@/stores/useWalletStore";
 import { useAuthStore } from "@/stores/useAuthStore";
 
@@ -35,7 +35,16 @@ export const BalanceRevealSection = ({
     percentChange24h,
     isLoadingBalances,
     refreshBalances,
+    assets,
   } = useWalletStore();
+
+  const [selectedAssetIndex, setSelectedAssetIndex] = useState(0);
+
+  useEffect(() => {
+    if (selectedAssetIndex >= assets.length) {
+      setSelectedAssetIndex(Math.max(assets.length - 1, 0));
+    }
+  }, [assets.length, selectedAssetIndex]);
 
   const stealthMode = false;
 
@@ -43,7 +52,7 @@ export const BalanceRevealSection = ({
     if (user?.smartAccountAddress) {
       refreshBalances();
     }
-  }, [user]);
+  }, [refreshBalances, user]);
 
   const isInitialLoad = totalUSDValue === 0;
 
@@ -52,6 +61,8 @@ export const BalanceRevealSection = ({
   };
 
   const panGesture = Gesture.Pan()
+    .activeOffsetY([-18, 18])
+    .failOffsetX([-18, 18])
     .onStart(() => {
       startY.value = translateY.value;
     })
@@ -160,15 +171,15 @@ export const BalanceRevealSection = ({
             ) : isInitialLoad && isLoadingBalances ? (
               <BalanceSkeleton />
             ) : isBalanceRevealed ? (
-              <View className="items-center mb-3">
-                <AnimatedCounter
-                  key={totalUSDValue}
-                  value={totalUSDValue}
-                  prefix="$"
-                  decimals={2}
-                  duration={1200}
-                  className="text-5xl font-bold text-white"
+              <View className="items-center mb-3 w-full">
+                <AssetBalanceCarousel
+                  assets={assets}
+                  selectedIndex={selectedAssetIndex}
+                  onSelect={setSelectedAssetIndex}
                 />
+                <Text className="text-xs text-white/35 mt-4">
+                  Total du portefeuille : ${totalUSDValue.toFixed(2)}
+                </Text>
               </View>
             ) : (
               <Text className="text-5xl font-bold text-white mb-3 text-center">

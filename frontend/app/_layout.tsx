@@ -2,28 +2,28 @@ import "node-libs-react-native/globals.js";
 import "react-native-get-random-values";
 import * as Sentry from "@sentry/react-native";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { Stack, useRouter, useSegments, usePathname } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { usePrivy } from "@privy-io/expo";
+import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 
 import { PrivyProvider } from "../providers/PrivyProvider";
-import { useAuthStore } from "@/stores/useAuthStore";
+import { AuthProvider, useAuth } from "@/providers/AuthProvider";
 import { useAlertStore } from "@/stores/useAlertStore";
 import { AppAlert } from "@/components/alert/AppAlert";
+import { VaultOpeningAnimation } from "@/components/onboarding/VaultOpeningAnimation";
 import { analyticsScreen } from "@/services/analytics.service";
-import { registerUnauthorizedHandler } from "@/services/api";
 
 import "./global.css";
 
-// Initialize Sentry as early as possible to capture startup errors.
+const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
+
 Sentry.init({
-  dsn:
-    process.env.EXPO_PUBLIC_SENTRY_DSN ||
-    "https://examplePublicKey@o0.ingest.sentry.io/0",
+  dsn: sentryDsn,
+  enabled: Boolean(sentryDsn),
   sendDefaultPii: false,
 });
 
@@ -40,14 +40,23 @@ const PROTECTED_ROUTES = [
   "contact-detail",
   "group-create",
   "group-details",
+  "add-crypto",
+  "pay-merchant",
+  "security",
+  "vault-create",
+  "vault-detail",
 ];
 
 function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#000000" }}>
-      <PrivyProvider>
-        <RootLayoutInner />
-      </PrivyProvider>
+      <BottomSheetModalProvider>
+        <PrivyProvider>
+          <AuthProvider>
+            <RootLayoutInner />
+          </AuthProvider>
+        </PrivyProvider>
+      </BottomSheetModalProvider>
     </GestureHandlerRootView>
   );
 }
@@ -57,28 +66,17 @@ function RootLayoutInner() {
   const segments = useSegments();
   const pathname = usePathname();
   const { alert, visible, dismiss } = useAlertStore();
-  const { user, isReady: isPrivyReady, logout } = usePrivy();
-
-  const {
-    isAuthenticated,
-    isLoading: isAuthLoading,
-    loadSession,
-  } = useAuthStore();
-
-  const isFullyAuthenticated = isPrivyReady && !!user && isAuthenticated;
-  const isReady = isPrivyReady && !isAuthLoading;
+  const { isReady, isFullyAuthenticated, isAuthTransitioning } = useAuth();
 
   const [navigationReady, setNavigationReady] = useState(false);
-
-  useEffect(() => {
-    registerUnauthorizedHandler(() =>
-      (async () => {
-        await logout();
-        await useAuthStore.getState().logout();
-      })(),
-    );
-    loadSession();
-  }, [loadSession, logout]);
+  const route = segments[0] as string;
+  const isOnAuthFlow = AUTH_ROUTES.includes(route);
+  const isRedirectingToOnboarding =
+    isReady && !isFullyAuthenticated && !isOnAuthFlow;
+  const isRedirectingToTabs =
+    isReady &&
+    isFullyAuthenticated &&
+    (isOnAuthFlow || !PROTECTED_ROUTES.includes(route));
 
   // Manual screen tracking — expo-router + React Navigation v7 blocks autocapture
   useEffect(() => {
@@ -88,24 +86,21 @@ function RootLayoutInner() {
   useEffect(() => {
     if (!isReady) return;
 
-    const route = segments[0] as string;
-    const isOnAuthFlow = AUTH_ROUTES.includes(route);
-
-    if (!isFullyAuthenticated && !isOnAuthFlow) {
+    if (isRedirectingToOnboarding) {
       router.replace("/onboarding");
-    } else if (
-      isFullyAuthenticated &&
-      !PROTECTED_ROUTES.includes(route) &&
-      !isOnAuthFlow
-    ) {
+    } else if (isRedirectingToTabs) {
       router.replace("/(tabs)");
     }
 
     setNavigationReady(true);
     setTimeout(() => SplashScreen.hideAsync(), 50);
-  }, [isReady, isFullyAuthenticated, segments, router]);
+  }, [isReady, isRedirectingToOnboarding, isRedirectingToTabs, router]);
 
-  if (!isReady || !navigationReady) {
+  if (
+    !isReady ||
+    !navigationReady ||
+    (!isAuthTransitioning && (isRedirectingToOnboarding || isRedirectingToTabs))
+  ) {
     return (
       <View
         style={{
@@ -188,6 +183,25 @@ function RootLayoutInner() {
             contentStyle: { backgroundColor: "#000000" },
           }}
         />
+        <Stack.Screen
+          name="add-crypto"
+          options={{
+            presentation: "card",
+            animation: "slide_from_bottom",
+            contentStyle: { backgroundColor: "#000000" },
+          }}
+        />
+        <Stack.Screen
+          name="pay-merchant"
+          options={{
+            presentation: "card",
+            animation: "slide_from_bottom",
+            contentStyle: { backgroundColor: "#000000" },
+          }}
+        />
+        <Stack.Screen name="security" options={{ presentation: "card", animation: "slide_from_bottom" }} />
+        <Stack.Screen name="vault-create" options={{ presentation: "card", animation: "slide_from_bottom" }} />
+        <Stack.Screen name="vault-detail" options={{ presentation: "card", animation: "slide_from_bottom" }} />
       </Stack>
       {alert && (
         <AppAlert
@@ -198,6 +212,7 @@ function RootLayoutInner() {
           onDismiss={dismiss}
         />
       )}
+      {isAuthTransitioning && <VaultOpeningAnimation />}
     </>
   );
 }

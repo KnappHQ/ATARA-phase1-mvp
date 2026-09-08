@@ -1,0 +1,38 @@
+name: Vault Sepolia Deploy
+
+on:
+  push:
+    branches:
+      - release/vault-sepolia-deploy
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    env:
+      BASE_SEPOLIA_RPC_URL: https://sepolia.base.org
+      DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: contracts/package-lock.json
+      - run: npm ci
+      - name: Contract checks
+        run: npm test && npm run abi:check
+      - name: Confirm deployer secret exists
+        run: |
+          if [ -z "$DEPLOYER_PRIVATE_KEY" ]; then
+            echo "MISSING_DEPLOYER_PRIVATE_KEY"
+            exit 1
+          fi
+          echo "DEPLOYER_SECRET_PRESENT"
+      - name: Deploy Vault Factory to Base Sepolia
+        run: npm run deploy:sepolia

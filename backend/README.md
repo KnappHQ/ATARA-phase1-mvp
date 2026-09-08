@@ -1,4 +1,4 @@
-# KNAPP Backend (Phase 1 MVP)
+# ATARA Backend (Phase 1 MVP)
 
 ## Prerequisites
 
@@ -11,7 +11,7 @@
 ### **1. Install Dependencies**
 
 ```bash
-yarn install
+npm ci
 ```
 
 ---
@@ -50,7 +50,7 @@ npx prisma generate
 ### **Development Mode**
 
 ```bash
-yarn dev
+npm run dev
 ```
 
 ---

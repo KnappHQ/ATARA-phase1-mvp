@@ -9,16 +9,14 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "bundleIdentifier": "com.atara.app",
       "buildNumber": "1"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#070609",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#000000",
+        "foregroundImage": "./assets/images/android-icon-foreground.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -40,10 +38,10 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 148,
           "resizeMode": "contain",
-          "backgroundColor": "#070609",
+          "backgroundColor": "#000000",
           "dark": {
             "image": "./assets/images/splash-icon.png",
-            "backgroundColor": "#070609"
+            "backgroundColor": "#000000"
           }
         }
       ],
@@ -56,18 +54,27 @@
         }
       ],
       "expo-localization",
-      "@sentry/react-native/expo",
-      "@sentry/react-native"
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "react-native",
+          "organization": "atara-ltd"
+        }
+      ]
     ],
     "extra": {
       "router": {
         "origin": false
       },
-      "eas": { "projectId": "2f66416a-b2bd-47c1-9afa-2f1e011a1b4a" }
+      "eas": {
+        "projectId": "b454eaa9-f1d5-4d8c-ac09-945ce1f1d09f"
+      }
     },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "owner": "tk41s-team"
   }
 }

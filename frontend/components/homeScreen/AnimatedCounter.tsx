@@ -22,7 +22,6 @@ export const AnimatedCounter = ({
   onComplete,
 }: AnimatedCounterProps) => {
   const [displayValue, setDisplayValue] = useState(0);
-  const [isComplete, setIsComplete] = useState(false);
   const startTimeRef = useRef<number | null>(null);
   const animationRef = useRef<number | null>(null);
 
@@ -44,7 +43,6 @@ export const AnimatedCounter = ({
       if (progress < 1) {
         animationRef.current = requestAnimationFrame(animate);
       } else {
-        setIsComplete(true);
         onComplete?.();
       }
     };

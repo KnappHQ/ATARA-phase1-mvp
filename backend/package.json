@@ -1,26 +1,29 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "main": "dist/app.js",
+  "main": "dist/server.js",
   "license": "MIT",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/app.js",
-    "dev": "nodemon app.ts",
+    "build": "tsc && node scripts/copy-public.cjs",
+    "test": "node --test tests/*.test.js",
+    "start": "prisma migrate deploy && node dist/server.js",
+    "dev": "nodemon server.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.1.0",
     "@prisma/client": "^7.1.0",
-    "axios": "^1.13.2",
+    "@types/qrcode": "^1.5.6",
+    "axios": "^1.20.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "ethers": "^5.8.0",
     "express": "^5.1.0",
-    "express-rate-limit": "^8.2.1",
+    "express-rate-limit": "^8.7.0",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
+    "qrcode": "^1.5.4",
     "resend": "^6.14.0"
   },
   "devDependencies": {
@@ -29,8 +32,10 @@
     "@types/express": "^5.0.5",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.10.1",
+    "jsdom": "^30.0.1",
     "nodemon": "^3.1.11",
     "prisma": "^7.1.0",
+    "supertest": "^7.2.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
   }

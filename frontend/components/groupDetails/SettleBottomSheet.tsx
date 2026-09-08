@@ -1,14 +1,13 @@
-import { useState } from "react";
-import { View, Text, Pressable, Modal, ActivityIndicator } from "react-native";
+import { View, Text, Pressable, Modal } from "react-native";
 import * as Haptics from "expo-haptics";
 import { MotiView } from "moti";
-import { X, ArrowRight, CheckCircle } from "lucide-react-native";
+import { X, ArrowRight } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { COLORS } from "@/utils/constants";
 import { GroupMemberBalance } from "@/stores/useGroupStore";
+import { useState } from "react";
 import { GroupService } from "@/services/group.service";
 import { useAlertStore } from "@/stores/useAlertStore";
-import { analyticsEvents } from "@/services/analytics.service";
 
 interface SettleBottomSheetProps {
   isOpen: boolean;
@@ -16,8 +15,6 @@ interface SettleBottomSheetProps {
   member: GroupMemberBalance | null;
   groupId: string;
   groupName: string;
-  /** Called after a successful manual settle so the screen can refresh */
-  onSettled: () => void;
 }
 
 export const SettleBottomSheet = ({
@@ -26,62 +23,35 @@ export const SettleBottomSheet = ({
   member,
   groupId,
   groupName,
-  onSettled,
 }: SettleBottomSheetProps) => {
   const router = useRouter();
-  const [confirmManual, setConfirmManual] = useState(false);
-  const [isMarkingSettled, setIsMarkingSettled] = useState(false);
 
+  const [busy, setBusy] = useState(false);
   if (!member) return null;
 
-  const amount = Math.abs(member.netBalance).toFixed(2);
+  const amount = (member.owedByMe ?? 0).toFixed(2);
   const memberDisplayName = member.displayName || `@${member.handle}`;
 
   const handleClose = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setConfirmManual(false);
     onClose();
   };
 
-  const handleSendAndSettle = () => {
-    if (!member.smartAccountAddress) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    analyticsEvents.groupSettled({ settleType: "on_chain" });
-    handleClose();
-    router.push({
-      pathname: "/send",
-      params: {
-        contactId: member.userId,
-        contactHandle: member.handle,
-        contactName: member.displayName || member.handle,
-        contactSmartAddress: member.smartAccountAddress,
-        prefilledAmount: amount,
-        prefilledNote: `Settle: ${groupName}`,
-        settlementGroupId: groupId,
-        settlementMemberId: member.userId,
-      },
-    });
-  };
-
-  const handleManualSettle = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setIsMarkingSettled(true);
+  const handleSendAndSettle = async () => {
+    if (!member.smartAccountAddress || busy) return;
+    setBusy(true);
     try {
-      await GroupService.markAsSettledManually(groupId, member.userId);
-      analyticsEvents.groupSettled({ settleType: "manual" });
+      const quote = await GroupService.createSettlementIntent(groupId, member.userId);
       handleClose();
-      onSettled();
-    } catch (err: any) {
-      useAlertStore
-        .getState()
-        .error(
-          "Couldn't mark as settled",
-          err.response?.data?.message || "Please try again.",
-        );
-      handleClose();
-    } finally {
-      setIsMarkingSettled(false);
-    }
+      router.push({ pathname: "/send", params: {
+        contactId: member.userId, contactHandle: member.handle,
+        contactName: member.displayName || member.handle, contactSmartAddress: member.smartAccountAddress,
+        prefilledAmount: String(quote.amount), prefilledAsset: "USDC", prefilledNote: `Remboursement : ${groupName}`,
+        settlementGroupId: groupId, settlementMemberId: member.userId, settlementIntentId: quote.id,
+        settlementExpiresAt: quote.expiresAt,
+      } });
+    } catch (error: any) { useAlertStore.getState().error("Règlement indisponible", error?.response?.data?.message ?? "Réessaie dans un instant."); }
+    finally { setBusy(false); }
   };
 
   return (
@@ -126,7 +96,7 @@ export const SettleBottomSheet = ({
                   <Text className="text-xl font-semibold text-white">
                     Settle Up
                   </Text>
-                  <Text
+              <Text
                     className="text-sm font-mono mt-1"
                     style={{ color: "rgba(255,255,255,0.5)" }}
                   >
@@ -134,8 +104,11 @@ export const SettleBottomSheet = ({
                     <Text style={{ color: "rgba(255,255,255,0.85)" }}>
                       {memberDisplayName}
                     </Text>{" "}
-                    <Text className="text-white font-semibold">${amount}</Text>
-                  </Text>
+                    <Text className="text-white font-semibold">{amount} USDC</Text>
+              </Text>
+              <Text className="text-xs mt-3" style={{ color: "rgba(255,255,255,0.55)" }}>
+                Les parts acceptées seront vérifiées avant le paiement. Les montants dus dans l’autre sens restent affichés séparément.
+              </Text>
                 </View>
                 <Pressable
                   onPress={handleClose}
@@ -149,7 +122,7 @@ export const SettleBottomSheet = ({
               {/* Option 1 — Send & Settle */}
               <Pressable
                 onPress={handleSendAndSettle}
-                disabled={!member.smartAccountAddress}
+                disabled={!member.smartAccountAddress || busy}
                 className="flex-row items-center gap-4 p-4 rounded-2xl mb-3 active:opacity-80"
                 style={{
                   backgroundColor: `${COLORS.accent}15`,
@@ -165,7 +138,7 @@ export const SettleBottomSheet = ({
                   <ArrowRight size={18} color={COLORS.accent} />
                 </View>
                 <View className="flex-1">
-                  <Text
+                <Text
                     className="text-sm font-semibold"
                     style={{ color: COLORS.accent }}
                   >
@@ -175,104 +148,10 @@ export const SettleBottomSheet = ({
                     className="text-xs mt-0.5"
                     style={{ color: "rgba(255,255,255,0.4)" }}
                   >
-                    Pay ${amount} via app · balance clears automatically
+                    Vérifier le montant et confirmer le paiement
                   </Text>
                 </View>
               </Pressable>
-
-              {/* Option 2 — Mark as Settled */}
-              {!confirmManual ? (
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setConfirmManual(true);
-                  }}
-                  className="flex-row items-center gap-4 p-4 rounded-2xl active:opacity-80"
-                  style={{
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    borderWidth: 1,
-                    borderColor: "rgba(255,255,255,0.12)",
-                  }}
-                >
-                  <View
-                    className="w-10 h-10 rounded-full items-center justify-center"
-                    style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
-                  >
-                    <CheckCircle size={18} color="rgba(255,255,255,0.65)" />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-sm font-semibold text-white">
-                      Mark as Settled
-                    </Text>
-                    <Text
-                      className="text-xs mt-0.5"
-                      style={{ color: "rgba(255,255,255,0.4)" }}
-                    >
-                      Paid in cash or outside the app
-                    </Text>
-                  </View>
-                </Pressable>
-              ) : (
-                <MotiView
-                  from={{ opacity: 0, scale: 0.97 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ type: "timing", duration: 200 }}
-                  style={{
-                    padding: 16,
-                    borderRadius: 16,
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    borderWidth: 1,
-                    borderColor: "rgba(255,255,255,0.12)",
-                  }}
-                >
-                  <Text
-                    className="text-sm mb-4"
-                    style={{ color: "rgba(255,255,255,0.75)" }}
-                  >
-                    Confirm you've already paid{" "}
-                    <Text className="text-white font-semibold">
-                      {memberDisplayName}
-                    </Text>{" "}
-                    <Text className="text-white font-semibold">${amount}</Text>{" "}
-                    outside the app?
-                  </Text>
-
-                  <View className="flex-row gap-3">
-                    <Pressable
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        setConfirmManual(false);
-                      }}
-                      className="flex-1 py-3 rounded-xl items-center active:opacity-70"
-                      style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
-                    >
-                      <Text
-                        className="text-sm font-mono"
-                        style={{ color: "rgba(255,255,255,0.55)" }}
-                      >
-                        Cancel
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={handleManualSettle}
-                      disabled={isMarkingSettled}
-                      className="flex-1 py-3 rounded-xl items-center active:opacity-80"
-                      style={{
-                        backgroundColor: "rgba(255,255,255,0.14)",
-                        opacity: isMarkingSettled ? 0.6 : 1,
-                      }}
-                    >
-                      {isMarkingSettled ? (
-                        <ActivityIndicator size="small" color={COLORS.white} />
-                      ) : (
-                        <Text className="text-sm font-mono font-semibold text-white">
-                          Yes, Confirm
-                        </Text>
-                      )}
-                    </Pressable>
-                  </View>
-                </MotiView>
-              )}
             </View>
           </Pressable>
         </MotiView>

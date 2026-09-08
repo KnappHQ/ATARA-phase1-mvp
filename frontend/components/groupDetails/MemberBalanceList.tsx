@@ -1,9 +1,9 @@
-import { View, Text, Pressable } from "react-native";
+import { View, Text, Pressable, Share } from "react-native";
 import * as Haptics from "expo-haptics";
 import { MotiView } from "moti";
 import { Check, Scale } from "lucide-react-native";
 import { COLORS } from "@/utils/constants";
-import { GroupMemberBalance } from "@/stores/useGroupStore";
+import { useGroupStore, type GroupMemberBalance } from "@/stores/useGroupStore";
 import { getInitials } from "@/utils/format";
 
 interface MemberBalanceListProps {
@@ -15,7 +15,8 @@ export const MemberBalanceList = ({
   memberBalances,
   onSettle,
 }: MemberBalanceListProps) => {
-  const allSettled = memberBalances.every((b) => Math.abs(b.netBalance) < 0.01);
+  const unit = useGroupStore(s => s.groupDetail?.assetSymbol ?? "USDC");
+  const allSettled = memberBalances.every((b) => !b.owedByMe && !b.owedToMe);
 
   const displayName = (b: GroupMemberBalance) =>
     b.displayName || `@${b.handle}`;
@@ -57,15 +58,15 @@ export const MemberBalanceList = ({
             className="font-mono text-base"
             style={{ color: `${COLORS.white}99` }}
           >
-            All settled up
+            Aucune part acceptée à rembourser
           </Text>
         </View>
       ) : (
         <View>
           {memberBalances.map((b, i) => {
-            const isSettled = Math.abs(b.netBalance) < 0.01;
-            const owesThem = b.netBalance < 0;
-            const owesMe = b.netBalance > 0;
+            const isSettled = !b.owedByMe && !b.owedToMe;
+            const owesThem = b.owedByMe > 0;
+            const owesMe = b.owedToMe > 0;
 
             return (
               <MotiView
@@ -101,32 +102,15 @@ export const MemberBalanceList = ({
                   >
                     {displayName(b)}
                   </Text>
-                  {isSettled ? (
-                    <Text
-                      className="text-xs font-mono mt-0.5"
-                      style={{ color: `${COLORS.white}40` }}
-                    >
-                      all square
-                    </Text>
-                  ) : owesMe ? (
-                    <Text
-                      className="text-xs font-mono mt-0.5"
-                      style={{ color: COLORS.accent }}
-                    >
-                      owes you ${b.netBalance.toFixed(2)}
-                    </Text>
-                  ) : (
-                    <Text
-                      className="text-xs font-mono mt-0.5"
-                      style={{ color: `${COLORS.white}80` }}
-                    >
-                      you owe ${Math.abs(b.netBalance).toFixed(2)}
-                    </Text>
-                  )}
+                  {isSettled ? <Text className="text-white/40 text-xs">Aucune part acceptée à régler</Text> : <View>
+                    {owesThem && <Text className="text-white/70 text-xs mt-1">Tu dois {b.owedByMe.toFixed(2)} {unit}</Text>}
+                    {owesMe && <Text style={{ color: COLORS.accent }} className="text-xs mt-1">Te doit {b.owedToMe.toFixed(2)} {unit}</Text>}
+                    {owesMe && <Pressable onPress={() => Share.share({ message: `Salut @${b.handle}, rappel pour ta part acceptée de ${b.owedToMe.toFixed(2)} ${unit} dans notre groupe ATARA. Ouvre Groups pour vérifier et régler. Merci !` })}><Text className="text-white/50 text-xs mt-2">Partager un rappel</Text></Pressable>}
+                  </View>}
                 </View>
 
                 {/* Settle button — only when you owe them */}
-                {owesThem && (
+                {owesThem && unit === "USDC" && (
                   <Pressable
                     onPress={() => {
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

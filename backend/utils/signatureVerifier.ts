@@ -1,13 +1,18 @@
 import { ethers } from "ethers";
 import { ErrorHandler } from "./errorHandler";
 
-/**
- * Verify that a message was signed by the claimed address
- * @param message - The message that was signed
- * @param signature - The signature to verify
- * @param claimedAddress - The address that should have signed the message
- * @returns true if signature is valid, false otherwise
- */
+export type AuthPurpose = "login" | "register";
+
+export type ParsedAuthMessage = {
+  domain: string;
+  chainId: number;
+  wallet: string;
+  purpose: AuthPurpose;
+  nonce: string;
+  issuedAt: Date;
+  expiresAt: Date;
+};
+
 export const verifySignature = (
   message: string,
   signature: string,
@@ -16,62 +21,78 @@ export const verifySignature = (
   try {
     const recoveredAddress = ethers.utils.verifyMessage(message, signature);
     return recoveredAddress.toLowerCase() === claimedAddress.toLowerCase();
-  } catch (error) {
+  } catch {
     return false;
   }
 };
 
-/**
- * Extract and validate timestamp from login message
- * Ensures the message is recent (not older than 5 minutes)
- * @param message - The login message
- * @returns timestamp in milliseconds if valid, throws error otherwise
- */
-export const validateMessageTimestamp = (message: string): number => {
-  const timestampMatch = message.match(/Timestamp: (\d+)/);
-
-  if (!timestampMatch || !timestampMatch[1]) {
-    throw new ErrorHandler("Invalid message format - missing timestamp", 400);
+export const parseAuthMessage = (message: string): ParsedAuthMessage => {
+  const lines = message.split("\n");
+  if (lines.length !== 8 || lines[0] !== "ATARA authentication") {
+    throw new ErrorHandler("Invalid authentication message", 401);
   }
 
-  const messageTimestamp = parseInt(timestampMatch[1], 10);
-  const currentTime = Date.now();
-  const fiveMinutesInMs = 5 * 60 * 1000;
+  const read = (prefix: string, line: string) => {
+    if (!line.startsWith(prefix)) {
+      throw new ErrorHandler("Invalid authentication message", 401);
+    }
+    return line.slice(prefix.length);
+  };
 
-  // Check if message is too old
-  if (currentTime - messageTimestamp > fiveMinutesInMs) {
-    throw new ErrorHandler("Login message expired. Please try again.", 401);
+  const domain = read("Domain: ", lines[1]);
+  const chainId = Number(read("Chain: ", lines[2]));
+  const wallet = read("Wallet: ", lines[3]);
+  const purposeText = read("Purpose: ", lines[4]).toLowerCase();
+  const nonce = read("Nonce: ", lines[5]);
+  const issuedAt = new Date(read("Issued At: ", lines[6]));
+  const expiresAt = new Date(read("Expires At: ", lines[7]));
+
+  if (
+    !Number.isInteger(chainId) ||
+    !ethers.utils.isAddress(wallet) ||
+    !["login", "register"].includes(purposeText) ||
+    !/^[a-f0-9]{64}$/.test(nonce) ||
+    Number.isNaN(issuedAt.getTime()) ||
+    Number.isNaN(expiresAt.getTime()) ||
+    expiresAt <= issuedAt
+  ) {
+    throw new ErrorHandler("Invalid authentication message", 401);
   }
 
-  // Check if message is from the future (clock skew tolerance: 1 minute)
-  const oneMinuteInMs = 60 * 1000;
-  if (messageTimestamp - currentTime > oneMinuteInMs) {
-    throw new ErrorHandler("Invalid message timestamp", 400);
-  }
-
-  return messageTimestamp;
+  return {
+    domain,
+    chainId,
+    wallet: wallet.toLowerCase(),
+    purpose: purposeText as AuthPurpose,
+    nonce,
+    issuedAt,
+    expiresAt,
+  };
 };
 
-/**
- * Complete login verification flow
- * @param signerAddress - The wallet address attempting login
- * @param message - The message that should have been signed
- * @param signature - The signature to verify
- * @throws ErrorHandler if verification fails
- */
-export const verifyLoginSignature = (
-  signerAddress: string,
-  message: string,
-  signature: string,
-): void => {
-  // Validate message format and timestamp
-  validateMessageTimestamp(message);
-
-  // Verify signature matches the claimed address
-  if (!signature || !verifySignature(message, signature, signerAddress)) {
-    throw new ErrorHandler(
-      "Invalid signature. Please sign with your wallet.",
-      401,
-    );
+export const assertAuthMessageMatches = (input: {
+  message: string;
+  signerAddress: string;
+  purpose: AuthPurpose;
+  domain: string;
+  chainId: number;
+}) => {
+  const parsed = parseAuthMessage(input.message);
+  let normalizedSigner: string;
+  try {
+    normalizedSigner = ethers.utils.getAddress(input.signerAddress).toLowerCase();
+  } catch {
+    throw new ErrorHandler("Invalid signer address", 400);
   }
+
+  if (
+    parsed.domain !== input.domain ||
+    parsed.chainId !== input.chainId ||
+    parsed.wallet !== normalizedSigner ||
+    parsed.purpose !== input.purpose
+  ) {
+    throw new ErrorHandler("Authentication challenge does not match", 401);
+  }
+
+  return parsed;
 };

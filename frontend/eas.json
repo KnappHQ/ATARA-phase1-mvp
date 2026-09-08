@@ -1,6 +1,8 @@
 {
   "cli": {
-    "version": ">= 0.54.0"
+    "version": ">= 15.0.0",
+    "appVersionSource": "remote",
+    "requireCommit": true
   },
   "build": {
     "development": {
@@ -16,11 +18,46 @@
         "buildType": "apk"
       }
     },
-    "production": {
+    "beta": {
       "distribution": "store",
+      "environment": "production",
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://atara-api-8ne3.onrender.com",
+        "EXPO_PUBLIC_NETWORK": "base-sepolia",
+        "EXPO_PUBLIC_DEMO_MODE": "false",
+        "EXPO_PUBLIC_ENABLE_SMS_BACKUP": "false",
+        "EXPO_PUBLIC_ONRAMP_PROVIDER": "moonpay",
+        "EXPO_PUBLIC_VAULT_RPC_URL": "https://sepolia.base.org",
+        "EXPO_PUBLIC_USDC_ADDRESS_BASE_SEPOLIA": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
+      },
       "android": {
         "buildType": "app-bundle"
       }
+    },
+    "production": {
+      "distribution": "store",
+      "environment": "production",
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      }
+    }
+  },
+  "submit": {
+    "beta": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "completed"
+      },
+      "ios": {}
+    },
+    "production": {
+      "android": {
+        "track": "production",
+        "releaseStatus": "draft"
+      },
+      "ios": {}
     }
   }
 }

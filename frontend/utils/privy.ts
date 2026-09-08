@@ -73,7 +73,7 @@ const generateOwnershipMessage = (
   address: string,
 ): string => {
   const timestamp = Date.now();
-  return `${action} to KNAPP\nWallet: ${address}\nTimestamp: ${timestamp}`;
+  return `${action} to ATARA\nWallet: ${address}\nTimestamp: ${timestamp}`;
 };
 
 /**

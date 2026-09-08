@@ -1,51 +1,11 @@
-import { ethers } from "ethers";
 import prisma from "../config/prisma";
 import { ErrorHandler } from "../utils/errorHandler";
-import { ALCHEMY_URL } from "../utils/constants";
-
-const SETTLE_TOLERANCE = 0.02;
-
-async function verifySettlementTx(data: {
-  txHash: string;
-  assetSymbol: string;
-  amount: number;
-  rawAmountWei: string;
-  tokenPriceUsd: number;
-  requiredUsd: number;
-}) {
-  const normalizedHash = data.txHash.toLowerCase();
-  const alchemyProvider = new ethers.providers.JsonRpcProvider(ALCHEMY_URL);
-  const receipt = await alchemyProvider.getTransactionReceipt(normalizedHash);
-
-  if (!receipt) {
-    throw new ErrorHandler(
-      "Transaction not found on-chain. It may still be pending.",
-      404,
-    );
-  }
-
-  if (receipt.status !== 1) {
-    throw new ErrorHandler("Transaction failed on-chain", 400);
-  }
-
-  if (data.assetSymbol === "ETH") {
-    const calculatedDecimal = ethers.utils.formatEther(data.rawAmountWei);
-    if (Math.abs(parseFloat(calculatedDecimal) - data.amount) > 0.0001) {
-      throw new ErrorHandler(
-        `Decimal amount mismatch. Wei: ${data.rawAmountWei} equals ${calculatedDecimal} ETH, but received ${data.amount}`,
-        400,
-      );
-    }
-  }
-
-  const usdValueSent = data.amount * data.tokenPriceUsd;
-  if (usdValueSent < data.requiredUsd * (1 - SETTLE_TOLERANCE)) {
-    throw new ErrorHandler(
-      `Insufficient settlement. Required $${data.requiredUsd.toFixed(2)} USD but transaction only covers $${usdValueSent.toFixed(2)} USD (${data.amount} ${data.assetSymbol} at $${data.tokenPriceUsd}/${data.assetSymbol}).`,
-      400,
-    );
-  }
-}
+import { ethers } from "ethers";
+import { Prisma } from "@prisma/client";
+import { splitExpense } from "../utils/expenseAmounts";
+import { getKnownTokens, type AppNetwork } from "../utils/tokenConfig";
+import { NETWORK } from "../utils/constants";
+import { verifyTokenPayment } from "./paymentProof.service";
 
 interface MemberBalance {
   userId: string;
@@ -53,6 +13,8 @@ interface MemberBalance {
   displayName: string | null;
   profilePicUrl: string | null;
   smartAccountAddress: string | null;
+  owedByMe: number;
+  owedToMe: number;
   netBalance: number; // positive = they owe me, negative = I owe them
 }
 
@@ -65,19 +27,20 @@ interface GroupSummary {
   updatedAt: Date;
   memberCount: number;
   userNetBalance: number;
+  assetSymbol: string;
 }
 
 class GroupService {
-  private async assertMember(groupId: string, userId: string) {
-    const member = await prisma.groupMember.findUnique({
+  private async assertMember(groupId: string, userId: string, db: Prisma.TransactionClient = prisma) {
+    const member = await db.groupMember.findUnique({
       where: { groupId_userId: { groupId, userId } },
     });
     if (!member)
       throw new ErrorHandler("You are not a member of this group", 403);
   }
 
-  private async assertCreator(groupId: string, userId: string) {
-    const group = await prisma.group.findUnique({
+  private async assertCreator(groupId: string, userId: string, db: Prisma.TransactionClient = prisma) {
+    const group = await db.group.findUnique({
       where: { id: groupId },
       select: { createdById: true },
     });
@@ -90,6 +53,9 @@ class GroupService {
   }
 
   private async resolveHandles(handles: string[]) {
+    if (handles.length > 49 || handles.some(h => typeof h !== "string" || !/^[a-zA-Z0-9_]{1,32}$/.test(h.replace(/^@/, ""))))
+      throw new ErrorHandler("Invalid member handles (maximum 49)", 400);
+    handles = [...new Set(handles.map(h => h.replace(/^@/, "").toLowerCase()))];
     const users = await prisma.user.findMany({
       where: { handle: { in: handles } },
       select: { id: true, handle: true },
@@ -127,6 +93,7 @@ class GroupService {
         name,
         description: description || null,
         createdById: creatorId,
+        assetSymbol: "USDC",
         members: {
           create: [
             { userId: creatorId }, // creator is always a member
@@ -171,7 +138,7 @@ class GroupService {
             expenses: {
               include: {
                 splits: {
-                  where: { settled: false },
+                  where: { settled: false, decision: "ACCEPTED" },
                 },
               },
             },
@@ -202,6 +169,7 @@ class GroupService {
         createdAt: group.createdAt,
         updatedAt: group.updatedAt,
         memberCount: group._count.members,
+        assetSymbol: group.assetSymbol,
         userNetBalance: parseFloat((owedToMe - owedByMe).toFixed(8)),
       };
     });
@@ -265,22 +233,26 @@ class GroupService {
     if (!group) throw new ErrorHandler("Group not found", 404);
 
     const balanceMap: Record<string, number> = {};
+    const owedBy: Record<string, number> = {};
+    const owedTo: Record<string, number> = {};
 
     for (const expense of group.expenses) {
       for (const split of expense.splits) {
-        if (split.settled) continue;
+        if (split.settled || split.decision !== "ACCEPTED") continue;
 
         const paidById = expense.paidById;
         const splitUserId = split.user.id;
         const splitAmount = Number(split.amount);
 
         if (paidById === requestingUserId && splitUserId !== requestingUserId) {
+          owedTo[splitUserId] = (owedTo[splitUserId] ?? 0) + splitAmount;
           balanceMap[splitUserId] =
             (balanceMap[splitUserId] ?? 0) + splitAmount;
         } else if (
           splitUserId === requestingUserId &&
           paidById !== requestingUserId
         ) {
+          owedBy[paidById] = (owedBy[paidById] ?? 0) + splitAmount;
           balanceMap[paidById] = (balanceMap[paidById] ?? 0) - splitAmount;
         }
       }
@@ -294,6 +266,8 @@ class GroupService {
         displayName: m.user.displayName,
         profilePicUrl: m.user.profilePicUrl,
         smartAccountAddress: m.user.smartAccountAddress ?? null,
+        owedByMe: Number((owedBy[m.userId] ?? 0).toFixed(8)),
+        owedToMe: Number((owedTo[m.userId] ?? 0).toFixed(8)),
         netBalance: parseFloat((balanceMap[m.userId] ?? 0).toFixed(8)),
       }));
 
@@ -318,9 +292,13 @@ class GroupService {
   }
 
   public async deleteGroup(groupId: string, requestingUserId: string) {
-    await this.assertCreator(groupId, requestingUserId);
+    return prisma.$transaction(async db => {
+    await this.assertCreator(groupId, requestingUserId, db);
 
-    await prisma.group.delete({ where: { id: groupId } });
+    if (await db.groupExpense.count({ where: { groupId } }))
+      throw new ErrorHandler("A group with expense history cannot be deleted", 409);
+    await db.group.delete({ where: { id: groupId } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
   public async addMembers(
@@ -355,7 +333,8 @@ class GroupService {
     requestingUserId: string,
     targetUserId: string,
   ) {
-    const group = await prisma.group.findUnique({
+    return prisma.$transaction(async db => {
+    const group = await db.group.findUnique({
       where: { id: groupId },
       select: { createdById: true },
     });
@@ -376,8 +355,10 @@ class GroupService {
     }
 
     // Check for unsettled splits for this member
-    const unsettled = await prisma.groupExpenseSplit.count({
-      where: { userId: targetUserId, settled: false, expense: { groupId } },
+    const unsettled = await db.groupExpenseSplit.count({
+      where: { settled: false, expense: { groupId }, OR: [
+        { userId: targetUserId }, { expense: { paidById: targetUserId } },
+      ] },
     });
     if (unsettled > 0) {
       throw new ErrorHandler(
@@ -386,89 +367,57 @@ class GroupService {
       );
     }
 
-    await prisma.groupMember.delete({
+    await db.groupMember.delete({
       where: { groupId_userId: { groupId, userId: targetUserId } },
     });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
   public async addExpense(
-    groupId: string,
-    payerId: string,
-    description: string,
-    amount: number,
-    splitWithUserIds?: string[], // if omitted, splits among all current members
+    groupId: string, payerId: string, description: string, amount: number | string,
+    splitWithUserIds?: string[], customSplits?: { userId: string; amount: unknown }[],
+    clientRequestId?: string,
   ) {
-    const assetSymbol = "USD"; // expenses are always recorded in USD
-    await this.assertMember(groupId, payerId);
-
-    let splitUserIds: string[];
-
-    if (splitWithUserIds && splitWithUserIds.length > 0) {
-      const members = await prisma.groupMember.findMany({
-        where: { groupId, userId: { in: splitWithUserIds } },
-        select: { userId: true },
-      });
-      if (members.length !== splitWithUserIds.length) {
-        throw new ErrorHandler(
-          "One or more specified users are not group members",
-          400,
-        );
-      }
-      const idSet = new Set([payerId, ...splitWithUserIds]);
-      splitUserIds = [...idSet];
-    } else {
-      const allMembers = await prisma.groupMember.findMany({
-        where: { groupId },
-        select: { userId: true },
-      });
-      splitUserIds = allMembers.map((m) => m.userId);
+    return prisma.$transaction(async db => {
+    await this.assertMember(groupId, payerId, db);
+    if (!description.trim() || description.length > 240) throw new ErrorHandler("Description: 1–240 characters", 400);
+    if (!clientRequestId || !/^[a-zA-Z0-9-]{16,64}$/.test(clientRequestId))
+      throw new ErrorHandler("An idempotency key is required; update the app", 400);
+    const members = await db.groupMember.findMany({ where: { groupId }, select: { userId: true } });
+    const ids = splitWithUserIds?.length ? splitWithUserIds : members.map(m => m.userId);
+    if (ids.some(id => !members.some(m => m.userId === id))) throw new ErrorHandler("Unknown group member", 400);
+    const shares = splitExpense(amount, ids, customSplits);
+    const group = await db.group.findUniqueOrThrow({ where: { id: groupId } });
+    const existing = await db.groupExpense.findUnique({ where: {
+      groupId_paidById_clientRequestId: { groupId, paidById: payerId, clientRequestId },
+    }, include: { splits: true } });
+    if (existing) {
+      const same = existing.description === description && existing.amount.equals(String(amount)) &&
+        existing.splits.length === shares.length && shares.every(s => existing.splits.some(e => e.userId === s.userId && e.amount.equals(s.amount)));
+      if (!same) throw new ErrorHandler("This request key already refers to another expense", 409);
+      return existing;
     }
+    return db.groupExpense.create({ data: {
+      groupId, paidById: payerId, description, amount, assetSymbol: group.assetSymbol, clientRequestId,
+      splits: { create: shares.map(s => ({ ...s,
+        settled: s.userId === payerId || Number(s.amount) === 0,
+        settledAt: s.userId === payerId || Number(s.amount) === 0 ? new Date() : null,
+        decision: s.userId === payerId || Number(s.amount) === 0 ? "ACCEPTED" : "PENDING",
+        decidedAt: s.userId === payerId || Number(s.amount) === 0 ? new Date() : null,
+      })) },
+    }, include: { paidBy: { select: { id: true, handle: true, displayName: true } }, splits: true } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
 
-    const perPersonAmount = parseFloat(
-      (amount / splitUserIds.length).toFixed(8),
-    );
-
-    const expense = await prisma.groupExpense.create({
-      data: {
-        groupId,
-        paidById: payerId,
-        description,
-        amount,
-        assetSymbol,
-        splits: {
-          create: splitUserIds.map((uid) => ({
-            userId: uid,
-            amount: perPersonAmount,
-            settled: uid === payerId, // payer's own split auto-settled
-            settledAt: uid === payerId ? new Date() : null,
-          })),
-        },
-      },
-      include: {
-        paidBy: {
-          select: {
-            id: true,
-            handle: true,
-            displayName: true,
-            profilePicUrl: true,
-          },
-        },
-        splits: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                handle: true,
-                displayName: true,
-                profilePicUrl: true,
-              },
-            },
-          },
-        },
-      },
-    });
-
-    return expense;
+  public async decideSplit(expenseId: string, userId: string, decision: string) {
+    if (!["ACCEPTED", "DISPUTED"].includes(decision)) throw new ErrorHandler("Accept or dispute your share", 400);
+    return prisma.$transaction(async db => {
+      const split = await db.groupExpenseSplit.findUnique({ where: { expenseId_userId: { expenseId, userId } } });
+      if (!split || split.settled) throw new ErrorHandler("This share is unavailable or already settled", 409);
+      const locked = await db.settlementIntent.findFirst({ where: { senderId: userId, splitIds: { has: split.id }, settledAt: null, expiresAt: { gt: new Date() } } });
+      if (locked) throw new ErrorHandler("A payment is being reviewed. Wait for its quote to expire before changing this share", 409);
+      return db.groupExpenseSplit.update({ where: { id: split.id }, data: { decision: decision as "ACCEPTED" | "DISPUTED", decidedAt: new Date() } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
   public async getExpenses(groupId: string, requestingUserId: string) {
@@ -503,7 +452,8 @@ class GroupService {
   }
 
   public async deleteExpense(expenseId: string, requestingUserId: string) {
-    const expense = await prisma.groupExpense.findUnique({
+    return prisma.$transaction(async db => {
+    const expense = await db.groupExpense.findUnique({
       where: { id: expenseId },
       include: {
         group: { select: { createdById: true } },
@@ -522,211 +472,89 @@ class GroupService {
       );
     }
 
-    await prisma.groupExpense.delete({ where: { id: expenseId } });
+    const accepted = await db.groupExpenseSplit.count({ where: { expenseId,
+      userId: { not: expense.paidById }, OR: [{ decision: "ACCEPTED" }, { settlementTransactionId: { not: null } }],
+    } });
+    if (accepted) throw new ErrorHandler("An acknowledged or paid expense must remain in the history", 409);
+    await db.groupExpense.delete({ where: { id: expenseId } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
-  public async settleMyShare(
-    expenseId: string,
-    requestingUserId: string,
-    txHash: string,
-    assetSymbol: string,
-    amount: number,
-    rawAmountWei: string,
-    tokenPriceUsd: number,
-  ) {
-    const split = await prisma.groupExpenseSplit.findUnique({
-      where: { expenseId_userId: { expenseId, userId: requestingUserId } },
-      select: { settled: true, amount: true },
-    });
-
-    if (!split) {
-      throw new ErrorHandler("You do not have a split in this expense", 404);
-    }
-
-    if (split.settled) {
-      throw new ErrorHandler("Your share is already settled", 409);
-    }
-
-    await verifySettlementTx({
-      txHash,
-      assetSymbol,
-      amount,
-      rawAmountWei,
-      tokenPriceUsd,
-      requiredUsd: Number(split.amount),
-    });
-
-    return prisma.groupExpenseSplit.update({
-      where: { expenseId_userId: { expenseId, userId: requestingUserId } },
-      data: { settled: true, settledAt: new Date() },
-    });
-  }
-
-  public async getSettleAllAmount(
-    groupId: string,
-    requestingUserId: string,
-    targetUserId: string,
-  ): Promise<number> {
-    await this.assertMember(groupId, requestingUserId);
+  public async getSettleAllAmount(groupId: string, userId: string, targetUserId: string) {
+    await this.assertMember(groupId, userId);
     await this.assertMember(groupId, targetUserId);
-
-    const splits = await prisma.groupExpenseSplit.findMany({
-      where: {
-        userId: requestingUserId,
-        settled: false,
-        expense: { groupId, paidById: targetUserId },
-      },
-      select: { amount: true },
-    });
-
-    return parseFloat(
-      splits
-        .reduce((sum: number, s: { amount: any }) => sum + Number(s.amount), 0)
-        .toFixed(2),
-    );
+    const splits = await prisma.groupExpenseSplit.findMany({ where: { userId, settled: false, decision: "ACCEPTED", expense: { groupId, paidById: targetUserId } } });
+    return splits.reduce((sum, s) => sum.add(s.amount), new Prisma.Decimal(0)).toNumber();
   }
 
-  public async settleAllWithMember(
-    groupId: string,
-    requestingUserId: string,
-    targetUserId: string,
-    txHash: string,
-    assetSymbol: string,
-    amount: number,
-    rawAmountWei: string,
-    tokenPriceUsd: number,
-  ) {
-    await this.assertMember(groupId, requestingUserId);
+  public async createSettlementIntent(groupId: string, userId: string, targetUserId: string) {
+    await this.assertMember(groupId, userId);
     await this.assertMember(groupId, targetUserId);
-
-    const owedSplits = await prisma.groupExpenseSplit.findMany({
-      where: {
-        userId: requestingUserId,
-        settled: false,
-        expense: { groupId, paidById: targetUserId },
-      },
-      select: { amount: true },
-    });
-
-    const totalOwedUsd = parseFloat(
-      owedSplits
-        .reduce((sum: number, s: { amount: any }) => sum + Number(s.amount), 0)
-        .toFixed(2),
-    );
-
-    if (totalOwedUsd === 0) {
-      throw new ErrorHandler(
-        "You have no unsettled balance with this member",
-        409,
-      );
-    }
-
-    await verifySettlementTx({
-      txHash,
-      assetSymbol,
-      amount,
-      rawAmountWei,
-      tokenPriceUsd,
-      requiredUsd: totalOwedUsd,
-    });
-
-    await prisma.groupExpenseSplit.updateMany({
-      where: {
-        userId: requestingUserId,
-        settled: false,
-        expense: { groupId, paidById: targetUserId },
-      },
-      data: { settled: true, settledAt: new Date() },
-    });
-  }
-
-  public async markAsSettledManually(
-    groupId: string,
-    requestingUserId: string,
-    targetUserId: string,
-  ) {
-    await this.assertMember(groupId, requestingUserId);
-    await this.assertMember(groupId, targetUserId);
-
-    if (requestingUserId === targetUserId) {
-      throw new ErrorHandler("Cannot settle with yourself", 400);
-    }
-
-    const owedSplits = await prisma.groupExpenseSplit.findMany({
-      where: {
-        userId: requestingUserId,
-        settled: false,
-        expense: { groupId, paidById: targetUserId },
-      },
-      select: { expenseId: true },
-    });
-
-    if (owedSplits.length === 0) {
-      throw new ErrorHandler(
-        "You have no unsettled balance with this member",
-        409,
-      );
-    }
-
-    await prisma.groupExpenseSplit.updateMany({
-      where: {
-        userId: requestingUserId,
-        settled: false,
-        expense: { groupId, paidById: targetUserId },
-      },
-      data: { settled: true, settledAt: new Date() },
-    });
+    if (userId === targetUserId) throw new ErrorHandler("Cannot settle with yourself", 400);
+    return prisma.$transaction(async db => {
+      const group = await db.group.findUniqueOrThrow({ where: { id: groupId } });
+      if (group.assetSymbol !== "USDC") throw new ErrorHandler("Legacy USD expenses need an agreed conversion. Create a USDC group for direct settlement", 409);
+      const active = await db.settlementIntent.findFirst({ where: { groupId, senderId: userId, receiverId: targetUserId, settledAt: null, expiresAt: { gt: new Date() } } });
+      if (active) return active;
+      const splits = await db.groupExpenseSplit.findMany({ where: { userId, settled: false, decision: "ACCEPTED", expense: { groupId, paidById: targetUserId } } });
+      if (!splits.length) throw new ErrorHandler("No accepted shares to pay", 409);
+      return db.settlementIntent.create({ data: { groupId, senderId: userId, receiverId: targetUserId,
+        splitIds: splits.map(s => s.id), amount: splits.reduce((sum, s) => sum.add(s.amount), new Prisma.Decimal(0)),
+        expiresAt: new Date(Date.now() + 10 * 60_000),
+      } });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
   public async settleAllWithMemberByInternalTx(
-    groupId: string,
-    requestingUserId: string,
-    targetUserId: string,
-    transactionId: string,
+    groupId: string, userId: string, targetUserId: string, transactionId: string, intentId?: string,
   ) {
-    await this.assertMember(groupId, requestingUserId);
-    await this.assertMember(groupId, targetUserId);
+    if (!intentId) throw new ErrorHandler("A reviewed payment quote is required", 400);
+    const [intent, tx, sender, recipient] = await Promise.all([
+      prisma.settlementIntent.findUnique({ where: { id: intentId } }),
+      prisma.transaction.findUnique({ where: { id: transactionId } }),
+      prisma.user.findUnique({ where: { id: userId } }),
+      prisma.user.findUnique({ where: { id: targetUserId } }),
+    ]);
+    if (!intent || intent.senderId !== userId || intent.receiverId !== targetUserId || intent.groupId !== groupId ||
+        !tx || tx.senderId !== userId || !sender?.smartAccountAddress || !recipient?.smartAccountAddress)
+      throw new ErrorHandler("Invalid settlement reference", 403);
+    if (tx.assetSymbol !== "USDC" || tx.status !== "COMPLETED") throw new ErrorHandler("Use a confirmed USDC payment", 400);
+    const token = getKnownTokens(NETWORK as AppNetwork).USDC;
+    const proof = await verifyTokenPayment({ txHash: tx.txHash, token: token.address, sender: sender.smartAccountAddress, recipient: recipient.smartAccountAddress });
+    if (!proof.rawAmount.eq(ethers.utils.parseUnits(intent.amount.toString(), token.decimals))) throw new ErrorHandler("Payment does not match the quoted amount", 400);
+    if (proof.confirmedAt.getTime() < Math.floor(intent.createdAt.getTime() / 1000) * 1000 || proof.confirmedAt > intent.expiresAt)
+      throw new ErrorHandler("Payment is outside this quote's validity period; contact support with the receipt", 409);
+    return prisma.$transaction(async db => {
+      const used = await db.paymentUse.findUnique({ where: { chainId_txHash: { chainId: proof.chainId, txHash: proof.txHash } } });
+      if (used?.referenceId === intentId) return { settled: true }; // Safe retry after a lost response.
+      if (used) throw new ErrorHandler("This payment has already settled another request", 409);
+      const oldUse = await db.groupExpenseSplit.findFirst({ where: { settlementTransactionId: transactionId } });
+      if (oldUse) throw new ErrorHandler("This payment has already been used", 409);
+      const splits = await db.groupExpenseSplit.findMany({ where: { id: { in: intent.splitIds }, userId, settled: false, decision: "ACCEPTED" } });
+      if (splits.length !== intent.splitIds.length) throw new ErrorHandler("The quoted shares changed; contact support with the receipt", 409);
+      await db.paymentUse.create({ data: { chainId: proof.chainId, txHash: proof.txHash, purpose: "GROUP", referenceId: intentId } });
+      const result = await db.groupExpenseSplit.updateMany({ where: { id: { in: intent.splitIds }, settled: false, decision: "ACCEPTED" }, data: { settled: true, settledAt: proof.confirmedAt, settlementTransactionId: transactionId } });
+      if (result.count !== intent.splitIds.length) throw new ErrorHandler("Concurrent settlement; retry", 409);
+      await db.settlementIntent.update({ where: { id: intentId }, data: { settledAt: proof.confirmedAt } });
+      return { settled: true };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
 
-    if (requestingUserId === targetUserId) {
-      throw new ErrorHandler("Cannot settle with yourself", 400);
+  public async contactBalances(userId: string, address: string) {
+    if (!ethers.utils.isAddress(address)) throw new ErrorHandler("Invalid contact address", 400);
+    const contact = await prisma.user.findFirst({ where: { smartAccountAddress: { equals: address, mode: "insensitive" } } });
+    if (!contact || contact.id === userId) return [];
+    const splits = await prisma.groupExpenseSplit.findMany({ where: { settled: false, decision: "ACCEPTED", OR: [
+      { userId, expense: { paidById: contact.id } }, { userId: contact.id, expense: { paidById: userId } },
+    ] }, include: { expense: { select: { paidById: true, assetSymbol: true } } } });
+    const balances: Record<string, { assetSymbol: string; owedByMe: number; owedToMe: number }> = {};
+    for (const s of splits) {
+      const unit = s.expense.assetSymbol;
+      balances[unit] ??= { assetSymbol: unit, owedByMe: 0, owedToMe: 0 };
+      if (s.userId === userId) balances[unit].owedByMe += Number(s.amount);
+      else balances[unit].owedToMe += Number(s.amount);
     }
-
-    // Verify the transaction exists, belongs to the requesting user, and is completed
-    const tx = await prisma.transaction.findUnique({
-      where: { id: transactionId },
-      select: { senderId: true, status: true },
-    });
-
-    if (!tx) throw new ErrorHandler("Transaction not found", 404);
-    if (tx.senderId !== requestingUserId)
-      throw new ErrorHandler("Transaction does not belong to you", 403);
-    if (tx.status !== "COMPLETED")
-      throw new ErrorHandler("Transaction has not been confirmed yet", 400);
-
-    const owedSplits = await prisma.groupExpenseSplit.findMany({
-      where: {
-        userId: requestingUserId,
-        settled: false,
-        expense: { groupId, paidById: targetUserId },
-      },
-      select: { amount: true },
-    });
-
-    if (owedSplits.length === 0) {
-      throw new ErrorHandler(
-        "You have no unsettled balance with this member",
-        409,
-      );
-    }
-
-    await prisma.groupExpenseSplit.updateMany({
-      where: {
-        userId: requestingUserId,
-        settled: false,
-        expense: { groupId, paidById: targetUserId },
-      },
-      data: { settled: true, settledAt: new Date() },
-    });
+    return Object.values(balances).map(b => ({ ...b, owedByMe: Number(b.owedByMe.toFixed(8)), owedToMe: Number(b.owedToMe.toFixed(8)) }));
   }
 }
 

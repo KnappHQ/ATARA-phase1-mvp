@@ -3,12 +3,7 @@ import "./utils/config";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import cors, { CorsOptions } from "cors";
-import {
-  CORS_ALLOWED_ORIGINS,
-  JWT_SECRET,
-  NODE_ENV,
-  PORT,
-} from "./utils/constants";
+import { CORS_ALLOWED_ORIGINS, JWT_SECRET, NODE_ENV } from "./utils/constants";
 import rootRouter from "./routers";
 import { errorMiddleware } from "./middleware/error.middleware";
 import { ErrorHandler } from "./utils/errorHandler";
@@ -30,12 +25,31 @@ validateRequiredEnv();
 
 app.use(helmet());
 
+/** This service's own public origin, when it is deployed behind one. */
+const selfOrigin = () =>
+  (process.env.PUBLIC_PAYMENT_ORIGIN || process.env.RENDER_EXTERNAL_URL || "")
+    .replace(/\/$/, "");
+
 const corsOptions: CorsOptions =
   NODE_ENV === "production"
     ? {
         origin: (origin, callback) => {
-          // Allow requests without an Origin header (mobile apps, curl, server-to-server).
-          if (!origin) return callback(null, true);
+          // No Origin header means the caller is not a browser: the mobile app,
+          // Render's health probe, a server-to-server call. CORS is a browser
+          // control and cannot protect any of those - authentication does.
+          // Refusing them here would only break them.
+          if (!origin) {
+            return callback(null, true);
+          }
+
+          // The public payment page is served by this same service, and a
+          // same-origin POST still carries an Origin header. Without this, that
+          // page's /confirm call is refused whenever CORS_ALLOWED_ORIGINS is
+          // unset - which is how render.yaml deploys the service today.
+          const self = selfOrigin();
+          if (self && origin === self) {
+            return callback(null, true);
+          }
 
           if (CORS_ALLOWED_ORIGINS.includes(origin)) {
             return callback(null, true);
@@ -59,14 +73,14 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-app.use(express.json());
+// Explicit rather than relying on body-parser's implicit 100kb default.
+app.use(express.json({ limit: "100kb" }));
 
 app.use("/api/v1", rootRouter);
 
 app.use(errorMiddleware);
 
-app.listen(PORT, "0.0.0.0", () => {
-  if (NODE_ENV !== "production") {
-    console.log(`Server running on port ${PORT}`);
-  }
-});
+// Listening is server.ts's job. Keeping it out of here is what lets the test
+// suite import the fully wired app and drive it over HTTP without binding a
+// port.
+export default app;

@@ -68,7 +68,7 @@ export function GroupsListTab({
       return (
         <View className="py-16 items-center">
           <Text className="text-white/40 text-center">
-            No groups match "{searchQuery}"
+            {`No groups match “${searchQuery}”`}
           </Text>
           <Text className="text-white/30 text-sm text-center mt-2">
             Try a different name

@@ -9,6 +9,7 @@ export interface GroupSummaryResponse {
   updatedAt: string;
   memberCount: number;
   userNetBalance: number;
+  assetSymbol: string;
 }
 
 export interface SearchUserResult {
@@ -24,6 +25,8 @@ export interface GroupExpenseDetailResponse {
   description: string;
   amount: string;
   paidById: string;
+  assetSymbol: string;
+  splits: { id: string; userId: string; amount: string; decision: "PENDING" | "ACCEPTED" | "DISPUTED"; settled: boolean; user?: { handle: string } }[];
   paidBy: {
     id: string;
     handle: string;
@@ -34,6 +37,7 @@ export interface GroupExpenseDetailResponse {
 }
 
 export interface GroupDetailResponse {
+  assetSymbol: string;
   id: string;
   name: string;
   description: string | null;
@@ -56,10 +60,20 @@ export interface GroupDetailResponse {
     profilePicUrl: string | null;
     smartAccountAddress: string | null;
     netBalance: number;
+    owedByMe: number;
+    owedToMe: number;
   }[];
 }
 
 export const GroupService = {
+  decideSplit: async (expenseId: string, decision: "ACCEPTED" | "DISPUTED") =>
+    api.patch(`/groups/e/${expenseId}/decision`, { decision }),
+  createSettlementIntent: async (groupId: string, memberId: string): Promise<{ id: string; amount: string; expiresAt: string }> => {
+    const response = await api.post(`/groups/${groupId}/settle/${memberId}/quote`);
+    return response.data.intent;
+  },
+  contactBalances: async (address: string): Promise<{ assetSymbol: string; owedByMe: number; owedToMe: number }[]> =>
+    (await api.get(`/groups/contacts/${address}/balances`)).data.balances,
   getMyGroups: async (): Promise<GroupSummaryResponse[]> => {
     const response = await api.get("/groups");
     return response.data.groups;
@@ -90,29 +104,23 @@ export const GroupService = {
     return response.data.group;
   },
 
-  addExpense: async (groupId: string, description: string, amount: number) => {
+  addExpense: async (groupId: string, description: string, amount: number, clientRequestId: string,
+    customSplits?: { userId: string; amount: string }[]) => {
     const response = await api.post(`/groups/${groupId}/expenses`, {
       description,
-      amount,
+      amount, clientRequestId, customSplits,
     });
     return response.data.expense;
-  },
-
-  markAsSettledManually: async (groupId: string, memberId: string) => {
-    const response = await api.post(
-      `/groups/${groupId}/settle/${memberId}/manual`,
-    );
-    return response.data;
   },
 
   settleByInternalTx: async (
     groupId: string,
     memberId: string,
-    transactionId: string,
+    transactionId: string, intentId: string,
   ) => {
     const response = await api.post(
       `/groups/${groupId}/settle/${memberId}/by-tx`,
-      { transactionId },
+      { transactionId, intentId },
     );
     return response.data;
   },

@@ -1,0 +1,38 @@
+name: Expo Environment Bootstrap
+
+on:
+  push:
+    branches:
+      - release/expo-env-bootstrap
+
+permissions:
+  contents: read
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Configure known beta environment values
+        run: |
+          set_var() {
+            npx eas-cli@latest env:create production --name "$1" --value "$2" --visibility plaintext --force --non-interactive
+          }
+          set_var EXPO_PUBLIC_API_URL https://atara-api-8ne3.onrender.com
+          set_var EXPO_PUBLIC_NETWORK base-sepolia
+          set_var EXPO_PUBLIC_DEMO_MODE false
+          set_var EXPO_PUBLIC_ENABLE_SMS_BACKUP false
+          set_var EXPO_PUBLIC_ONRAMP_PROVIDER moonpay
+          set_var EXPO_PUBLIC_VAULT_RPC_URL https://sepolia.base.org
+          set_var EXPO_PUBLIC_USDC_ADDRESS_BASE_SEPOLIA 0x036CbD53842c5426634e7929541eC2318f3dCF7e

@@ -4,6 +4,18 @@ import { ErrorHandler } from "../utils/errorHandler";
 import { groupService } from "../services/group.service";
 
 export const groupController = {
+  decideSplit: catchAsync(async (req, res) => {
+    const split = await groupService.decideSplit(req.params.expenseId, req.user.id, req.body.decision);
+    res.json({ success: true, split });
+  }),
+  createSettlementIntent: catchAsync(async (req, res) => {
+    const intent = await groupService.createSettlementIntent(req.params.groupId, req.user.id, req.params.memberId);
+    res.status(201).json({ success: true, intent });
+  }),
+  contactBalances: catchAsync(async (req, res) => {
+    const balances = await groupService.contactBalances(req.user.id, req.params.address);
+    res.json({ success: true, balances });
+  }),
   createGroup: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
       const userId = req.user.id;
@@ -148,7 +160,7 @@ export const groupController = {
     async (req: Request, res: Response, next: NextFunction) => {
       const userId = req.user.id;
       const { groupId } = req.params;
-      const { description, amount, splitWithUserIds } = req.body;
+      const { description, amount, splitWithUserIds, customSplits, clientRequestId } = req.body;
 
       if (
         !description ||
@@ -177,13 +189,13 @@ export const groupController = {
         groupId,
         userId,
         description.trim(),
-        Number(amount),
-        splitWithUserIds,
+        amount,
+        splitWithUserIds, customSplits, clientRequestId,
       );
 
       res.status(201).json({
         success: true,
-        message: "Expense added and split equally",
+        message: "Expense proposed; each participant must accept their share",
         expense,
       });
     },
@@ -217,61 +229,6 @@ export const groupController = {
     },
   ),
 
-  settleMyShare: catchAsync(
-    async (req: Request, res: Response, next: NextFunction) => {
-      const userId = req.user.id;
-      const { expenseId } = req.params;
-      const { txHash, assetSymbol, amount, rawAmountWei, tokenPriceUsd } =
-        req.body;
-
-      if (!txHash || typeof txHash !== "string") {
-        throw new ErrorHandler("txHash is required", 400);
-      }
-      if (!assetSymbol || typeof assetSymbol !== "string") {
-        throw new ErrorHandler(
-          "assetSymbol is required (e.g. ETH, USDC, USDT)",
-          400,
-        );
-      }
-      if (
-        amount === undefined ||
-        isNaN(Number(amount)) ||
-        Number(amount) <= 0
-      ) {
-        throw new ErrorHandler("A valid positive amount is required", 400);
-      }
-      if (!rawAmountWei || typeof rawAmountWei !== "string") {
-        throw new ErrorHandler("rawAmountWei is required", 400);
-      }
-      if (
-        tokenPriceUsd === undefined ||
-        isNaN(Number(tokenPriceUsd)) ||
-        Number(tokenPriceUsd) <= 0
-      ) {
-        throw new ErrorHandler(
-          "A valid positive tokenPriceUsd is required",
-          400,
-        );
-      }
-
-      const split = await groupService.settleMyShare(
-        expenseId,
-        userId,
-        txHash,
-        assetSymbol.toUpperCase(),
-        Number(amount),
-        rawAmountWei,
-        Number(tokenPriceUsd),
-      );
-
-      res.status(200).json({
-        success: true,
-        message: "Your share has been marked as settled",
-        split,
-      });
-    },
-  ),
-
   getSettleAllAmount: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
       const userId = req.user.id;
@@ -290,75 +247,6 @@ export const groupController = {
     },
   ),
 
-  settleAllWithMember: catchAsync(
-    async (req: Request, res: Response, next: NextFunction) => {
-      const userId = req.user.id;
-      const { groupId, memberId } = req.params;
-      const { txHash, assetSymbol, amount, rawAmountWei, tokenPriceUsd } =
-        req.body;
-
-      if (!txHash || typeof txHash !== "string") {
-        throw new ErrorHandler("txHash is required", 400);
-      }
-      if (!assetSymbol || typeof assetSymbol !== "string") {
-        throw new ErrorHandler(
-          "assetSymbol is required (e.g. ETH, USDC, USDT)",
-          400,
-        );
-      }
-      if (
-        amount === undefined ||
-        isNaN(Number(amount)) ||
-        Number(amount) <= 0
-      ) {
-        throw new ErrorHandler("A valid positive amount is required", 400);
-      }
-      if (!rawAmountWei || typeof rawAmountWei !== "string") {
-        throw new ErrorHandler("rawAmountWei is required", 400);
-      }
-      if (
-        tokenPriceUsd === undefined ||
-        isNaN(Number(tokenPriceUsd)) ||
-        Number(tokenPriceUsd) <= 0
-      ) {
-        throw new ErrorHandler(
-          "A valid positive tokenPriceUsd is required",
-          400,
-        );
-      }
-
-      await groupService.settleAllWithMember(
-        groupId,
-        userId,
-        memberId,
-        txHash,
-        assetSymbol.toUpperCase(),
-        Number(amount),
-        rawAmountWei,
-        Number(tokenPriceUsd),
-      );
-
-      res.status(200).json({
-        success: true,
-        message: "All balances settled with this member",
-      });
-    },
-  ),
-
-  markAsSettledManually: catchAsync(
-    async (req: Request, res: Response, next: NextFunction) => {
-      const userId = req.user.id;
-      const { groupId, memberId } = req.params;
-
-      await groupService.markAsSettledManually(groupId, userId, memberId);
-
-      res.status(200).json({
-        success: true,
-        message: "Balance marked as settled manually",
-      });
-    },
-  ),
-
   settleByInternalTx: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
       const userId = req.user.id;
@@ -373,7 +261,7 @@ export const groupController = {
         groupId,
         userId,
         memberId,
-        transactionId,
+        transactionId, req.body.intentId,
       );
 
       res.status(200).json({

@@ -42,7 +42,7 @@ export const GroupExpenseList = ({
         </View>
       ) : (
         <View className="px-6 pb-24">
-          {[...expenses].reverse().map((expense, index) => (
+          {expenses.map((expense, index) => (
             <GroupExpenseItem
               key={expense.id}
               expense={expense}

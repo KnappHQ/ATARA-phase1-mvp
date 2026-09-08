@@ -18,7 +18,7 @@ export const WeeklyInsights = () => {
     if (assets.length > 0 && rawHistory.length > 0) {
       rebuildDisplayHistory();
     }
-  }, [assets]);
+  }, [assets, rawHistory.length, rebuildDisplayHistory]);
 
   const usdAvailable = useMemo(() => {
     if (!weeklyInsights) return false;

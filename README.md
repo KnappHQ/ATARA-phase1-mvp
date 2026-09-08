@@ -1,16 +1,18 @@
 # ATARA
 
-**ATARA** is a mobile-first crypto payment application built for everyday peer-to-peer transfers and group expense splitting. It runs on Base Sepolia (ERC-4337), uses Alchemy Smart Wallets so users never manage private keys, and authenticates with Google and Apple - no seed phrases, no friction.
+> **Pilote du 7 septembre 2026** : lire [le périmètre livré et la procédure d’activation](docs/PILOT_RELEASE_2026-09-07.md). La simulation web est distincte du backend, des builds mobiles et des contrats à déployer.
+
+**ATARA** is a mobile-first crypto payment application built for everyday peer-to-peer transfers and group expense splitting. It runs on Base Sepolia (ERC-4337), uses Privy embedded wallets with Alchemy smart accounts so users never manage private keys, and authenticates with Google and Apple - no seed phrases, no friction.
 
 ---
 
 ## What It Does
 
 - **Send crypto** to any ATARA user by handle (e.g. `@karan`) - no wallet addresses needed
-- **Group expense splitting** - create groups, log shared expenses, settle directly on-chain with automatic USD value verification
+- **Group expense splitting** - create groups, log shared expenses, accept or dispute each share, then settle an exact USDC amount with a verified on-chain receipt
 - **Contact book** - search and save friends by handle, view threaded conversation history
 - **Transaction history** - full activity feed with categories (drinks, food, shopping, transfer, other), notes, and receipt detail views
-- **Wallet management** - ETH + USDC/USDT balances on Base Sepolia
+- **Wallet management** - ETH + USDC balances on Base Sepolia; other ERC-20 tokens require explicit configuration
 - **Feedback** - in-app feedback submissions delivered via Resend
 
 ---
@@ -42,7 +44,7 @@
 **Auth flow:**
 
 1. User taps "Continue with Google" or "Continue with Apple"
-2. Alchemy SDK handles OAuth → creates / restores an embedded signer (EOA)
+2. Privy handles OAuth → creates / restores an embedded signer (EOA)
 3. Alchemy deploys a ModularAccountV2 smart account (ERC-4337) for the user
 4. Frontend calls `/api/v1/auth/login` (or `/register` for new users) with the signer address
 5. Backend issues a **30-day JWT** - all subsequent API calls use this token
@@ -65,7 +67,7 @@ knapp-phase1-mvp/
 │
 └── frontend/         React Native app
     ├── app/          expo-router screens
-    │   └── (tabs)/   Home, Activity, Profile
+    │   └── (tabs)/   Home, Activity, Vault, Profile
     ├── components/   Reusable UI components
     ├── services/     API client, analytics, smart account
     ├── stores/       Zustand state stores
@@ -102,7 +104,8 @@ knapp-phase1-mvp/
 | NativeWind                | Tailwind CSS for React Native    |
 | Zustand                   | Global state management          |
 | Moti                      | Declarative animations           |
-| @account-kit/react-native | Alchemy Smart Wallets (ERC-4337) |
+| @privy-io/expo           | OAuth + embedded signer wallet   |
+| @alchemy/wallet-apis     | Alchemy Smart Wallets (ERC-4337) |
 | ethers.js                 | EVM utilities                    |
 | viem / wagmi              | EVM types + hooks                |
 | posthog-react-native      | Product analytics                |
@@ -135,9 +138,17 @@ Base URL: `http://localhost:4000/api/v1`
 
 ### Wallet - `/wallet`
 
-| Method | Path        | Description                          |
-| ------ | ----------- | ------------------------------------ |
-| `GET`  | `/balances` | ETH + ERC-20 balances for an address |
+| Method | Path                | Description                                      |
+| ------ | ------------------- | ------------------------------------------------ |
+| `GET`  | `/portfolio`        | ETH + ERC-20 balances for the authenticated user |
+| `POST` | `/onramp-session`   | Create a signed MoonPay URL for the smart account |
+
+### Vaults - `/vaults`
+
+| Method | Path                 | Description                                      |
+| ------ | -------------------- | ------------------------------------------------ |
+| `GET`  | `/`                  | List Vault addresses for the authenticated member |
+| `GET`  | `/:vaultAddress`     | Read a member-only on-chain Vault snapshot        |
 
 ### Users - `/user`
 
@@ -145,6 +156,7 @@ Base URL: `http://localhost:4000/api/v1`
 | ------- | --------- | ---------------------------------------------------------- |
 | `GET`   | `/me`     | Authenticated user's profile                               |
 | `PATCH` | `/me`     | Update profile (handle, email, displayName, profilePicUrl) |
+| `DELETE`| `/me`     | Permanently delete the authenticated app account           |
 | `GET`   | `/search` | Search users by handle                                     |
 
 ### Groups - `/groups`
@@ -155,7 +167,7 @@ Base URL: `http://localhost:4000/api/v1`
 | `GET`    | `/`             | List all groups the user is a member of                   |
 | `GET`    | `/:id`          | Group detail with member balances                         |
 | `POST`   | `/:id/expenses` | Add an expense to a group                                 |
-| `POST`   | `/:id/settle`   | Settle debt via on-chain transaction (USD value verified) |
+| `POST`   | `/:id/settle/:memberId/by-tx` | Settle debt with a verified in-app transaction |
 | `DELETE` | `/:id`          | Delete a group (creator only)                             |
 
 ### Feedback - `/feedback`
@@ -260,6 +272,17 @@ JWT_SECRET=your_jwt_secret_here
 ALCHEMY_API_KEY=your_alchemy_api_key
 ALCHEMY_NETWORK=base-sepolia
 
+# MoonPay (server-only; never put the secret in Expo)
+MOONPAY_API_KEY=pk_test_your_publishable_key
+MOONPAY_SECRET_KEY=sk_test_your_secret_key
+MOONPAY_WIDGET_URL=https://buy-sandbox.moonpay.com/
+MOONPAY_CURRENCY_CODE=usdc_base
+MOONPAY_BASE_CURRENCY_CODE=eur
+
+# Vault reads and deployment activation
+VAULT_FACTORY_ADDRESS=
+VAULT_RPC_URL=https://sepolia.base.org
+
 # Resend (for feedback)
 RESEND_API_KEY=re_your_resend_api_key
 FEEDBACK_FROM_EMAIL=feedback@atara.finance
@@ -291,10 +314,18 @@ Create a `.env` file (Expo reads `EXPO_PUBLIC_` prefixed variables on the client
 ```env
 EXPO_PUBLIC_ALCHEMY_API_KEY=your_alchemy_api_key
 EXPO_PUBLIC_ALCHEMY_POLICY_ID=your_gas_manager_policy_id
-EXPO_PUBLIC_API_BASE_URL=http://your-backend-ip:4000/api/v1
+EXPO_PUBLIC_API_URL=http://your-backend-ip:4000
 EXPO_PUBLIC_POSTHOG_API_KEY=phc_your_posthog_key
 EXPO_PUBLIC_POSTHOG_HOST=https://app.posthog.com
+EXPO_PUBLIC_DEMO_MODE=false
+EXPO_PUBLIC_VAULT_FACTORY_ADDRESS=
+EXPO_PUBLIC_VAULT_RPC_URL=https://sepolia.base.org
 ```
+
+Pour présenter les nouveaux écrans sans clé MoonPay, backend actif ou contrat
+déployé, passe `EXPO_PUBLIC_DEMO_MODE=true`. Le mode simulation affiche un
+solde fictif, un Vault de démonstration et des confirmations locales ; il ne
+appelle ni l’API d’achat ni le portefeuille et n’envoie aucune transaction.
 
 Start the development server:
 
@@ -313,6 +344,22 @@ npm run ios            # Build and run on iOS simulator (macOS only)
 ### Gasless Transactions (ERC-4337)
 
 All transactions are sent as UserOperations through Alchemy's bundler. Gas is sponsored by an Alchemy Gas Manager policy, so users pay zero gas fees. The backend verifies each transaction on-chain by checking `receipt.status === 1` before writing it to the database.
+
+### On-ramp and merchant payments
+
+The beta keeps purchases on Base Sepolia. The authenticated backend creates a
+signed MoonPay widget URL that sends USDC directly to the user's smart account;
+the MoonPay secret stays server-side. The app also offers a merchant payment
+screen that sends USDC to a verified merchant address and resumes an in-flight
+smart-account bundle after an app restart.
+
+### Collective Vault
+
+Vaults are immutable Base Sepolia USDC group savings contracts. Every member
+accepts the terms, deposits before the lock date, and approves the same exact
+withdrawal payload. ATARA has no admin withdrawal path. See
+[`docs/VAULT_PLAN.md`](docs/VAULT_PLAN.md) for the lifecycle and deployment
+gates.
 
 ### Group Expense Splitting
 

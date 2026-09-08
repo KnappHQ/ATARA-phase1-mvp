@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: atara-api
+    runtime: node
+    repo: https://github.com/KnappHQ/ATARA-phase1-mvp
+    branch: codex/atara-vault
+    rootDir: backend
+    buildCommand: npm ci && npx prisma generate && npm run build
+    preDeployCommand: npx prisma migrate deploy
+    startCommand: npm start
+    healthCheckPath: /api/v1/health/backend
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: atara-postgres
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ALCHEMY_NETWORK
+        value: base-sepolia
+      - key: VAULT_RPC_URL
+        value: https://sepolia.base.org
+      - key: BASE_SEPOLIA_USDC_ADDRESS
+        value: 0x036CbD53842c5426634e7929541eC2318f3dCF7e
+      - key: ENABLE_MAINNET_PAYMENT_REQUESTS
+        value: "false"
+      - key: FEEDBACK_FROM_EMAIL
+        value: feedback@atara.finance
+      - key: FEEDBACK_RECIPIENT_EMAIL
+        value: feedback@atara.finance
+      - key: CORS_ALLOWED_ORIGINS
+        value: ""
+      - key: ALCHEMY_API_KEY
+        sync: false
+      - key: MOONPAY_API_KEY
+        sync: false
+      - key: MOONPAY_SECRET_KEY
+        sync: false
+      - key: VAULT_FACTORY_ADDRESS
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+
+databases:
+  - name: atara-postgres
+    databaseName: atara
+    user: atara

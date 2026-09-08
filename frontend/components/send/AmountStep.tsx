@@ -22,7 +22,7 @@ import {
   useTransactionService,
   SendTransactionRequest,
 } from "@/services/transaction.service";
-import { GroupService } from "@/services/group.service";
+import { useAlertStore } from "@/stores/useAlertStore";
 import { analyticsEvents } from "@/services/analytics.service";
 import { COLORS } from "@/utils/constants";
 import {
@@ -39,7 +39,7 @@ interface AmountStepProps {
 }
 
 const QUICK_AMOUNTS = ["25%", "50%", "75%", "MAX"];
-const STANDARD_GAS_DISPLAY = "0.0002";
+const STANDARD_GAS_DISPLAY = "À vérifier dans le portefeuille";
 
 export const AmountStep = ({
   recipient,
@@ -51,7 +51,9 @@ export const AmountStep = ({
   // Settlement metadata — set when navigated from the Settle button
   const settlementGroupId = (params.settlementGroupId as string) || null;
   const settlementMemberId = (params.settlementMemberId as string) || null;
-  // prefilledAmount is always a USD value when coming from the settle flow
+  const settlementIntentId = (params.settlementIntentId as string) || "";
+  const fixedAssetAmount = params.prefilledAsset === "USDC";
+  // Group quotes are denominated in USDC, never silently converted from dollars.
   const settlementUsdAmount = params.prefilledAmount
     ? parseFloat(params.prefilledAmount as string)
     : null;
@@ -82,7 +84,7 @@ export const AmountStep = ({
 
   const [amount, setAmount] = useState(() =>
     settlementUsdAmount !== null && defaultToken
-      ? usdToTokenAmount(settlementUsdAmount, defaultToken)
+      ? fixedAssetAmount ? settlementUsdAmount.toFixed(2) : usdToTokenAmount(settlementUsdAmount, defaultToken)
       : "",
   );
   const [note, setNote] = useState(prefilledNote);
@@ -104,7 +106,7 @@ export const AmountStep = ({
   };
 
   const handleAmountChange = (text: string) => {
-    if (isTransactionInProgress) return;
+    if (isTransactionInProgress || settlementGroupId) return;
 
     const cleanText = text.replace(/[^0-9.]/g, "");
 
@@ -120,18 +122,18 @@ export const AmountStep = ({
     if (user?.smartAccountAddress) {
       refreshBalances();
     }
-  }, [user]);
+  }, [refreshBalances, user]);
 
   useEffect(() => {
     const updatedToken = getAssetBySymbol(selectedToken.symbol);
     if (updatedToken) {
       setSelectedToken(updatedToken);
       // Recompute crypto amount when fresh prices arrive for a settlement prefill
-      if (settlementUsdAmount !== null) {
+      if (settlementUsdAmount !== null && !fixedAssetAmount) {
         setAmount(usdToTokenAmount(settlementUsdAmount, updatedToken));
       }
     }
-  }, [assets]);
+  }, [assets, getAssetBySymbol, selectedToken.symbol, settlementUsdAmount, fixedAssetAmount]);
 
   const currentBalance = parseAmount(selectedToken.balance);
   const amountValue = parseAmount(amount);
@@ -148,7 +150,7 @@ export const AmountStep = ({
   }, [onTransactionStateChange]);
 
   const handleQuickAmount = (percentage: string) => {
-    if (isTransactionInProgress || isLoadingBalances) return;
+    if (isTransactionInProgress || isLoadingBalances || settlementGroupId) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const calculatedAmount = calculatePercentageAmount(
@@ -160,13 +162,13 @@ export const AmountStep = ({
 
   /** When user manually switches token in a settlement flow, convert to new token units */
   const handleTokenSelect = (token: Token) => {
-    if (isTransactionInProgress || isLoadingBalances) return;
+    if (isTransactionInProgress || isLoadingBalances || settlementGroupId) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const asset = getAssetBySymbol(token.symbol);
     if (!asset) return;
     setSelectedToken(asset);
-    if (settlementUsdAmount !== null) {
+    if (settlementUsdAmount !== null && !fixedAssetAmount) {
       setAmount(usdToTokenAmount(settlementUsdAmount, asset));
     }
   };
@@ -181,7 +183,7 @@ export const AmountStep = ({
   const buildTransactionRequest = (
     forceGasPayment = false,
   ): SendTransactionRequest => ({
-    recipientAddress: recipient.smartAccountAddress!!,
+    recipientAddress: recipient.smartAccountAddress,
     recipientHandle: recipient.handle,
     recipientName: recipient.name,
     amount: amountValue.toString(),
@@ -194,20 +196,15 @@ export const AmountStep = ({
         : selectedToken.usdValue,
     note: note || undefined,
     forceGasPayment,
-    onSynced:
-      settlementGroupId && settlementMemberId
-        ? (txId) =>
-            GroupService.settleByInternalTx(
-              settlementGroupId,
-              settlementMemberId,
-              txId,
-            ).catch((err) =>
-              console.warn("Settlement sync failed (non-blocking):", err),
-            )
-        : undefined,
+    settlement: settlementGroupId && settlementMemberId && settlementIntentId
+      ? { groupId: settlementGroupId, memberId: settlementMemberId, intentId: settlementIntentId }
+      : undefined,
   });
 
   const handleSendComplete = () => {
+    if (settlementGroupId && (!settlementIntentId || selectedToken.symbol !== "USDC" || Date.now() >= Date.parse(String(params.settlementExpiresAt)))) {
+      useAlertStore.getState().error("Montant à actualiser", "Retourne au groupe pour vérifier une nouvelle proposition avant de payer."); return;
+    }
     if (!canSend || isTransactionInProgress) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -257,7 +254,7 @@ export const AmountStep = ({
             recipient: recipient.handle,
             amount: amountValue.toString(),
             token: selectedToken.symbol,
-            gasPaidDisplay: "0.00",
+            gasPaidDisplay: "Pris en charge par le sponsor",
           },
         });
       } else {
@@ -265,8 +262,8 @@ export const AmountStep = ({
           ...transactionRequest,
           transactionId: result.transactionId,
         });
-        setCanRetryWithGas(!!result.isPaymasterFailure);
-        setIsGasDialogOpen(!!result.isPaymasterFailure);
+        setCanRetryWithGas(false);
+        setIsGasDialogOpen(false);
         throw new Error(result.error || "Transaction failed");
       }
     } catch (error: any) {
@@ -376,7 +373,7 @@ export const AmountStep = ({
         className="mb-6"
       >
         <Text className="text-sm font-medium uppercase mb-3 text-muted tracking-widest">
-          Select Asset
+          Crypto à envoyer
         </Text>
         {isLoadingBalances ? (
           <View className="flex-row gap-2">
@@ -396,7 +393,7 @@ export const AmountStep = ({
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ gap: 8, paddingBottom: 8 }}
           >
-            {assets.map((token) => (
+            {assets.filter(token => !settlementGroupId || token.symbol === "USDC").map((token) => (
               <Pressable
                 key={token.symbol}
                 onPress={() => handleTokenSelect(token)}
@@ -424,6 +421,17 @@ export const AmountStep = ({
                   }}
                 >
                   {token.symbol}
+                </Text>
+                <Text
+                  className="text-[10px] mt-1"
+                  style={{
+                    color:
+                      selectedToken.symbol === token.symbol
+                        ? "rgba(0,0,0,0.55)"
+                        : "rgba(255,255,255,0.5)",
+                  }}
+                >
+                  {token.balance}
                 </Text>
               </Pressable>
             ))}
@@ -671,7 +679,7 @@ export const AmountStep = ({
                 Continue with gas
               </Text>
               <Text className="text-base font-medium text-white">
-                Estimated fee: ~{STANDARD_GAS_DISPLAY} ETH
+                Frais réseau : {STANDARD_GAS_DISPLAY}
               </Text>
               <Text className="text-xs text-white/50 mt-1">
                 You will approve a self-funded transaction instead of a
@@ -735,7 +743,7 @@ export const AmountStep = ({
 
         <Text className="text-sm text-muted">Network Fee:</Text>
         <View className="px-2.5 py-1 rounded-full bg-emarald/10 border border-emarald/20">
-          <Text className="text-xs font-medium text-emarald">$0.00</Text>
+          <Text className="text-xs font-medium text-emarald">Sponsoring sous réserve de disponibilité</Text>
         </View>
       </MotiView>
 

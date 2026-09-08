@@ -1,7 +1,7 @@
 import { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
-import { Home, User } from "lucide-react-native";
+import { Home, LockKeyhole, User } from "lucide-react-native";
 import { TouchableOpacity, Text, View } from "react-native";
 import { COLORS } from "@/utils/constants";
 import Svg, { Polyline } from "react-native-svg";
@@ -33,6 +33,7 @@ const ActivityIcon = ({
 const tabs = [
   { id: "home", route: "index", icon: Home, label: "Home" },
   { id: "activity", route: "activity", icon: ActivityIcon, label: "Activity" },
+  { id: "vaults", route: "vaults", icon: LockKeyhole, label: "Vault" },
   { id: "profile", route: "profile", icon: User, label: "Profile" },
 ];
 

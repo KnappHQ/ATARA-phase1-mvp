@@ -12,30 +12,70 @@ model User {
   email               String?  @unique
   publicAddress       String   @unique // Privy embedded owner wallet address (EOA)
   smartAccountAddress String?  @unique // Alchemy ERC-4337 smart account on Base
-  authProvider        String?  // google, apple
-  profilePicUrl       String?
-  displayName         String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  authProvider        String? // google, apple
+  profilePicUrl          String?
+  displayName            String?
+  totpSecretEncrypted    String?
+  totpPendingSecret      String?
+  totpPendingCreatedAt   DateTime?
+  totpEnabled            Boolean  @default(false)
+  recoveryPhone          String?
+  recoveryPhoneVerifiedAt DateTime?
+  tokenVersion           Int      @default(0)
+  subscriptionTier       SubscriptionTier   @default(FREE)
+  subscriptionStatus     SubscriptionStatus @default(INACTIVE)
+  subscriptionProvider   String?
+  subscriptionProductId  String?
+  subscriptionExpiresAt  DateTime?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
 
-  sentTx              Transaction[]      @relation("Sender")
-  receivedTx          Transaction[]      @relation("Receiver")
-  createdGroups       Group[]            @relation("CreatedGroups")
-  groupMemberships    GroupMember[]
-  paidExpenses        GroupExpense[]     @relation("PaidExpenses")
-  expenseSplits       GroupExpenseSplit[]
-  feedbacks           Feedback[]
+  sentTx           Transaction[]       @relation("Sender")
+  receivedTx       Transaction[]       @relation("Receiver")
+  createdGroups    Group[]             @relation("CreatedGroups")
+  groupMemberships GroupMember[]
+  paidExpenses     GroupExpense[]      @relation("PaidExpenses")
+  expenseSplits    GroupExpenseSplit[]
+  feedbacks        Feedback[]
+  recoveryCodes    RecoveryCode[]
+}
+
+model AuthChallenge {
+  id         String    @id @default(uuid())
+  nonce      String    @unique
+  address    String
+  purpose    String
+  message    String
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([address, purpose])
+  @@index([expiresAt])
+}
+
+model RecoveryCode {
+  id        String    @id @default(uuid())
+  userId    String
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
 }
 
 model Group {
   id          String   @id @default(uuid())
   name        String
   description String?
+  assetSymbol String   @default("USD") // Existing USD records retain their unit; new groups use USDC.
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  creator  User          @relation("CreatedGroups", fields: [createdById], references: [id])
+  creator  User           @relation("CreatedGroups", fields: [createdById], references: [id])
   members  GroupMember[]
   expenses GroupExpense[]
 }
@@ -59,50 +99,122 @@ model GroupExpense {
   description String
   amount      Decimal  @db.Decimal(24, 8)
   assetSymbol String
+  clientRequestId String?
   createdAt   DateTime @default(now())
 
-  group  Group              @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  paidBy User              @relation("PaidExpenses", fields: [paidById], references: [id])
+  group  Group               @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  paidBy User                @relation("PaidExpenses", fields: [paidById], references: [id])
   splits GroupExpenseSplit[]
+
+  @@unique([groupId, paidById, clientRequestId])
 }
 
 model GroupExpenseSplit {
-  id        String    @id @default(uuid())
-  expenseId String
-  userId    String
-  amount    Decimal   @db.Decimal(24, 8)
-  settled   Boolean   @default(false)
-  settledAt DateTime?
+  id                      String    @id @default(uuid())
+  expenseId               String
+  userId                  String
+  amount                  Decimal   @db.Decimal(24, 8)
+  settled                 Boolean   @default(false)
+  decision                SplitDecision @default(PENDING)
+  decidedAt               DateTime?
+  settledAt               DateTime?
+  settlementTransactionId String?
 
   expense GroupExpense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
   user    User         @relation(fields: [userId], references: [id])
 
   @@unique([expenseId, userId])
+  @@index([settlementTransactionId])
 }
 
 model Transaction {
-  id          String   @id @default(uuid())
-  senderId    String
-  receiverId  String?
+  id              String  @id @default(uuid())
+  senderId        String
+  receiverId      String?
   receiverAddress String
 
-  txHash      String   @unique
-  assetSymbol String
-  amount      Decimal  @db.Decimal(24, 8)
+  txHash       String   @unique
+  assetSymbol  String
+  amount       Decimal  @db.Decimal(24, 8)
   rawAmountWei String?
-  category    String?
-  userNote    String?
-  status      TxStatus @default(PENDING)
-  createdAt   DateTime @default(now())
+  chainId      Int?
+  confirmedAt  DateTime?
+  category     String?
+  userNote     String?
+  status       TxStatus @default(PENDING)
+  createdAt    DateTime @default(now())
 
-  sender      User     @relation("Sender", fields: [senderId], references: [id])
-  receiver    User?     @relation("Receiver", fields: [receiverId], references: [id])
+  sender   User  @relation("Sender", fields: [senderId], references: [id])
+  receiver User? @relation("Receiver", fields: [receiverId], references: [id])
 }
 
 enum TxStatus {
   PENDING
   COMPLETED
   FAILED
+}
+
+enum SplitDecision {
+  PENDING
+  ACCEPTED
+  DISPUTED
+}
+
+enum SubscriptionTier {
+  FREE
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  INACTIVE
+  ACTIVE
+  GRACE_PERIOD
+  PAUSED
+  CANCELED
+  EXPIRED
+}
+
+model SettlementIntent {
+  id           String   @id @default(uuid())
+  groupId      String
+  senderId     String
+  receiverId   String
+  amount       Decimal  @db.Decimal(24, 8)
+  splitIds     String[]
+  createdAt    DateTime @default(now())
+  expiresAt    DateTime
+  settledAt    DateTime?
+
+  @@index([senderId, groupId, expiresAt])
+}
+
+// A chain receipt can discharge only one request or one group intent.
+model PaymentUse {
+  chainId      Int
+  txHash       String
+  purpose      String
+  referenceId  String @unique
+  createdAt    DateTime @default(now())
+
+  @@id([chainId, txHash])
+}
+
+model PaymentRequest {
+  id               String   @id @default(uuid())
+  tokenHash        String   @unique
+  creatorId        String
+  recipientAddress String
+  amount           Decimal  @db.Decimal(24, 8)
+  note             String
+  chainId          Int
+  tokenAddress     String
+  createdAt        DateTime @default(now())
+  expiresAt        DateTime
+  paidAt           DateTime?
+  cancelledAt      DateTime?
+  txHash           String?
+
+  @@index([creatorId, createdAt])
 }
 
 model Feedback {

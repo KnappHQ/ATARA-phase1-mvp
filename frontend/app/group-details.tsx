@@ -1,8 +1,9 @@
-import { View, Text, ScrollView, Pressable, Platform } from "react-native";
+import { View, Text, ScrollView, Pressable, Platform, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { Plus } from "lucide-react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import { retryPendingSettlements } from "@/services/settlementRecovery.service";
 import { COLORS } from "@/utils/constants";
 import { useGroupStore } from "@/stores/useGroupStore";
 import type { GroupMemberBalance } from "@/stores/useGroupStore";
@@ -33,10 +34,11 @@ export default function GroupDetailsScreen() {
     null,
   );
 
+
   useEffect(() => {
     if (id) fetchGroupDetail(id);
     return () => clearDetail();
-  }, [id]);
+  }, [clearDetail, fetchGroupDetail, id]);
 
   return (
     <SafeAreaView className="flex-1 bg-black">
@@ -56,6 +58,12 @@ export default function GroupDetailsScreen() {
             onSettle={(member) => setSettleMember(member)}
           />
         )}
+
+        <View className="mx-6 mb-6 rounded-2xl border border-white/10 p-4">
+          <Text className="text-white text-sm font-semibold">Dépenses partagées · {groupDetail?.assetSymbol ?? "USDC"}</Text>
+          <Pressable className="py-3" onPress={async () => { try { const result = await retryPendingSettlements(); if (id) await fetchGroupDetail(id); Alert.alert("Vérification des reçus", `${result.settled} règlement(s) rapproché(s). ${result.remaining} encore à vérifier. Ne repaie pas un transfert déjà envoyé.`); } catch (error) { Alert.alert("Vérification", error instanceof Error ? error.message : "Réessaie dans quelques instants."); } }}><Text style={{ color: COLORS.accent }}>Vérifier mes paiements en attente</Text></Pressable>
+          <Text className="text-white/50 text-xs leading-5 mt-2">Chaque membre accepte ou conteste sa part. Seules les parts acceptées apparaissent dans les montants à rembourser. Tu confirmes chaque paiement.</Text>
+        </View>
 
         {isLoadingDetail ? (
           <GroupDetailsSkeleton />
@@ -97,14 +105,13 @@ export default function GroupDetailsScreen() {
         member={settleMember}
         groupId={id ?? ""}
         groupName={name ?? ""}
-        onSettled={() => {
-          setSettleMember(null);
-          if (id) fetchGroupDetail(id);
-        }}
       />
 
       <Pressable
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setShowAddExpense(true); }}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          setShowAddExpense(true);
+        }}
         className="absolute bottom-6 right-6 w-14 h-14 rounded-full items-center justify-center active:opacity-80"
         style={[
           { backgroundColor: COLORS.accent },

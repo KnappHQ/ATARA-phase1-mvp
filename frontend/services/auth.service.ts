@@ -1,7 +1,6 @@
 import { useAuthStore } from "../stores/useAuthStore";
 import { api } from "./api";
 import { analyticsEvents } from "./analytics.service";
-import { generateLoginMessage } from "../utils/privy";
 
 interface RegisterParams {
   handle: string;
@@ -13,7 +12,21 @@ interface RegisterParams {
   signature: string;
 }
 
+type AuthPurpose = "login" | "register";
+
 export const AuthService = {
+  requestChallenge: async (signerAddress: string, purpose: AuthPurpose) => {
+    const response = await api.post("/auth/challenge", {
+      signerAddress,
+      purpose,
+    });
+    return response.data as {
+      nonce: string;
+      message: string;
+      expiresAt: string;
+    };
+  },
+
   register: async (params: RegisterParams) => {
     const response = await api.post("/auth/register", params);
 
@@ -28,24 +41,19 @@ export const AuthService = {
     return user;
   },
 
-  /**
-   * Sign a message with the wallet and send to backend for verification
-   * This ensures only the wallet owner can log in
-   */
   loginWithSigner: async (
     signerAddress: string,
     walletSignFunction?: (message: string) => Promise<string>,
   ) => {
-    // Generate a message to sign (includes timestamp for replay protection)
-    const message = generateLoginMessage(signerAddress);
-
-    let signature: string;
     if (!walletSignFunction) {
       throw new Error("Wallet signing is required for login");
     }
 
-    // Use provided sign function (from wallet context)
-    signature = await walletSignFunction(message);
+    const challenge = await AuthService.requestChallenge(
+      signerAddress,
+      "login",
+    );
+    const signature = await walletSignFunction(challenge.message);
 
     if (!signature) {
       throw new Error("Failed to obtain wallet signature for login");
@@ -53,7 +61,7 @@ export const AuthService = {
 
     const response = await api.post("/auth/login", {
       signerAddress,
-      message,
+      message: challenge.message,
       signature,
     });
 
@@ -72,6 +80,11 @@ export const AuthService = {
         error?.response?.data?.message || "Unable to check handle",
       );
     }
+  },
+
+  logoutAll: async () => {
+    await api.post("/auth/logout-all");
+    await useAuthStore.getState().logout();
   },
 
   logout: async () => {

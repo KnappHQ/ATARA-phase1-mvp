@@ -1,5 +1,6 @@
 import prisma from "../config/prisma";
 import { ErrorHandler } from "../utils/errorHandler";
+import { USER_SEARCH_SELECT, buildSearchFilter } from "../utils/userSearch";
 
 class UserService {
   public async getProfile(userId: string) {
@@ -13,6 +14,11 @@ class UserService {
         displayName: true,
         smartAccountAddress: true,
         authProvider: true,
+        subscriptionTier: true,
+        subscriptionStatus: true,
+        subscriptionProvider: true,
+        subscriptionProductId: true,
+        subscriptionExpiresAt: true,
         createdAt: true,
       },
     });
@@ -75,40 +81,80 @@ class UserService {
         displayName: true,
         smartAccountAddress: true,
         authProvider: true,
+        subscriptionTier: true,
+        subscriptionStatus: true,
+        subscriptionProvider: true,
+        subscriptionProductId: true,
+        subscriptionExpiresAt: true,
       },
     });
 
     return updatedUser;
   }
 
-  public async searchUsers(query: string) {
-    const cleanQuery = query.replace("@", "").toLowerCase();
+  public async deleteAccount(userId: string) {
+    await prisma.$transaction(async (tx) => {
+      await tx.feedback.updateMany({
+        where: { userId },
+        data: { userId: null, handle: null },
+      });
 
-    const users = await prisma.user.findMany({
-      where: {
-        OR: [
-          { handle: { contains: cleanQuery, mode: "insensitive" } },
-          { displayName: { contains: cleanQuery, mode: "insensitive" } },
-          {
-            smartAccountAddress: { contains: cleanQuery, mode: "insensitive" },
-          },
-        ],
-      },
-      take: 5,
-      select: {
-        id: true,
-        handle: true,
-        displayName: true,
-        profilePicUrl: true,
-        publicAddress: true,
-        smartAccountAddress: true,
-      },
+      // Remove share/payment-link records that directly identify this account.
+      // Keep PaymentUse rows: their opaque reference IDs are part of the
+      // anti-replay ledger and prevent a previously used chain receipt from
+      // being accepted again after account deletion.
+      const createdGroupIds = (
+        await tx.group.findMany({
+          where: { createdById: userId },
+          select: { id: true },
+        })
+      ).map((group) => group.id);
+
+      await tx.paymentRequest.deleteMany({ where: { creatorId: userId } });
+      await tx.settlementIntent.deleteMany({
+        where: {
+          OR: [
+            { senderId: userId },
+            { receiverId: userId },
+            ...(createdGroupIds.length
+              ? [{ groupId: { in: createdGroupIds } }]
+              : []),
+          ],
+        },
+      });
+
+      await tx.transaction.updateMany({
+        where: { receiverId: userId },
+        data: { receiverId: null },
+      });
+      await tx.transaction.deleteMany({ where: { senderId: userId } });
+
+      await tx.groupExpenseSplit.deleteMany({ where: { userId } });
+      await tx.groupExpense.deleteMany({ where: { paidById: userId } });
+      await tx.group.deleteMany({ where: { createdById: userId } });
+      await tx.groupMember.deleteMany({ where: { userId } });
+
+      await tx.user.delete({ where: { id: userId } });
     });
-
-    return users;
   }
 
-  public async getRecentContacts(userId: string, limit: number = 8) {
+  public async searchUsers(query: string) {
+    const where = buildSearchFilter(query);
+
+    // Too short to be a lookup. Returning nothing beats returning a slice of
+    // the directory.
+    if (!where) {
+      return [];
+    }
+
+    return prisma.user.findMany({
+      where,
+      take: 5,
+      select: USER_SEARCH_SELECT,
+    });
+  }
+
+  public async getRecentContacts(userId: string, limit: number = 100) {
     const recentTx = await prisma.transaction.findMany({
       where: {
         OR: [

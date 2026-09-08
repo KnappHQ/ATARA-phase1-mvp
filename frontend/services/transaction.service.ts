@@ -1,8 +1,11 @@
 import { useTransactionStore } from "../stores/useTransactionStore";
 import { useTransactionHistoryStore } from "../stores/useTransactionHistoryStore";
 import { SmartAccountService } from "./smartAccount.service";
+import { queueSettlement, retryPendingSettlements, type SettlementReference } from "./settlementRecovery.service";
 import { api } from "./api";
+import { useAlertStore } from "../stores/useAlertStore";
 import * as Sentry from "@sentry/react-native";
+import { parseUnits } from "viem";
 
 export interface SendTransactionRequest {
   transactionId?: string;
@@ -17,6 +20,7 @@ export interface SendTransactionRequest {
   note?: string;
   forceGasPayment?: boolean;
   /** Called after the transaction is synced to the backend DB. Safe to call backend endpoints that depend on the transaction record existing. */
+  settlement?: SettlementReference;
   onSynced?: (transactionId: string) => Promise<void> | void;
 }
 
@@ -48,9 +52,10 @@ export class TransactionService {
 
     const decimals =
       request.decimals || (request.tokenSymbol === "ETH" ? 18 : 6);
-    const rawAmountWei = (
-      parseFloat(request.amount) * Math.pow(10, decimals)
-    ).toFixed(0);
+    // Never use floating-point arithmetic for on-chain values. A JS number can
+    // silently round token amounts and make backend verification fail (or sync
+    // a value different from the one shown to the user).
+    const rawAmountWei = parseUnits(request.amount, decimals).toString();
 
     const transactionId =
       request.transactionId ??
@@ -86,6 +91,9 @@ export class TransactionService {
     }
 
     try {
+      const network = await api.get("/health/backend");
+      const expectedChain = process.env.EXPO_PUBLIC_NETWORK === "base-mainnet" ? 8453 : 84532;
+      if (network.data.chainId !== expectedChain) throw new Error("L’app et le service utilisent des réseaux différents. Aucun paiement envoyé.");
       // SmartAccountService.sendTransaction now internally:
       // 1. Sends the UserOperation (gas-sponsored via policy)
       // 2. Waits for it to be bundled into a real transaction
@@ -116,20 +124,24 @@ export class TransactionService {
         updateTransaction(transactionId, { userOpHash: result.userOpHash });
       }
 
+      if (request.settlement) {
+        try {
+          await queueSettlement({ reference: request.settlement, sync: { receiverAddress: request.recipientAddress, txHash: result.hash, amount: request.amount, rawAmountWei, assetSymbol: request.tokenSymbol, userNote: request.note } });
+        } catch { useAlertStore.getState().error("Reçu à conserver", "Le paiement est envoyé. La reprise du rapprochement n’a pas pu être enregistrée sur cet appareil."); }
+      }
       // Sync with backend in background (don't block the UI)
       this.syncTransactionWithBackend(transactionId)
         .then(async (backendTransactionId) => {
           // Auto-refresh history to show new transaction
           useTransactionHistoryStore.getState().fetchHistory();
+          if (request.settlement) await retryPendingSettlements();
           // Notify caller with the backend DB id (not the local UUID)
           // so any follow-up endpoints that look up by id work correctly.
           if (request.onSynced && backendTransactionId) {
             await request.onSynced(backendTransactionId);
           }
         })
-        .catch((err) =>
-          console.error("Backend sync failed (non-blocking):", err),
-        );
+        .catch(() => useAlertStore.getState().error("Paiement envoyé, historique à vérifier", "Conserve le reçu et actualise Activity. Ne paie pas une seconde fois pour corriger un délai de synchronisation."));
 
       return {
         transactionId,
@@ -141,7 +153,7 @@ export class TransactionService {
 
       const isPaymasterFailure = !!error?.isPaymasterFailure;
       const failureMessage = isPaymasterFailure
-        ? "Paymaster error or limit reached. Retry with gas to continue."
+        ? "Sponsoring indisponible ou plafond atteint. Réessaie plus tard."
         : error.message;
 
       markTransactionFailed(transactionId, failureMessage);
@@ -165,36 +177,21 @@ export class TransactionService {
       return null;
     }
 
-    try {
-      const rawAmountWei =
-        transaction.rawAmountWei ||
-        (
-          parseFloat(transaction.amount) *
-          Math.pow(10, transaction.decimals || 18)
-        ).toFixed(0);
-
-      const response = await api.post("/transaction/sync", {
-        receiverAddress: transaction.recipientAddress,
-        txHash: transaction.hash,
-        userOpHash: transaction.userOpHash,
-        amount: parseFloat(transaction.amount),
-        rawAmountWei: rawAmountWei,
-        assetSymbol: transaction.tokenSymbol,
-        category: "transfer",
-        userNote: transaction.note || null,
-      });
-
-      // Return the backend-generated transaction id so callers can reference
-      // the DB record directly (e.g. for settlement linking).
-      return (response.data?.transaction?.id as string) ?? null;
-    } catch (error: any) {
-      // 409 = already synced, not a real error
-      if (error.response?.status !== 409) {
-        console.error("Failed to sync transaction with backend:", error);
-        Sentry.captureException(error);
+    const rawAmountWei = transaction.rawAmountWei || parseUnits(transaction.amount, transaction.decimals || 18).toString();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (attempt) await new Promise(resolve => setTimeout(resolve, 1500 * attempt));
+      try {
+        const response = await api.post("/transaction/sync", {
+          receiverAddress: transaction.recipientAddress, txHash: transaction.hash, userOpHash: transaction.userOpHash,
+          amount: transaction.amount, rawAmountWei, assetSymbol: transaction.tokenSymbol,
+          category: "transfer", userNote: transaction.note || null,
+        });
+        if (response.data?.transaction?.id) return response.data.transaction.id as string;
+      } catch (error: any) {
+        if (![202, 404, 409, 500, 502, 503, 504].includes(error?.response?.status)) throw error;
       }
-      return null;
     }
+    throw new Error("Payment confirmed on chain; backend reconciliation pending");
   }
 }
 

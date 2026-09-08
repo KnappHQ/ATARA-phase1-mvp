@@ -1,7 +1,6 @@
 import { ethers } from "ethers";
 import axios from "axios";
 import prisma from "../config/prisma";
-import type { TxStatus } from "@prisma/client";
 import { ErrorHandler } from "../utils/errorHandler";
 import {
   ALCHEMY_URL,
@@ -10,6 +9,7 @@ import {
   NETWORK,
 } from "../utils/constants";
 import { getKnownTokens, type AppNetwork } from "../utils/tokenConfig";
+import { verifyTokenPayment, paymentChainId } from "./paymentProof.service";
 
 interface AlchemyTransfer {
   blockNum: string;
@@ -58,26 +58,31 @@ class TransactionService {
     senderProfile: any;
     receiverAddress: string;
     txHash: string;
-    amount: number | string;
-    rawAmountWei: string;
     assetSymbol: string;
     category?: string;
     userNote?: string;
   }) {
     const normalizedTxHash = data.txHash.toLowerCase();
     const normalizedReceiverAddress = data.receiverAddress.toLowerCase();
+    const normalizedAsset = data.assetSymbol.toUpperCase();
 
     const existingTx = await prisma.transaction.findUnique({
       where: { txHash: normalizedTxHash },
     });
 
     if (existingTx) {
-      throw new ErrorHandler("Transaction already synced", 409);
+      if (
+        existingTx.senderId === data.senderProfile.id &&
+        existingTx.receiverAddress.toLowerCase() === normalizedReceiverAddress &&
+        existingTx.assetSymbol === normalizedAsset
+      ) {
+        return existingTx;
+      }
+      throw new ErrorHandler("Transaction reference belongs to another transfer", 409);
     }
 
     const alchemyProvider = new ethers.providers.JsonRpcProvider(ALCHEMY_URL);
-    const receipt =
-      await alchemyProvider.getTransactionReceipt(normalizedTxHash);
+    const receipt = await alchemyProvider.getTransactionReceipt(normalizedTxHash);
 
     if (!receipt) {
       throw new ErrorHandler(
@@ -96,81 +101,78 @@ class TransactionService {
       ""
     ).toLowerCase();
 
-    const transfer = await this.findTransferByHash(
-      expectedSender,
-      normalizedTxHash,
-    );
+    if (
+      !ethers.utils.isAddress(expectedSender) ||
+      !ethers.utils.isAddress(normalizedReceiverAddress)
+    ) {
+      throw new ErrorHandler("Invalid sender or receiver", 400);
+    }
 
-    if (data.assetSymbol === "ETH") {
-      if (transfer) {
-        if (transfer.to.toLowerCase() !== normalizedReceiverAddress) {
-          throw new ErrorHandler("ETH transfer target mismatch", 400);
-        }
+    let decimals = 18;
+    let rawAmount: ethers.BigNumber;
+    let confirmedAt: Date;
 
-        const expectedWei = ethers.BigNumber.from(data.rawAmountWei);
-        const actualWei = this.getNativeTransferWei(transfer);
-
-        if (!expectedWei.eq(actualWei)) {
-          throw new ErrorHandler("ETH transfer amount mismatch", 400);
-        }
-      } else {
-        console.warn(
-          `[Alchemy] ETH transfer ${normalizedTxHash} not yet indexed for ${expectedSender}; syncing from receipt only.`,
-        );
-      }
-    } else {
-      if (!transfer) {
+    if (normalizedAsset === "ETH") {
+      const transfers = (await this.fetchAlchemyHistory(expectedSender)).filter(
+        (t) =>
+          t.hash.toLowerCase() === normalizedTxHash &&
+          t.from.toLowerCase() === expectedSender &&
+          t.to?.toLowerCase() === normalizedReceiverAddress &&
+          t.asset === "ETH" &&
+          !t.rawContract.address,
+      );
+      if (transfers.length !== 1) {
         throw new ErrorHandler(
-          "Transaction not yet indexed for sync. Retry in a few moments.",
+          "Waiting for an unambiguous indexed ETH transfer",
           202,
         );
       }
-
-      const tokenConfig =
-        data.assetSymbol === "USDC" || data.assetSymbol === "USDT"
-          ? getKnownTokens(NETWORK as AppNetwork)[data.assetSymbol]
+      rawAmount = this.getNativeTransferWei(transfers[0]);
+      const [network, block] = await Promise.all([
+        alchemyProvider.getNetwork(),
+        alchemyProvider.getBlock(receipt.blockNumber),
+      ]);
+      if (
+        network.chainId !== paymentChainId ||
+        !block ||
+        block.hash !== receipt.blockHash ||
+        receipt.confirmations < 2
+      ) {
+        throw new ErrorHandler("Waiting for network confirmations", 202);
+      }
+      confirmedAt = new Date(block.timestamp * 1000);
+    } else {
+      const token =
+        normalizedAsset === "USDC" || normalizedAsset === "USDT"
+          ? getKnownTokens(NETWORK as AppNetwork)[normalizedAsset]
           : undefined;
-
-      if (!tokenConfig?.address) {
-        throw new ErrorHandler(
-          "Unknown token configuration for this network",
-          400,
-        );
+      if (!token?.address) {
+        throw new ErrorHandler("Unsupported token on this network", 400);
       }
-
-      if (transfer.asset !== data.assetSymbol) {
-        throw new ErrorHandler("Token asset mismatch", 400);
-      }
-
-      if (transfer.to.toLowerCase() !== normalizedReceiverAddress) {
-        throw new ErrorHandler("Token transfer recipient mismatch", 400);
-      }
-
-      const expectedWei = ethers.BigNumber.from(data.rawAmountWei);
-      const actualWei = ethers.BigNumber.from(
-        transfer.rawContract?.value || "0x0",
-      );
-
-      if (!expectedWei.eq(actualWei)) {
-        throw new ErrorHandler("Token transfer amount mismatch", 400);
-      }
+      const proof = await verifyTokenPayment({
+        txHash: normalizedTxHash,
+        token: token.address,
+        sender: expectedSender,
+        recipient: normalizedReceiverAddress,
+      });
+      rawAmount = proof.rawAmount;
+      decimals = token.decimals;
+      confirmedAt = proof.confirmedAt;
     }
 
-    const calculatedDecimal = ethers.utils.formatEther(data.rawAmountWei);
-    if (
-      data.assetSymbol === "ETH" &&
-      Math.abs(
-        parseFloat(calculatedDecimal) - parseFloat(data.amount.toString()),
-      ) > 0.0001
-    ) {
-      throw new ErrorHandler(
-        `Decimal amount mismatch. Wei: ${data.rawAmountWei} equals ${calculatedDecimal} ETH, but received ${data.amount}`,
-        400,
-      );
+    if (rawAmount.lte(0)) {
+      throw new ErrorHandler("Amount must be positive", 400);
     }
+    const rawAmountWei = rawAmount.toString();
+    const calculatedDecimal = ethers.utils.formatUnits(rawAmount, decimals);
 
     const receiver = await prisma.user.findFirst({
-      where: { smartAccountAddress: normalizedReceiverAddress },
+      where: {
+        smartAccountAddress: {
+          equals: normalizedReceiverAddress,
+          mode: "insensitive",
+        },
+      },
     });
 
     const transaction = await prisma.transaction.create({
@@ -179,9 +181,11 @@ class TransactionService {
         receiverId: receiver ? receiver.id : null,
         receiverAddress: normalizedReceiverAddress,
         txHash: normalizedTxHash,
-        assetSymbol: data.assetSymbol,
-        amount: data.amount,
-        rawAmountWei: data.rawAmountWei,
+        assetSymbol: normalizedAsset,
+        amount: calculatedDecimal,
+        chainId: paymentChainId,
+        confirmedAt,
+        rawAmountWei,
         category:
           data.category &&
           (TRANSACTION_CATEGORIES as readonly string[]).includes(data.category)
@@ -250,7 +254,8 @@ class TransactionService {
     const inAppTransactions = dbTransactions.map((tx) => ({
       id: tx.id,
       txHash: tx.txHash,
-      timestamp: tx.createdAt.toISOString(),
+      timestamp: (tx.confirmedAt ?? tx.createdAt).toISOString(),
+      chainId: tx.chainId,
       status: tx.status,
       amount: tx.amount.toString(),
       assetSymbol: tx.assetSymbol,
@@ -332,7 +337,6 @@ class TransactionService {
   public async updateTransaction(
     userId: string,
     transactionId: string,
-    status?: TxStatus,
     category?: string,
     userNote?: string,
   ) {
@@ -351,7 +355,6 @@ class TransactionService {
     return prisma.transaction.update({
       where: { id: transactionId },
       data: {
-        status,
         category,
         userNote,
       },
@@ -367,6 +370,7 @@ class TransactionService {
       withMetadata: true,
       excludeZeroValue: true,
       maxCount: "0x64",
+      order: "desc",
     };
 
     const internalParams = {
@@ -375,6 +379,7 @@ class TransactionService {
       withMetadata: true,
       excludeZeroValue: true,
       maxCount: "0x64",
+      order: "desc",
     };
 
     const makeRequest = (params: Record<string, unknown>) => ({
@@ -460,20 +465,6 @@ class TransactionService {
       console.error("[Alchemy] Fetch Error:", error);
       return [];
     }
-  }
-
-  private async findTransferByHash(
-    address: string,
-    txHash: string,
-  ): Promise<AlchemyTransfer | null> {
-    const history = await this.fetchAlchemyHistory(address);
-    const normalizedTxHash = txHash.toLowerCase();
-
-    return (
-      history.find(
-        (transfer) => transfer.hash.toLowerCase() === normalizedTxHash,
-      ) ?? null
-    );
   }
 
   private getNativeTransferWei(transfer: AlchemyTransfer) {

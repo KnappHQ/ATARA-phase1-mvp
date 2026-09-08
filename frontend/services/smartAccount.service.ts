@@ -9,6 +9,7 @@ import { toAccount } from "viem/accounts";
 import type { LocalAccount } from "viem";
 import * as Sentry from "@sentry/react-native";
 import { useEmbeddedEthereumWallet } from "@privy-io/expo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { base, baseSepolia } from "viem/chains";
 import {
   alchemyWalletTransport,
@@ -20,7 +21,7 @@ import type {
   TransactionSerializable,
 } from "viem";
 
-import { APP_NETWORK } from "@/utils/constants";
+import { APP_NETWORK, CHAIN_ID } from "@/utils/constants";
 import { useAuthStore } from "@/stores/useAuthStore";
 
 // ERC-20 ABI for transfer function
@@ -49,6 +50,12 @@ export interface TransactionResult {
   hash: string; // This is the actual mined transaction hash
   userOpHash?: string;
   success: boolean;
+}
+
+export interface SmartAccountCall {
+  target: `0x${string}`;
+  value?: bigint;
+  data: `0x${string}` | string;
 }
 
 export interface SendTransactionFailure extends Error {
@@ -238,35 +245,57 @@ export class SmartAccountService {
     },
     overrides?: Record<string, unknown>,
   ): Promise<TransactionResult> {
-    const { id } = await this.client.sendCalls({
-      account: this.smartAccountAddress,
-      calls: [
-        {
-          to: uo.target,
-          value: uo.value,
-          data: uo.data,
-        },
-      ],
-      ...(overrides ? { capabilities: overrides } : {}),
-    });
-
-    const status = await this.client.waitForCallsStatus({
-      id,
-    });
-
-    const txHash = status.receipts?.[0]?.transactionHash;
-
-    if (!txHash) {
-      throw new Error("Transaction completed without a receipt hash");
-    }
-
-    return { hash: txHash, success: true };
+    return this.sendCallsAndWait(
+      [{ target: uo.target, value: uo.value, data: uo.data }],
+      overrides,
+    );
   }
 
-  private getGaslessCapabilities(): Record<string, unknown> | undefined {
-    return this.gasPolicyId
-      ? { paymaster: { policyId: this.gasPolicyId } }
-      : undefined;
+  private async sendCallsAndWait(
+    calls: SmartAccountCall[],
+    overrides?: Record<string, unknown>,
+  ): Promise<TransactionResult> {
+    const pendingKey = `atara.pending-call-bundle.${CHAIN_ID}.${this.smartAccountAddress.toLowerCase()}`;
+    const fingerprint = JSON.stringify(calls.map(c => [c.target.toLowerCase(), String(c.value ?? 0n), c.data.toLowerCase()]));
+    const waitForBundle = async (id: string) => {
+      const status = await this.client.waitForCallsStatus({ id, timeout: 120_000, throwOnFailure: false });
+      if (status.status === "failure") throw Object.assign(new Error("Previous operation failed on chain"), { definitiveFailure: true });
+      const txHash = status.receipts?.[0]?.transactionHash;
+      if (!txHash) throw new Error("Receipt not available yet. Keep the pending operation and retry its verification.");
+      return { hash: txHash, success: true } as TransactionResult;
+    };
+    const stored = await AsyncStorage.getItem(pendingKey);
+    if (stored) {
+      let pending: { id: string; fingerprint?: string };
+      try { pending = JSON.parse(stored); } catch { pending = { id: stored }; }
+      let result: TransactionResult | undefined;
+      try { result = await waitForBundle(pending.id); }
+      catch (error: any) {
+        if (!error?.definitiveFailure) throw new Error("An earlier operation is still unverified. No new operation was sent. Retry after checking Activity.");
+        await AsyncStorage.removeItem(pendingKey);
+      }
+      if (result) {
+        await AsyncStorage.removeItem(pendingKey);
+        if (pending.fingerprint !== fingerprint) throw new Error(`Earlier operation confirmed: ${result.hash}. Check Activity before starting a different payment.`);
+        return result;
+      }
+    }
+    const { id } = await this.client.sendCalls({ account: this.smartAccountAddress,
+      calls: calls.map(call => ({ to: call.target, value: call.value ?? 0n, data: call.data })),
+      ...(overrides ? { capabilities: overrides } : {}),
+    });
+    await AsyncStorage.setItem(pendingKey, JSON.stringify({ id, fingerprint }));
+    try {
+      const result = await waitForBundle(id); await AsyncStorage.removeItem(pendingKey); return result;
+    } catch (error: any) {
+      if (error?.definitiveFailure) await AsyncStorage.removeItem(pendingKey);
+      throw error;
+    }
+  }
+
+  private getGaslessCapabilities(): Record<string, unknown> {
+    if (!this.gasPolicyId) throw new Error("Le sponsoring des frais doit être configuré avant les paiements de la bêta.");
+    return { paymaster: { policyId: this.gasPolicyId } };
   }
 
   async sendETHWithGas(
@@ -441,6 +470,22 @@ export class SmartAccountService {
       tokenAddress,
       decimals,
     );
+  }
+
+  /** Execute an ordered smart-account batch, such as approve + deposit. */
+  async sendContractCalls(calls: SmartAccountCall[]): Promise<TransactionResult> {
+    if (!this.client) throw new Error("Smart account client not available");
+    if (calls.length === 0) throw new Error("At least one contract call is required");
+
+    try {
+      return await this.sendCallsAndWait(calls, this.getGaslessCapabilities());
+    } catch (error: any) {
+      Sentry.captureException(error);
+      throw createTransactionError(error?.message || "Contract transaction failed", {
+        cause: error,
+        isPaymasterFailure: isPaymasterFailure(error) || !!error?.isPaymasterFailure,
+      });
+    }
   }
 
   getSmartAccountAddress(): string | undefined {

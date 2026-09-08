@@ -1,3 +1,4 @@
+import { PrivyElements } from "@privy-io/expo/ui";
 import Constants from "expo-constants";
 import { base, baseSepolia } from "viem/chains";
 import { PrivyProvider as ExpoPrivyProvider } from "@privy-io/expo";
@@ -39,6 +40,7 @@ export const PrivyProvider = ({ children }: { children: React.ReactNode }) => {
       config={privyConfig as any}
     >
       {children}
+      <PrivyElements config={{ appearance: { colorScheme: "dark", accentColor: "#dfccb1" }, mfa: { enableMfaVerificationUIs: true }, passkeys: { shouldUnlinkOnUnenrollMfa: false } }} />
     </ExpoPrivyProvider>
   );
 };
