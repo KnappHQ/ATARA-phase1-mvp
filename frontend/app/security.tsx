@@ -4,8 +4,10 @@ import { usePrivy, useLinkSMS } from "@privy-io/expo";
 import { useLinkWithPasskey } from "@privy-io/expo/passkey";
 import { useMfaEnrollmentUI } from "@privy-io/expo/ui";
 import { Pressable, SafeAreaView, ScrollView, Text, TextInput, View } from "react-native";
-import { ArrowLeft, KeyRound, ShieldCheck, Smartphone } from "lucide-react-native";
+import { ArrowLeft, KeyRound, ShieldCheck, Smartphone, WalletCards } from "lucide-react-native";
 import { COLORS } from "@/utils/constants";
+import { useAuthStore } from "@/stores/useAuthStore";
+import { useExternalWallet } from "@/providers/ExternalWalletProvider";
 
 const PASSKEY_RP = process.env.EXPO_PUBLIC_PASSKEY_RP_ID || "";
 const SMS_ENABLED = process.env.EXPO_PUBLIC_ENABLE_SMS_BACKUP === "true";
@@ -15,6 +17,8 @@ const Button = ({ label, onPress, disabled }: { label: string; onPress: () => vo
 export default function SecurityScreen() {
   const router = useRouter();
   const { user } = usePrivy();
+  const profile = useAuthStore((state) => state.user);
+  const externalWallet = useExternalWallet();
   const { linkWithPasskey } = useLinkWithPasskey();
   const { init: manageMfa } = useMfaEnrollmentUI();
   const { sendCode, linkWithCode } = useLinkSMS();
@@ -38,13 +42,25 @@ export default function SecurityScreen() {
     <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
       {!!message && <Text accessibilityRole="alert" className="text-white/70 leading-5 mb-4">{message}</Text>}
       <Card>
+        <WalletCards color={COLORS.accent} /><Text className="text-white text-lg font-semibold mt-3">Signing method</Text>
+        <Text className="text-white/60 leading-5 mt-2">
+          {profile?.authProvider === "external_wallet"
+            ? `External wallet${externalWallet.address ? ` · ${externalWallet.address.slice(0, 6)}…${externalWallet.address.slice(-4)}` : " · reconnect required"}`
+            : "Embedded signer protected by your Privy authentication methods."}
+        </Text>
+        <Text className="text-white/40 text-xs leading-5 mt-3">
+          The ATARA API verifies signatures but does not store a private key capable of signing a payment for you.
+        </Text>
+      </Card>
+      <Card>
         <KeyRound color={COLORS.accent} /><Text className="text-white text-lg font-semibold mt-3">Passkeys · {passkeys.length} associée(s)</Text>
         <Text className="text-white/60 leading-5 mt-2">Associe une passkey à ton compte existant. Elle est vérifiée par le service d’authentification et pourra servir à te reconnecter.</Text>
-        <Button label="Ajouter une passkey" disabled={busy || !PASSKEY_RP} onPress={() => run(async () => {
+        <Button label="Ajouter une passkey" disabled={busy || !PASSKEY_RP || !user} onPress={() => run(async () => {
           const result = await linkWithPasskey({ relyingParty: `https://${PASSKEY_RP}` });
           if (!result?.linked_accounts.some(a => a.type === "passkey")) throw new Error("Association non confirmée. Réessaie.");
         }, "Passkey associée à ton compte.")} />
         {!PASSKEY_RP && <Text className="text-white/40 text-xs mt-3">Activation en attente de la configuration du domaine sécurisé.</Text>}
+        {!!PASSKEY_RP && !user && <Text className="text-white/40 text-xs mt-3">Ton wallet externe est déjà ton moyen de signature. Une passkey intégrée peut être créée dans un compte séparé, pas ajoutée silencieusement à ce wallet.</Text>}
       </Card>
       <Card>
         <ShieldCheck color={COLORS.accent} /><Text className="text-white text-lg font-semibold mt-3">Authentificateur · {hasTotp ? "activé" : "à configurer"}</Text>

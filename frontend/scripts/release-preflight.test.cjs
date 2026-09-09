@@ -37,3 +37,18 @@ test("blocks public production until release evidence is complete", () => {
   );
   assert.ok(failures.some((failure) => failure.includes("mainnet release")));
 });
+
+test("validates optional sovereignty providers when configured", () => {
+  const failures = checkRelease(
+    {
+      ...betaEnv,
+      EXPO_PUBLIC_PASSKEY_RP_ID: "https://atara.finance",
+      EXPO_PUBLIC_REOWN_PROJECT_ID: "not-a-project-id",
+      EXPO_PUBLIC_SOURCE_URL: "http://example.test/source",
+    },
+    "beta",
+  );
+  assert.ok(failures.some((failure) => failure.includes("PASSKEY_RP_ID")));
+  assert.ok(failures.some((failure) => failure.includes("REOWN_PROJECT_ID")));
+  assert.ok(failures.some((failure) => failure.includes("SOURCE_URL")));
+});

@@ -130,3 +130,17 @@ test("an unknown route does not leak a stack trace", async () => {
   assert.equal(response.status, 404);
   assert.equal("stack" in response.body, false);
 });
+
+test("registration refuses an invented authentication-provider label", async () => {
+  const response = await request(app).post("/api/v1/auth/register").send({
+    handle: "alice",
+    signerAddress: "0x1111111111111111111111111111111111111111",
+    smartAccountAddress: "0x2222222222222222222222222222222222222222",
+    message: "not-used-because-provider-validation-runs-first",
+    signature: "0xdeadbeef",
+    authProvider: "trusted-because-client-said-so",
+  });
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.message, "Unsupported authentication provider");
+});

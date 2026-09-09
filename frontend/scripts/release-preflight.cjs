@@ -29,6 +29,24 @@ function checkRelease(env, profile) {
   }
   if (env.EXPO_PUBLIC_DEMO_MODE !== "false")
     failures.push("Distributed builds require EXPO_PUBLIC_DEMO_MODE=false.");
+  if (
+    env.EXPO_PUBLIC_PASSKEY_RP_ID &&
+    !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(env.EXPO_PUBLIC_PASSKEY_RP_ID)
+  )
+    failures.push("EXPO_PUBLIC_PASSKEY_RP_ID must be a hostname without https://.");
+  if (
+    env.EXPO_PUBLIC_REOWN_PROJECT_ID &&
+    !/^[a-f0-9]{32}$/i.test(env.EXPO_PUBLIC_REOWN_PROJECT_ID)
+  )
+    failures.push("EXPO_PUBLIC_REOWN_PROJECT_ID must be a 32-character Reown project id.");
+  if (env.EXPO_PUBLIC_SOURCE_URL) {
+    try {
+      const sourceUrl = new URL(env.EXPO_PUBLIC_SOURCE_URL);
+      if (sourceUrl.protocol !== "https:") throw Error();
+    } catch {
+      failures.push("EXPO_PUBLIC_SOURCE_URL must be a public HTTPS URL.");
+    }
+  }
   const expected = profile === "production" ? "base-mainnet" : "base-sepolia";
   if (env.EXPO_PUBLIC_NETWORK !== expected)
     failures.push(`${profile} requires ${expected}.`);
