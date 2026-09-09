@@ -63,7 +63,30 @@ jobs:
             console.error('Vault factory is not deployed/configured for the beta build.');
             process.exit(1);
           }
-          console.log(`Release preflight OK: Expo owner=${owner}, Vault factory=${factory}`);
+          // A beta pointing at nothing is exactly what must not reach
+          // TestFlight: the app appends /api/v1 to this value, so it has to be
+          // a bare https origin.
+          const apiUrl = eas?.build?.beta?.env?.EXPO_PUBLIC_API_URL;
+          if (!apiUrl) {
+            console.error('EXPO_PUBLIC_API_URL is not set on the beta build profile.');
+            process.exit(1);
+          }
+          let api;
+          try {
+            api = new URL(apiUrl);
+          } catch {
+            console.error(`EXPO_PUBLIC_API_URL is not a URL: ${apiUrl}`);
+            process.exit(1);
+          }
+          if (api.protocol !== 'https:') {
+            console.error(`EXPO_PUBLIC_API_URL must use https, got: ${apiUrl}`);
+            process.exit(1);
+          }
+          if (api.pathname !== '/' || apiUrl.endsWith('/')) {
+            console.error(`EXPO_PUBLIC_API_URL must be a bare origin with no path or trailing slash (the app appends /api/v1), got: ${apiUrl}`);
+            process.exit(1);
+          }
+          console.log(`Release preflight OK: Expo owner=${owner}, Vault factory=${factory}, API=${apiUrl}`);
           NODE
 
   build-and-submit:

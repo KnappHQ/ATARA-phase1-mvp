@@ -61,7 +61,13 @@ Once the backend is deployed at `https://<backend-origin>`, these endpoints are 
 - Privacy policy: `https://<backend-origin>/api/v1/legal/privacy`
 - Terms: `https://<backend-origin>/api/v1/legal/terms`
 - Account deletion: `https://<backend-origin>/api/v1/legal/account-deletion`
-- Health: `https://<backend-origin>/api/v1/health`
+- Health: `https://<backend-origin>/api/v1/health/backend`
+
+`/api/v1/health/backend` is the public liveness probe — it is what
+`healthCheckPath` in `render.yaml` points at, and it touches no database.
+`/api/v1/health/db` exists too but **requires a bearer token**: it runs a query
+on every call, so leaving it open let anyone drain the connection pool. A 401
+there means the route is protected, not that the service is down.
 
 Company identity used in the app and pages:
 
@@ -112,11 +118,15 @@ Before upload/submission:
 5. Complete the financial-features / blockchain-content declarations accurately for a self-custodial crypto wallet beta.
 6. Upload with `eas build --profile beta --platform android --auto-submit` or build then `eas submit --profile beta --platform android`.
 7. `submit.beta.android.track` is configured for `internal`.
+8. `submit.beta.ios` is still an empty object in `eas.json`. `store-beta.yml`
+   submits with `--auto-submit --non-interactive`, which cannot prompt, so the
+   App Store Connect app identifier has to be configured — either as `ascAppId`
+   under `submit.beta.ios` or on the EAS project — before the first iOS upload.
 
 ## Go/no-go checks before the first store upload
 
 - CI green on the exact commit being built.
-- Public backend health endpoint works over HTTPS.
+- `GET /api/v1/health/backend` answers 200 over HTTPS.
 - Database migrations applied to the staging database.
 - Registration/login works with real Privy credentials.
 - Smart-account ownership verification works server-side.
