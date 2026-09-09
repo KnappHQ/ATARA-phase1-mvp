@@ -31,8 +31,18 @@ services:
         value: feedback@atara.finance
       - key: FEEDBACK_RECIPIENT_EMAIL
         value: feedback@atara.finance
+      - key: AUTH_DOMAIN
+        value: atara.finance
+      - key: APPLE_TEAM_ID
+        sync: false
+      - key: APPLE_BUNDLE_ID
+        value: com.atara.app
+      - key: ANDROID_SHA256_CERT_FINGERPRINTS
+        sync: false
+      - key: ANDROID_PACKAGE_NAME
+        value: com.atara.app
       - key: CORS_ALLOWED_ORIGINS
-        value: ""
+        value: https://atara.finance,https://www.atara.finance
       - key: ALCHEMY_API_KEY
         sync: false
       - key: MOONPAY_API_KEY

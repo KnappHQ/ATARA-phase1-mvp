@@ -93,8 +93,10 @@ const appKit = projectId
       metadata: {
         name: "ATARA",
         description: "A self-custodial social wallet for people and groups.",
-        url: "https://atara.finance",
-        icons: ["https://atara.finance/icon.png"],
+        url: process.env.EXPO_PUBLIC_SITE_URL || "https://atara.finance",
+        icons: [
+          `${process.env.EXPO_PUBLIC_SITE_URL || "https://atara.finance"}/icon.png`,
+        ],
         redirect: { native: "atara://" },
       },
       adapters: [new EthersAdapter()],

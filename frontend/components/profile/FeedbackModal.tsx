@@ -62,7 +62,7 @@ export const FeedbackModal = ({ isOpen, onClose }: FeedbackModalProps) => {
         .getState()
         .error(
           "Failed to send feedback",
-          "Please try again or contact us at support@atara.app",
+          "Please try again or contact us at support@atara.finance",
         );
     } finally {
       setIsLoading(false);
