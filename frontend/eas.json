@@ -57,7 +57,10 @@
         "track": "internal",
         "releaseStatus": "completed"
       },
-      "ios": {}
+      "ios": {
+        "companyName": "ATARA LTD",
+        "appName": "ATARA: Social Wallet"
+      }
     },
     "production": {
       "android": {
