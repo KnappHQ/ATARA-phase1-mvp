@@ -25,6 +25,7 @@
       "autoIncrement": true,
       "env": {
         "EXPO_PUBLIC_API_URL": "https://atara-api-8ne3.onrender.com",
+        "EXPO_PUBLIC_SITE_URL": "https://atara.finance",
         "EXPO_PUBLIC_NETWORK": "base-sepolia",
         "EXPO_PUBLIC_DEMO_MODE": "false",
         "EXPO_PUBLIC_ENABLE_SMS_BACKUP": "false",
@@ -45,6 +46,7 @@
         "buildType": "app-bundle"
       },
       "env": {
+        "EXPO_PUBLIC_SITE_URL": "https://atara.finance",
         "EXPO_PUBLIC_NETWORK": "base-mainnet",
         "EXPO_PUBLIC_DEMO_MODE": "false",
         "EXPO_PUBLIC_ENABLE_SMS_BACKUP": "false"

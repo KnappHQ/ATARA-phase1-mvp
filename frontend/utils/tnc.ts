@@ -1,4 +1,4 @@
-export const TNC_LAST_UPDATED = "07/09/2026";
+export const TNC_LAST_UPDATED = "09/09/2026";
 
 export const TNC_FOOTER_TEXT =
   "ATARA LTD — support@atara.finance";
@@ -61,7 +61,7 @@ export const TNC_SECTIONS: TncSection[] = [
   },
   {
     title: "10. Intellectual property",
-    body: "The ATARA name, branding, app interface, website content, and other proprietary materials are owned by or licensed to ATARA LTD. Open-source components remain governed by their applicable licences.",
+    body: "The ATARA name and branding are owned by or licensed to ATARA LTD. Open-source components remain governed by their applicable licences. If ATARA publishes its own source code under an open-source licence, that licence will define the rights granted for that code; source availability alone does not grant permission to reuse it.",
   },
   {
     title: "11. Disclaimers",

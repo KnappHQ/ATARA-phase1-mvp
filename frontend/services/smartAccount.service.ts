@@ -23,6 +23,7 @@ import type {
 
 import { APP_NETWORK, CHAIN_ID } from "@/utils/constants";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useExternalWallet } from "@/providers/ExternalWalletProvider";
 
 // ERC-20 ABI for transfer function
 const ERC20_ABI = [
@@ -116,12 +117,15 @@ const createTransactionError = (
   return error;
 };
 
-export type PrivyEthereumWallet = {
+export type EthereumSignerWallet = {
   address: string;
   getProvider: () => Promise<{
     request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
   }>;
 };
+
+/** @deprecated Use EthereumSignerWallet; kept for local compatibility. */
+export type PrivyEthereumWallet = EthereumSignerWallet;
 
 export const getAlchemyWalletConfig = () => {
   const alchemyApiKey =
@@ -138,7 +142,7 @@ export const getAlchemyWalletConfig = () => {
   return { alchemyApiKey, alchemyGasPolicyId };
 };
 
-const createPrivyOwnerSigner = async (wallet: PrivyEthereumWallet) => {
+const createOwnerSigner = async (wallet: EthereumSignerWallet) => {
   const provider = await wallet.getProvider();
   const walletAddress = wallet.address as `0x${string}`;
   const bigintReplacer = (_key: string, value: unknown) =>
@@ -180,7 +184,7 @@ export const createAlchemySmartAccountService = async ({
   wallet,
   smartAccountAddress,
 }: {
-  wallet: PrivyEthereumWallet;
+  wallet: EthereumSignerWallet;
   smartAccountAddress?: string | null;
 }): Promise<SmartAccountService> => {
   const { alchemyApiKey, alchemyGasPolicyId } = getAlchemyWalletConfig();
@@ -190,7 +194,7 @@ export const createAlchemySmartAccountService = async ({
   }
 
   const chain = APP_NETWORK === "base-mainnet" ? base : baseSepolia;
-  const signer = await createPrivyOwnerSigner(wallet);
+  const signer = await createOwnerSigner(wallet);
   const requestClient = createSmartWalletClient({
     signer,
     transport: alchemyWalletTransport({ apiKey: alchemyApiKey }),
@@ -495,16 +499,21 @@ export class SmartAccountService {
 
 export const useSmartAccountService = () => {
   const { wallets } = useEmbeddedEthereumWallet();
+  const { wallet: externalWallet } = useExternalWallet();
   const [service, setService] = useState<SmartAccountService | null>(null);
   const smartAccountAddress = useAuthStore(
     (state) => state.user?.smartAccountAddress,
   );
+  const authProvider = useAuthStore((state) => state.user?.authProvider);
 
   useEffect(() => {
     let cancelled = false;
 
     const buildService = async () => {
-      const wallet = wallets[0];
+      const wallet =
+        authProvider === "external_wallet"
+          ? externalWallet
+          : (wallets[0] as EthereumSignerWallet | undefined);
 
       if (!wallet) {
         if (!cancelled) {
@@ -536,7 +545,7 @@ export const useSmartAccountService = () => {
     return () => {
       cancelled = true;
     };
-  }, [wallets, smartAccountAddress]);
+  }, [authProvider, externalWallet, wallets, smartAccountAddress]);
 
   return service;
 };

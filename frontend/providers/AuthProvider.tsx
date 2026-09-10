@@ -14,7 +14,10 @@ import {
   useOAuthFlow,
   usePrivy,
 } from "@privy-io/expo";
-import { useLoginWithPasskey } from "@privy-io/expo/passkey";
+import {
+  useLoginWithPasskey,
+  useSignupWithPasskey,
+} from "@privy-io/expo/passkey";
 import * as Haptics from "expo-haptics";
 
 import { retryPendingSettlements } from "@/services/settlementRecovery.service";
@@ -22,8 +25,9 @@ import { registerUnauthorizedHandler } from "@/services/api";
 import { AuthService } from "@/services/auth.service";
 import {
   createAlchemySmartAccountService,
-  type PrivyEthereumWallet,
+  type EthereumSignerWallet,
 } from "@/services/smartAccount.service";
+import { useExternalWallet } from "@/providers/ExternalWalletProvider";
 import { useAlertStore } from "@/stores/useAlertStore";
 import { useAuthStore } from "@/stores/useAuthStore";
 import {
@@ -34,6 +38,7 @@ import {
 
 type OnboardingStep = "gate" | "identity";
 type OAuthProvider = "google" | "apple";
+type AuthMethod = "privy" | "external_wallet";
 
 type RegisterWithHandleParams = {
   handle: string;
@@ -47,7 +52,9 @@ type AuthContextValue = {
   isCheckingBackend: boolean;
   isStartingOAuth: boolean;
   oauthError: string | null;
-  startPasskey: () => Promise<void>;
+  isExternalWalletEnabled: boolean;
+  startPasskey: (mode: "login" | "signup") => Promise<void>;
+  startExternalWallet: () => Promise<void>;
   startOAuth: (provider: OAuthProvider) => Promise<void>;
   registerWithHandle: (params: RegisterWithHandleParams) => Promise<void>;
   checkHandle: (handle: string) => Promise<boolean>;
@@ -59,7 +66,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 const ONBOARDING_TRANSITION_MS = 600;
 
 const signPersonalMessage = async (
-  wallet: PrivyEthereumWallet,
+  wallet: EthereumSignerWallet,
   message: string,
 ): Promise<string> => {
   const provider = await wallet.getProvider();
@@ -72,9 +79,9 @@ const signPersonalMessage = async (
 };
 
 const findWalletByAddress = (
-  wallets: PrivyEthereumWallet[],
+  wallets: EthereumSignerWallet[],
   address?: string,
-): PrivyEthereumWallet | undefined => {
+): EthereumSignerWallet | undefined => {
   if (!address) return undefined;
 
   return wallets.find(
@@ -87,6 +94,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { wallets, create } = useEmbeddedEthereumWallet();
   const { start, state: oauthState } = useOAuthFlow();
   const { loginWithPasskey } = useLoginWithPasskey();
+  const { signupWithPasskey } = useSignupWithPasskey();
+  const externalWallet = useExternalWallet();
   const { isAuthenticated, isLoading: isAuthLoading } = useAuthStore();
 
   const [hasLoadedSession, setHasLoadedSession] = useState(false);
@@ -95,15 +104,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isStartingOAuth, setIsStartingOAuth] = useState(false);
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [isAuthTransitioning, setIsAuthTransitioning] = useState(false);
+  const [activeAuthMethod, setActiveAuthMethod] = useState<AuthMethod>("privy");
   const ignoredAutoLoginUserIdRef = useRef<string | null>(null);
   const autoLoginKeyRef = useRef<string | null>(null);
   const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
 
-  const embeddedWallets = wallets as PrivyEthereumWallet[];
-  const isReady = isPrivyReady && hasLoadedSession && !isAuthLoading;
-  const isFullyAuthenticated = isPrivyReady && !!user && isAuthenticated;
+  const embeddedWallets = wallets as EthereumSignerWallet[];
+  // A valid backend session is enough to read ATARA data. Requiring a live
+  // Privy session here would make wallet-only users depend on a social-login
+  // provider even after proving ownership with their wallet.
+  const isReady = hasLoadedSession && !isAuthLoading;
+  const isFullyAuthenticated = isAuthenticated;
+
+  useEffect(() => {
+    if (externalWallet.isConnected && !user) {
+      setActiveAuthMethod("external_wallet");
+    }
+  }, [externalWallet.isConnected, user]);
 
   useEffect(() => { if (isFullyAuthenticated) void retryPendingSettlements().catch(() => {}); }, [isFullyAuthenticated]);
 
@@ -132,17 +151,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch (error) {
       console.warn("Privy logout failed:", error);
     } finally {
+      await externalWallet.disconnect().catch(() => undefined);
       await useAuthStore.getState().logout();
       setOnboardingStep("gate");
       autoLoginKeyRef.current = null;
       ignoredAutoLoginUserIdRef.current = null;
     }
-  }, [privyLogout]);
+  }, [externalWallet, privyLogout]);
 
   const startOAuth = useCallback(
     async (provider: OAuthProvider) => {
       setIsStartingOAuth(true);
       setOauthError(null);
+      setActiveAuthMethod("privy");
       ignoredAutoLoginUserIdRef.current = null;
 
       if (useAuthStore.getState().justLoggedOut) {
@@ -164,23 +185,51 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [start],
   );
 
-  const startPasskey = useCallback(async () => {
+  const startPasskey = useCallback(async (mode: "login" | "signup") => {
     const relyingParty = process.env.EXPO_PUBLIC_PASSKEY_RP_ID;
     if (!relyingParty) { setOauthError("La connexion par passkey attend la configuration du domaine."); return; }
-    setIsStartingOAuth(true); setOauthError(null); ignoredAutoLoginUserIdRef.current = null;
+    setIsStartingOAuth(true); setOauthError(null); setActiveAuthMethod("privy"); ignoredAutoLoginUserIdRef.current = null;
     await useAuthStore.getState().clearJustLoggedOut();
-    try { await loginWithPasskey({ relyingParty: `https://${relyingParty}` }); }
+    try {
+      const input = { relyingParty: `https://${relyingParty}` };
+      if (mode === "signup") await signupWithPasskey(input);
+      else await loginWithPasskey(input);
+    }
     catch (error) { setOauthError(error instanceof Error ? error.message : "Connexion non terminée."); }
     finally { setIsStartingOAuth(false); }
-  }, [loginWithPasskey]);
+  }, [loginWithPasskey, signupWithPasskey]);
+
+  const startExternalWallet = useCallback(async () => {
+    setOauthError(null);
+    setActiveAuthMethod("external_wallet");
+    ignoredAutoLoginUserIdRef.current = null;
+    await useAuthStore.getState().clearJustLoggedOut();
+    try {
+      if (externalWallet.isConnected) {
+        await externalWallet.disconnect();
+      }
+      await externalWallet.connect();
+    } catch (error) {
+      setOauthError(
+        error instanceof Error
+          ? error.message
+          : "La connexion au wallet n'a pas pu démarrer.",
+      );
+    }
+  }, [externalWallet]);
 
   const registerWithHandle = useCallback(
     async ({ handle }: RegisterWithHandleParams) => {
-      let signerWallet: PrivyEthereumWallet | undefined = embeddedWallets[0];
-      let signerAddress =
-        signerWallet?.address || getPrimaryEmbeddedEthereumWalletAddress(user);
+      const useConnectedWallet =
+        activeAuthMethod === "external_wallet" && !!externalWallet.wallet;
+      let signerWallet: EthereumSignerWallet | undefined = useConnectedWallet
+        ? externalWallet.wallet
+        : embeddedWallets[0];
+      let signerAddress = useConnectedWallet
+        ? externalWallet.address
+        : signerWallet?.address || getPrimaryEmbeddedEthereumWalletAddress(user);
 
-      if (!signerAddress) {
+      if (!signerAddress && !useConnectedWallet) {
         const result = await create({ createAdditional: false });
         signerAddress =
           getPrimaryEmbeddedEthereumWalletAddress(result.user) ||
@@ -225,14 +274,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         smartAccountAddress,
         signerAddress,
         email: getPrimaryEmailAddress(user) || undefined,
-        authProvider: getPrimaryOAuthProvider(user) ?? "privy",
+        authProvider: useConnectedWallet
+          ? "external_wallet"
+          : getPrimaryOAuthProvider(user) ?? "passkey",
         message: challenge.message,
         signature: registrationSignature,
       });
 
       playAuthenticatedTransition(Haptics.ImpactFeedbackStyle.Medium);
     },
-    [create, embeddedWallets, playAuthenticatedTransition, user],
+    [
+      activeAuthMethod,
+      create,
+      embeddedWallets,
+      externalWallet.address,
+      externalWallet.wallet,
+      playAuthenticatedTransition,
+      user,
+    ],
   );
 
   const checkHandle = useCallback((handle: string) => {
@@ -252,8 +311,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       isCheckingBackend,
       isStartingOAuth: isStartingOAuth || oauthState.status === "loading",
       oauthError,
+      isExternalWalletEnabled: externalWallet.enabled,
       startOAuth,
       startPasskey,
+      startExternalWallet,
       registerWithHandle,
       checkHandle,
       logout,
@@ -272,6 +333,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       registerWithHandle,
       startOAuth,
       startPasskey,
+      startExternalWallet,
+      externalWallet.enabled,
     ],
   );
 
@@ -279,6 +342,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     <AuthContext.Provider value={value}>
       <AuthenticationManager
         embeddedWallets={embeddedWallets}
+        externalWallet={externalWallet.wallet}
+        externalWalletConnected={externalWallet.isConnected}
+        ensureExternalWalletNetwork={externalWallet.ensureSupportedNetwork}
         hasLoadedSession={hasLoadedSession}
         ignoredAutoLoginUserIdRef={ignoredAutoLoginUserIdRef}
         autoLoginKeyRef={autoLoginKeyRef}
@@ -294,7 +360,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 };
 
 type AuthenticationManagerProps = {
-  embeddedWallets: PrivyEthereumWallet[];
+  embeddedWallets: EthereumSignerWallet[];
+  externalWallet?: EthereumSignerWallet;
+  externalWalletConnected: boolean;
+  ensureExternalWalletNetwork: () => Promise<void>;
   hasLoadedSession: boolean;
   ignoredAutoLoginUserIdRef: MutableRefObject<string | null>;
   autoLoginKeyRef: MutableRefObject<string | null>;
@@ -307,6 +376,9 @@ type AuthenticationManagerProps = {
 
 const AuthenticationManager = ({
   embeddedWallets,
+  externalWallet,
+  externalWalletConnected,
+  ensureExternalWalletNetwork,
   hasLoadedSession,
   ignoredAutoLoginUserIdRef,
   autoLoginKeyRef,
@@ -339,7 +411,12 @@ const AuthenticationManager = ({
   }, [logout, onSessionLoaded]);
 
   useEffect(() => {
-    if (!isPrivyReady || !hasLoadedSession || !user) return;
+    if (
+      !isPrivyReady ||
+      !hasLoadedSession ||
+      !user ||
+      externalWalletConnected
+    ) return;
 
     if (justLoggedOut) {
       ignoredAutoLoginUserIdRef.current = user.id;
@@ -403,6 +480,7 @@ const AuthenticationManager = ({
       });
   }, [
     embeddedWallets,
+    externalWalletConnected,
     hasLoadedSession,
     ignoredAutoLoginUserIdRef,
     isAuthenticated,
@@ -414,6 +492,64 @@ const AuthenticationManager = ({
     onOnboardingStepChange,
     showAuthError,
     user,
+  ]);
+
+  useEffect(() => {
+    if (
+      !hasLoadedSession ||
+      isAuthenticated ||
+      !externalWalletConnected ||
+      !externalWallet
+    ) {
+      return;
+    }
+
+    if (justLoggedOut) return;
+
+    const autoLoginKey = `external-wallet:${externalWallet.address.toLowerCase()}`;
+    if (autoLoginKeyRef.current === autoLoginKey) return;
+
+    autoLoginKeyRef.current = autoLoginKey;
+    onCheckingBackendChange(true);
+
+    ensureExternalWalletNetwork()
+      .then(() =>
+        AuthService.loginWithSigner(externalWallet.address, (message) =>
+          signPersonalMessage(externalWallet, message),
+        ),
+      )
+      .then(() => {
+        if (autoLoginKeyRef.current === autoLoginKey) onAuthenticated();
+      })
+      .catch((error: any) => {
+        if (autoLoginKeyRef.current !== autoLoginKey) return;
+        if (error?.response?.status === 404) {
+          onOnboardingStepChange("identity");
+        } else {
+          showAuthError(
+            "Connexion wallet incomplète",
+            error?.message || "Vérifie le réseau Base et réessaie.",
+          );
+        }
+      })
+      .finally(() => {
+        if (autoLoginKeyRef.current === autoLoginKey) {
+          autoLoginKeyRef.current = null;
+          onCheckingBackendChange(false);
+        }
+      });
+  }, [
+    autoLoginKeyRef,
+    ensureExternalWalletNetwork,
+    externalWallet,
+    externalWalletConnected,
+    hasLoadedSession,
+    isAuthenticated,
+    justLoggedOut,
+    onAuthenticated,
+    onCheckingBackendChange,
+    onOnboardingStepChange,
+    showAuthError,
   ]);
 
   return null;

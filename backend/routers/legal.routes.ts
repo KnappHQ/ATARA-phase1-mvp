@@ -31,12 +31,12 @@ router.get("/privacy", (_req, res) => {
     page(
       "Privacy Policy",
       `<h1>Privacy Policy</h1>
-      <p class="muted">Last updated: 7 September 2026</p>
+      <p class="muted">Last updated: 9 September 2026</p>
       <p>${COMPANY.name} (company number ${COMPANY.number}), registered office ${COMPANY.address}, is the controller for personal data described here.</p>
       <h2>What ATARA is</h2><p>ATARA is software for self-custodial crypto payments and related group and Vault features. ATARA does not hold a conventional custodial crypto balance for users.</p>
-      <h2>Data we process</h2><p>We may process account information, usernames, public wallet addresses, blockchain transaction information, technical/server security information, support messages and feedback. Passive product analytics is disabled for the current beta unless separately disclosed and enabled.</p>
+      <h2>Data we process</h2><p>We may process usernames, public wallet addresses, blockchain transaction information, technical/server security information, support messages and feedback. Email address and name are processed only where a user chooses a social or recovery provider. Wallet-only sign-in does not require ATARA to receive an email address. Passive product analytics is disabled for the current beta unless separately disclosed and enabled.</p>
       <h2>Why we process it</h2><p>We process data to operate and secure the Service, authenticate users, prevent fraud and abuse, provide support, comply with law and improve ATARA.</p>
-      <h2>Providers and transfers</h2><p>ATARA uses specialist providers for authentication and wallet infrastructure, blockchain connectivity, hosting/database services and error monitoring. Some providers may process data outside the UK or EEA under applicable transfer safeguards.</p>
+      <h2>Providers and transfers</h2><p>ATARA currently uses Privy for embedded authentication/wallet infrastructure, Reown for external-wallet discovery when enabled, Alchemy for smart-account and blockchain connectivity, plus hosting/database and error-monitoring providers. Some providers may process data outside the UK or EEA under applicable transfer safeguards.</p>
       <h2>Blockchain data</h2><p>Public blockchain records can be permanent and cannot generally be deleted or changed by ATARA.</p>
       <h2>Retention and deletion</h2><p>Eligible off-chain account data is removed or disconnected when an account is deleted, subject to legal, security and fraud-prevention retention requirements. Shared expenses, debts and payment receipts remain associated with a deleted-account label to preserve other members’ records. Minimal anti-replay payment records are retained to prevent reuse of blockchain receipts.</p>
       <h2>Your rights</h2><p>Depending on applicable law, you may request access, correction, erasure, restriction, objection or portability. Contact <a href="mailto:privacy@atara.finance">privacy@atara.finance</a>.</p>
@@ -50,7 +50,7 @@ router.get("/terms", (_req, res) => {
     page(
       "Terms of Service",
       `<h1>Terms of Service</h1>
-      <p class="muted">Last updated: 7 September 2026</p>
+      <p class="muted">Last updated: 9 September 2026</p>
       <p>These terms govern use of ATARA, provided by ${COMPANY.name}, company number ${COMPANY.number}, ${COMPANY.address}.</p>
       <h2>Eligibility</h2><p>You must be at least 18 and may not use ATARA where prohibited by applicable law or sanctions restrictions.</p>
       <h2>Beta service</h2><p>The beta may use test networks such as Base Sepolia and test tokens with no monetary value. Features may change, be suspended or removed during testing.</p>

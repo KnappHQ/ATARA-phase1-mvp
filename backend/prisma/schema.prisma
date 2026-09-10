@@ -12,7 +12,7 @@ model User {
   email                   String?            @unique
   publicAddress           String?            @unique // Privy embedded owner wallet address (EOA)
   smartAccountAddress     String?            @unique // Alchemy ERC-4337 smart account on Base
-  authProvider            String? // google, apple
+  authProvider            String? // passkey, external_wallet, google, apple
   profilePicUrl           String?
   displayName             String?
   totpSecretEncrypted     String?

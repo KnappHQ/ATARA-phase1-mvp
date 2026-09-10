@@ -2,7 +2,7 @@
 
 > **Pilote du 7 septembre 2026** : lire [le périmètre livré et la procédure d’activation](docs/PILOT_RELEASE_2026-09-07.md). La simulation web est distincte du backend, des builds mobiles et des contrats à déployer.
 
-**ATARA** is a mobile-first crypto payment application built for everyday peer-to-peer transfers and group expense splitting. It runs on Base Sepolia (ERC-4337), uses Privy embedded wallets with Alchemy smart accounts so users never manage private keys, and authenticates with Google and Apple - no seed phrases, no friction.
+**ATARA** is a mobile-first, self-custodial crypto payment application for everyday peer-to-peer transfers and group expense splitting. The beta runs on Base Sepolia with ERC-4337 smart accounts. Users can enter with a passkey, prove ownership of an external EVM wallet, or optionally use Google/Apple through Privy. The on-chain wallet is user-authorized; handles, contacts and group metadata still depend on the ATARA API. See [the decentralization roadmap](docs/DECENTRALIZATION_ROADMAP.md) for the exact boundary and migration plan.
 
 ---
 
@@ -41,14 +41,16 @@
 └──────────┘  └──────────────────────┘
 ```
 
-**Auth flow:**
+**Auth flows:**
 
-1. User taps "Continue with Google" or "Continue with Apple"
-2. Privy handles OAuth → creates / restores an embedded signer (EOA)
-3. Alchemy deploys a ModularAccountV2 smart account (ERC-4337) for the user
-4. Frontend calls `/api/v1/auth/login` (or `/register` for new users) with the signer address
-5. Backend issues a **30-day JWT** - all subsequent API calls use this token
-6. On app restart, `loadSession` checks JWT expiry before trusting the stored token; expired tokens trigger a silent logout
+1. The user creates/restores a Privy passkey signer, connects an external EVM wallet through Reown, or chooses optional Google/Apple OAuth.
+2. The frontend requests a short-lived, action-bound challenge from `/api/v1/auth/challenge`.
+3. The selected signer signs the exact challenge; the backend verifies the signature and nonce.
+4. New users derive an Alchemy smart account owned by that signer and choose an ATARA handle.
+5. The backend verifies signer-to-smart-account ownership before issuing the ATARA JWT.
+6. The JWT restores access to off-chain social data. A live signer connection is still required to authorize an on-chain action.
+
+Passkeys and OAuth currently rely on Privy; external-wallet discovery relies on Reown; smart-account creation/RPC/bundling currently rely on Alchemy. These dependencies are intentional beta constraints, not claims that the full app is decentralized.
 
 ---
 
@@ -104,7 +106,8 @@ knapp-phase1-mvp/
 | NativeWind                | Tailwind CSS for React Native    |
 | Zustand                   | Global state management          |
 | Moti                      | Declarative animations           |
-| @privy-io/expo           | OAuth + embedded signer wallet   |
+| @privy-io/expo           | Passkeys/OAuth + embedded signer |
+| @reown/appkit-react-native | External wallet discovery and connection |
 | @alchemy/wallet-apis     | Alchemy Smart Wallets (ERC-4337) |
 | ethers.js                 | EVM utilities                    |
 | viem / wagmi              | EVM types + hooks                |
@@ -193,7 +196,7 @@ User
 ├── email (unique, optional)
 ├── publicAddress          - EOA / signer address
 ├── smartAccountAddress    - ERC-4337 smart account (unique, optional)
-├── authProvider           - "google" | "apple"
+├── authProvider           - "passkey" | "external_wallet" | "google" | "apple"
 ├── profilePicUrl
 └── displayName
 
@@ -246,7 +249,8 @@ Feedback
 - An [Alchemy](https://www.alchemy.com/) account with:
   - An app on Base Sepolia
   - Account Kit (Smart Wallets) enabled
-  - OAuth configured for Google and Apple (Apple via Auth0 connection)
+- A [Privy](https://privy.io/) app with a native client, passkeys, and any optional Google/Apple recovery providers configured
+- A [Reown](https://reown.com/) project to enable external-wallet sign-in (optional until that button is enabled)
 - A [PostHog](https://posthog.com/) project (for frontend analytics)
 - A Resend account with the `atara.finance` domain verified for feedback email delivery
 
@@ -313,8 +317,14 @@ Create a `.env` file (Expo reads `EXPO_PUBLIC_` prefixed variables on the client
 
 ```env
 EXPO_PUBLIC_ALCHEMY_API_KEY=your_alchemy_api_key
-EXPO_PUBLIC_ALCHEMY_POLICY_ID=your_gas_manager_policy_id
+EXPO_PUBLIC_ALCHEMY_GAS_POLICY_ID=your_gas_manager_policy_id
 EXPO_PUBLIC_API_URL=http://your-backend-ip:4000
+EXPO_PUBLIC_PRIVY_APP_ID=your_privy_app_id
+EXPO_PUBLIC_PRIVY_CLIENT_ID=your_privy_native_client_id
+EXPO_PUBLIC_PASSKEY_RP_ID=your-associated-domain.example
+EXPO_PUBLIC_REOWN_PROJECT_ID=your_32_character_project_id
+# Set only after the repository is public and licensed:
+EXPO_PUBLIC_SOURCE_URL=
 EXPO_PUBLIC_POSTHOG_API_KEY=phc_your_posthog_key
 EXPO_PUBLIC_POSTHOG_HOST=https://app.posthog.com
 EXPO_PUBLIC_DEMO_MODE=false
@@ -335,7 +345,7 @@ npm run android        # Build and run on Android device/emulator
 npm run ios            # Build and run on iOS simulator (macOS only)
 ```
 
-> **Note:** This app uses `expo-dev-client` (not Expo Go) because of native modules - `@account-kit/react-native`, `react-native-mmkv`, etc. Run `expo run:android` or `expo run:ios` to generate the native shell on first use.
+> **Note:** This app uses `expo-dev-client` (not Expo Go) because of native authentication, passkey, secure-storage and wallet-connection modules. Run `expo run:android` or `expo run:ios` to generate the native shell on first use.
 
 ---
 
@@ -371,7 +381,7 @@ Sending to a handle resolves the recipient's `smartAccountAddress` via `/transac
 
 ### Auth Guard
 
-`_layout.tsx` enforces a two-factor authentication gate: the Alchemy signer must be `CONNECTED` **and** a valid, non-expired JWT must exist. Either condition failing redirects to `/onboarding`. Any 401 response from the API automatically triggers a logout via a registered callback (preventing circular imports between `api.ts` and `useAuthStore`).
+`_layout.tsx` requires a valid, non-expired ATARA JWT for protected social-data routes. A connected embedded or external signer is additionally required when an on-chain action is authorized. Any 401 response from the API triggers logout through a registered callback. This separation lets a wallet-only user restore read access without making a Privy social session the root of authorization.
 
 ### Product Analytics
 

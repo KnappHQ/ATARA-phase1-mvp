@@ -107,6 +107,48 @@ test("the legal pages stay public", async () => {
   }
 });
 
+test("the public domain-association files expose only validated app identities", async () => {
+  const previous = {
+    appleTeamId: process.env.APPLE_TEAM_ID,
+    androidFingerprints: process.env.ANDROID_SHA256_CERT_FINGERPRINTS,
+  };
+
+  try {
+    delete process.env.APPLE_TEAM_ID;
+    delete process.env.ANDROID_SHA256_CERT_FINGERPRINTS;
+    assert.equal(
+      (await request(app).get("/.well-known/apple-app-site-association")).status,
+      503,
+    );
+    assert.equal((await request(app).get("/.well-known/assetlinks.json")).status, 503);
+
+    process.env.APPLE_TEAM_ID = "ABCDE12345";
+    process.env.ANDROID_SHA256_CERT_FINGERPRINTS = Array(32).fill("AB").join(":");
+
+    const apple = await request(app).get("/.well-known/apple-app-site-association");
+    assert.equal(apple.status, 200);
+    assert.match(apple.headers["content-type"], /^application\/json/);
+    assert.deepEqual(apple.body, {
+      webcredentials: { apps: ["ABCDE12345.com.atara.app"] },
+    });
+
+    const android = await request(app).get("/.well-known/assetlinks.json");
+    assert.equal(android.status, 200);
+    assert.match(android.headers["content-type"], /^application\/json/);
+    assert.equal(android.body[0].target.package_name, "com.atara.app");
+    assert.deepEqual(android.body[0].relation, [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds",
+    ]);
+  } finally {
+    if (previous.appleTeamId === undefined) delete process.env.APPLE_TEAM_ID;
+    else process.env.APPLE_TEAM_ID = previous.appleTeamId;
+    if (previous.androidFingerprints === undefined)
+      delete process.env.ANDROID_SHA256_CERT_FINGERPRINTS;
+    else process.env.ANDROID_SHA256_CERT_FINGERPRINTS = previous.androidFingerprints;
+  }
+});
+
 test("a payment link with a malformed token is rejected before any lookup", async () => {
   // Public by design - the token is the credential - so the format check is
   // what stands between a stranger and a database query.
@@ -129,4 +171,18 @@ test("an unknown route does not leak a stack trace", async () => {
 
   assert.equal(response.status, 404);
   assert.equal("stack" in response.body, false);
+});
+
+test("registration refuses an invented authentication-provider label", async () => {
+  const response = await request(app).post("/api/v1/auth/register").send({
+    handle: "alice",
+    signerAddress: "0x1111111111111111111111111111111111111111",
+    smartAccountAddress: "0x2222222222222222222222222222222222222222",
+    message: "not-used-because-provider-validation-runs-first",
+    signature: "0xdeadbeef",
+    authProvider: "trusted-because-client-said-so",
+  });
+
+  assert.equal(response.status, 400);
+  assert.equal(response.body.message, "Unsupported authentication provider");
 });

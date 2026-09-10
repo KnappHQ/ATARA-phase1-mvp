@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Trash2,
   KeyRound,
+  Network,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { COLORS } from "@/utils/constants";
@@ -188,11 +189,23 @@ export default function ProfileTab() {
           <SettingRow
             icon={KeyRound}
             label="Security Center"
-            subtitle="Passkey, 2FA, recovery codes and phone backup"
+            subtitle="Passkeys, signing method and second factor"
             delay={390}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push("/security" as never);
+            }}
+            right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
+          />
+
+          <SettingRow
+            icon={Network}
+            label="Sovereignty & architecture"
+            subtitle="What is on-chain, what is not, and who controls what"
+            delay={420}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/sovereignty" as never);
             }}
             right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
           />
