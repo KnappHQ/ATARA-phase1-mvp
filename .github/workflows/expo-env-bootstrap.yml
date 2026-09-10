@@ -1,6 +1,7 @@
 name: Expo Environment Bootstrap
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - release/expo-env-bootstrap
