@@ -34,11 +34,11 @@ services:
       - key: AUTH_DOMAIN
         value: atara.finance
       - key: APPLE_TEAM_ID
-        sync: false
+        value: 8UTUKDR95M
       - key: APPLE_BUNDLE_ID
         value: com.atara.app
       - key: ANDROID_SHA256_CERT_FINGERPRINTS
-        sync: false
+        value: 0B:4D:1E:CD:C2:D4:C1:C8:06:8B:5C:00:21:E8:66:DC:41:C1:35:AF:C7:A1:C1:59:40:4B:24:A4:52:52:A0:42
       - key: ANDROID_PACKAGE_NAME
         value: com.atara.app
       - key: CORS_ALLOWED_ORIGINS
