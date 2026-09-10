@@ -29,7 +29,9 @@ jobs:
           set_var() {
             npx eas-cli@latest env:create production --name "$1" --value "$2" --visibility plaintext --force --non-interactive
           }
-          set_var EXPO_PUBLIC_API_URL https://atara-api-8ne3.onrender.com
+          set_var EXPO_PUBLIC_API_URL https://api.atara.finance
+          set_var EXPO_PUBLIC_SITE_URL https://atara.finance
+          set_var EXPO_PUBLIC_PASSKEY_RP_ID api.atara.finance
           set_var EXPO_PUBLIC_NETWORK base-sepolia
           set_var EXPO_PUBLIC_DEMO_MODE false
           set_var EXPO_PUBLIC_ENABLE_SMS_BACKUP false
