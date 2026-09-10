@@ -10,6 +10,8 @@ services:
     startCommand: npm start
     healthCheckPath: /api/v1/health/backend
     autoDeployTrigger: commit
+    domains:
+      - api.atara.finance
     envVars:
       - key: NODE_ENV
         value: production

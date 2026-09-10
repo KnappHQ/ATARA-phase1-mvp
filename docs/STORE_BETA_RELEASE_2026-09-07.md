@@ -25,9 +25,10 @@ Set these on the EAS project before starting a beta build:
 - `EXPO_PUBLIC_ALCHEMY_GAS_POLICY_ID`
 - `EXPO_PUBLIC_VAULT_FACTORY_ADDRESS` after deploying the reviewed Sepolia factory.
 - Canonical product domain: `https://atara.finance`.
-- Set `EXPO_PUBLIC_PASSKEY_RP_ID=atara.finance` only after both domain-association URLs below return HTTP 200 directly (without redirects):
-  - `https://atara.finance/.well-known/apple-app-site-association`
-  - `https://atara.finance/.well-known/assetlinks.json`
+- The existing website remains on `https://atara.finance`; the Render API and passkey relying party use `https://api.atara.finance`.
+- Set `EXPO_PUBLIC_PASSKEY_RP_ID=api.atara.finance` only after both domain-association URLs below return HTTP 200 directly (without redirects):
+  - `https://api.atara.finance/.well-known/apple-app-site-association`
+  - `https://api.atara.finance/.well-known/assetlinks.json`
 - Configure `APPLE_TEAM_ID` on the domain backend from Apple Developer membership details.
 - Configure `ANDROID_SHA256_CERT_FINGERPRINTS` from Play Console > App integrity > App signing certificate, and add the same fingerprint to Privy's allowed Android key hashes.
 - `EXPO_PUBLIC_SENTRY_DSN` optional but recommended for beta diagnostics.
