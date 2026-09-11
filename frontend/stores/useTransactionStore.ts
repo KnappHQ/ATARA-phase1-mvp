@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export interface Transaction {
+interface Transaction {
   id: string;
   hash?: string;
   userOpHash?: string;
