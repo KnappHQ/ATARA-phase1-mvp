@@ -1,3 +1,4 @@
+import "@walletconnect/react-native-compat";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   AppKit,
@@ -106,7 +107,12 @@ const appKit = projectId
       enableAnalytics: false,
       themeMode: "dark",
       themeVariables: { accent: "#3c83f6" },
-      features: { onramp: false, swaps: false },
+      features: {
+        onramp: false,
+        swaps: false,
+        socials: false,
+        showWallets: true,
+      },
     })
   : null;
 
