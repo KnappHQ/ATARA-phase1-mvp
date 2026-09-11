@@ -262,6 +262,13 @@ export const AmountStep = ({
           ...transactionRequest,
           transactionId: result.transactionId,
         });
+
+        if (result.isPaymasterFailure) {
+          setCanRetryWithGas(true);
+          setIsGasDialogOpen(true);
+          return;
+        }
+
         setCanRetryWithGas(false);
         setIsGasDialogOpen(false);
         throw new Error(result.error || "Transaction failed");
