@@ -1,4 +1,3 @@
-import "@walletconnect/react-native-compat";
 import "node-libs-react-native/globals.js";
 import "react-native-get-random-values";
 import * as Sentry from "@sentry/react-native";
