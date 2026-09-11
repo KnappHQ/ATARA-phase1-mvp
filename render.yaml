@@ -3,7 +3,7 @@ services:
     name: atara-api
     runtime: node
     repo: https://github.com/KnappHQ/ATARA-phase1-mvp
-    branch: codex/atara-vault
+    branch: main
     rootDir: backend
     buildCommand: npm ci && npx prisma generate && npm run build
     preDeployCommand: npx prisma migrate deploy
@@ -45,6 +45,8 @@ services:
         value: com.atara.app
       - key: CORS_ALLOWED_ORIGINS
         value: https://atara.finance,https://www.atara.finance
+      - key: PUBLIC_PAYMENT_ORIGIN
+        value: https://api.atara.finance
       - key: ALCHEMY_API_KEY
         sync: false
       - key: MOONPAY_API_KEY
