@@ -5,7 +5,7 @@ import * as Sentry from "@sentry/react-native";
 
 import React, { useEffect, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
-import { Stack, useRouter, useSegments, usePathname } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -16,7 +16,6 @@ import { AuthProvider, useAuth } from "@/providers/AuthProvider";
 import { useAlertStore } from "@/stores/useAlertStore";
 import { AppAlert } from "@/components/alert/AppAlert";
 import { VaultOpeningAnimation } from "@/components/onboarding/VaultOpeningAnimation";
-import { analyticsScreen } from "@/services/analytics.service";
 import { ExternalWalletProvider } from "@/providers/ExternalWalletProvider";
 
 import "./global.css";
@@ -69,7 +68,6 @@ function RootLayout() {
 function RootLayoutInner() {
   const router = useRouter();
   const segments = useSegments();
-  const pathname = usePathname();
   const { alert, visible, dismiss } = useAlertStore();
   const { isReady, isFullyAuthenticated, isAuthTransitioning } = useAuth();
 
@@ -82,11 +80,6 @@ function RootLayoutInner() {
     isReady &&
     isFullyAuthenticated &&
     (isOnAuthFlow || !PROTECTED_ROUTES.includes(route));
-
-  // Manual screen tracking — expo-router + React Navigation v7 blocks autocapture
-  useEffect(() => {
-    analyticsScreen(pathname);
-  }, [pathname]);
 
   useEffect(() => {
     if (!isReady) return;

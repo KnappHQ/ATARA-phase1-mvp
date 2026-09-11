@@ -20,7 +20,7 @@ app.use("/wallet", walletRouter);
 app.use("/user", userRouter);
 app.use("/groups", groupRouter);
 app.use("/feedback", feedbackRouter);
-app.use("/vaults", vaultRouter);
+if (process.env.ENABLE_VAULTS === "true") app.use("/vaults", vaultRouter);
 app.use("/security", securityRouter);
 app.use("/requests", paymentRequestRouter);
 app.use("/legal", legalRouter);

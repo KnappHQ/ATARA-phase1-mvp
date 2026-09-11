@@ -3,10 +3,6 @@ import { create } from "zustand";
 import { jwtDecode } from "jwt-decode";
 import { useWalletStore } from "./useWalletStore";
 import { UserService } from "@/services/user.service";
-import {
-  analyticsIdentify,
-  analyticsReset,
-} from "@/services/analytics.service";
 import * as Sentry from "@sentry/react-native";
 
 const isJwtExpired = (token: string): boolean => {
@@ -76,13 +72,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       console.error("Sentry.setUser failed:", e);
     }
 
-    analyticsIdentify(user.id, {
-      handle: user.handle,
-      email: user.email,
-      authProvider: user.authProvider,
-      displayName: user.displayName,
-    });
-
     // Initialize wallet address after login
     if (user.smartAccountAddress) {
       useWalletStore.getState().setWalletAddress(user.smartAccountAddress);
@@ -104,8 +93,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch (e) {
       console.error("Sentry.clearUser failed:", e);
     }
-
-    analyticsReset();
     set({
       user: null,
       token: null,
@@ -130,13 +117,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (token && userStr && !isJwtExpired(token)) {
         const user = JSON.parse(userStr);
         set({ token, user, isAuthenticated: true });
-
-        analyticsIdentify(user.id, {
-          handle: user.handle,
-          email: user.email,
-          authProvider: user.authProvider,
-          displayName: user.displayName,
-        });
 
         if (user.smartAccountAddress) {
           useWalletStore.getState().setWalletAddress(user.smartAccountAddress);

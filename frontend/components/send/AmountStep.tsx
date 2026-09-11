@@ -23,7 +23,6 @@ import {
   SendTransactionRequest,
 } from "@/services/transaction.service";
 import { useAlertStore } from "@/stores/useAlertStore";
-import { analyticsEvents } from "@/services/analytics.service";
 import { COLORS } from "@/utils/constants";
 import {
   formatTokenAmount,
@@ -236,16 +235,6 @@ export const AmountStep = ({
 
       if (result.success) {
         setPendingRetryRequest(null);
-        analyticsEvents.transactionSent({
-          token: selectedToken.symbol,
-          amountUsd:
-            selectedToken.usdPrice > 0
-              ? amountValue * selectedToken.usdPrice
-              : amountValue,
-          isInApp: true,
-          hasNote: !!note,
-          isSettlement: !!settlementGroupId,
-        });
         router.push({
           pathname: "/transaction-success",
           params: {
@@ -274,10 +263,6 @@ export const AmountStep = ({
         throw new Error(result.error || "Transaction failed");
       }
     } catch (error: any) {
-      analyticsEvents.transactionFailed({
-        token: selectedToken.symbol,
-        errorMessage: error?.message ?? "unknown error",
-      });
       setSwipeResetKey((key) => key + 1);
       // Error is stored in transaction store
     } finally {
@@ -311,17 +296,6 @@ export const AmountStep = ({
 
       setPendingRetryRequest(null);
       setCanRetryWithGas(false);
-
-      analyticsEvents.transactionSent({
-        token: selectedToken.symbol,
-        amountUsd:
-          selectedToken.usdPrice > 0
-            ? amountValue * selectedToken.usdPrice
-            : amountValue,
-        isInApp: true,
-        hasNote: !!note,
-        isSettlement: !!settlementGroupId,
-      });
 
       router.push({
         pathname: "/transaction-success",

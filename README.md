@@ -69,11 +69,11 @@ knapp-phase1-mvp/
 │
 └── frontend/         React Native app
     ├── app/          expo-router screens
-    │   └── (tabs)/   Home, Activity, Vault, Profile
+    │   └── (tabs)/   Home, Activity, Profile (Vault is feature-gated off in beta)
     ├── components/   Reusable UI components
-    ├── services/     API client, analytics, smart account
+    ├── services/     API client, wallet and smart-account logic
     ├── stores/       Zustand state stores
-    ├── providers/    AlchemyProvider wrapper
+    ├── providers/    Privy, Reown and authentication providers
     └── utils/        Constants, formatting helpers
 ```
 
@@ -110,9 +110,7 @@ knapp-phase1-mvp/
 | @reown/appkit-react-native | External wallet discovery and connection |
 | @alchemy/wallet-apis     | Alchemy Smart Wallets (ERC-4337) |
 | ethers.js                 | EVM utilities                    |
-| viem / wagmi              | EVM types + hooks                |
-| posthog-react-native      | Product analytics                |
-| TanStack Query            | Server state + caching           |
+| viem                      | EVM encoding, types and utilities |
 | react-native-reanimated   | High-performance animations      |
 | expo-haptics              | Haptic feedback                  |
 | lucide-react-native       | Icon set                         |
@@ -127,8 +125,10 @@ Base URL: `http://localhost:4000/api/v1`
 
 | Method | Path                    | Description                                                      |
 | ------ | ----------------------- | ---------------------------------------------------------------- |
-| `POST` | `/register`             | Create account (handle + signer address + smart account address) |
-| `POST` | `/login`                | Authenticate by signer address, returns JWT                      |
+| `POST` | `/challenge`            | Create a short-lived wallet ownership challenge                  |
+| `POST` | `/register`             | Create account after signed challenge verification               |
+| `POST` | `/login`                | Authenticate by signed challenge, returns JWT                    |
+| `POST` | `/logout-all`           | Revoke all ATARA API sessions for the authenticated account      |
 | `GET`  | `/check-handle/:handle` | Check handle availability                                        |
 
 ### Transactions - `/transaction`
@@ -146,7 +146,7 @@ Base URL: `http://localhost:4000/api/v1`
 | `GET`  | `/portfolio`        | ETH + ERC-20 balances for the authenticated user |
 | `POST` | `/onramp-session`   | Create a signed MoonPay URL for the smart account |
 
-### Vaults - `/vaults`
+### Vaults - `/vaults` (deferred; disabled in the first beta)
 
 | Method | Path                 | Description                                      |
 | ------ | -------------------- | ------------------------------------------------ |
@@ -177,13 +177,14 @@ Base URL: `http://localhost:4000/api/v1`
 
 | Method | Path | Description                                              |
 | ------ | ---- | -------------------------------------------------------- |
-| `POST` | `/`  | Submit feedback (delivered via SMTP to configured inbox) |
+| `POST` | `/`  | Submit feedback (delivered through Resend to the configured inbox) |
 
 ### Health - `/health`
 
-| Method | Path | Description    |
-| ------ | ---- | -------------- |
-| `GET`  | `/`  | Liveness check |
+| Method | Path       | Description                                      |
+| ------ | ---------- | ------------------------------------------------ |
+| `GET`  | `/backend` | Public backend/network liveness check            |
+| `GET`  | `/db`      | Authenticated database health check              |
 
 ---
 
@@ -250,8 +251,7 @@ Feedback
   - An app on Base Sepolia
   - Account Kit (Smart Wallets) enabled
 - A [Privy](https://privy.io/) app with a native client, passkeys, and any optional Google/Apple recovery providers configured
-- A [Reown](https://reown.com/) project to enable external-wallet sign-in (optional until that button is enabled)
-- A [PostHog](https://posthog.com/) project (for frontend analytics)
+- A [Reown](https://reown.com/) project to enable the beta's external-wallet sign-in
 - A Resend account with the `atara.finance` domain verified for feedback email delivery
 
 ---
@@ -286,6 +286,7 @@ MOONPAY_BASE_CURRENCY_CODE=eur
 # Vault reads and deployment activation
 VAULT_FACTORY_ADDRESS=
 VAULT_RPC_URL=https://sepolia.base.org
+ENABLE_VAULTS=false
 
 # Resend (for feedback)
 RESEND_API_KEY=re_your_resend_api_key
@@ -325,8 +326,6 @@ EXPO_PUBLIC_PASSKEY_RP_ID=your-associated-domain.example
 EXPO_PUBLIC_REOWN_PROJECT_ID=your_32_character_project_id
 # Set only after the repository is public and licensed:
 EXPO_PUBLIC_SOURCE_URL=
-EXPO_PUBLIC_POSTHOG_API_KEY=phc_your_posthog_key
-EXPO_PUBLIC_POSTHOG_HOST=https://app.posthog.com
 EXPO_PUBLIC_DEMO_MODE=false
 EXPO_PUBLIC_VAULT_FACTORY_ADDRESS=
 EXPO_PUBLIC_VAULT_RPC_URL=https://sepolia.base.org
@@ -351,9 +350,9 @@ npm run ios            # Build and run on iOS simulator (macOS only)
 
 ## Key Features in Detail
 
-### Gasless Transactions (ERC-4337)
+### ERC-4337 transactions
 
-All transactions are sent as UserOperations through Alchemy's bundler. Gas is sponsored by an Alchemy Gas Manager policy, so users pay zero gas fees. The backend verifies each transaction on-chain by checking `receipt.status === 1` before writing it to the database.
+Transactions use Alchemy smart accounts. The beta first tries the configured Gas Manager policy; if sponsorship is unavailable, the user can explicitly continue with a self-funded network-fee transaction. The backend verifies completed receipts on-chain before recording them.
 
 ### On-ramp and merchant payments
 
@@ -363,11 +362,10 @@ the MoonPay secret stays server-side. The app also offers a merchant payment
 screen that sends USDC to a verified merchant address and resumes an in-flight
 smart-account bundle after an app restart.
 
-### Collective Vault
+### Collective Vault — later release
 
-Vaults are immutable Base Sepolia USDC group savings contracts. Every member
-accepts the terms, deposits before the lock date, and approves the same exact
-withdrawal payload. ATARA has no admin withdrawal path. See
+Vault code and contracts are intentionally retained for a later release, but the
+first beta does not expose the Vault UI or API. See
 [`docs/VAULT_PLAN.md`](docs/VAULT_PLAN.md) for the lifecycle and deployment
 gates.
 
@@ -383,18 +381,6 @@ Sending to a handle resolves the recipient's `smartAccountAddress` via `/transac
 
 `_layout.tsx` requires a valid, non-expired ATARA JWT for protected social-data routes. A connected embedded or external signer is additionally required when an on-chain action is authorized. Any 401 response from the API triggers logout through a registered callback. This separation lets a wallet-only user restore read access without making a Privy social session the root of authorization.
 
-### Product Analytics
-
-PostHog is active in production only (disabled in `__DEV__`). Tracked events:
-
-| Event                     | Trigger                              |
-| ------------------------- | ------------------------------------ |
-| `user signed up`          | First registration                   |
-| `$screen`                 | Every route change via `usePathname` |
-| `transaction sent`        | Successful send                      |
-| `transaction send failed` | Failed send attempt                  |
-| `group created`           | New group saved                      |
-| `group settled`           | Debt settled on-chain                |
 
 ---
 
@@ -403,7 +389,6 @@ PostHog is active in production only (disabled in `__DEV__`). Tracked events:
 - **Network:** Base Sepolia (testnet). The `ZEROX_CHAIN_ID` constant points to Base Mainnet (8453) for a future swap integration.
 - **Rate limiting:** 100 requests per 15-minute window per IP.
 - **Supported tokens:** ETH, USDC (`0x036CbD...`), USDT (`0x7c6b91...`) on Base Sepolia.
-- **Analytics persistence:** PostHog uses `persistence: "file"` (file system) rather than AsyncStorage to avoid serialization issues on React Native.
 
 ---
 

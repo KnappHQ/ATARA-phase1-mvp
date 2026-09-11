@@ -29,6 +29,8 @@ services:
         value: 0x036CbD53842c5426634e7929541eC2318f3dCF7e
       - key: ENABLE_MAINNET_PAYMENT_REQUESTS
         value: "false"
+      - key: ENABLE_VAULTS
+        value: "false"
       - key: FEEDBACK_FROM_EMAIL
         value: feedback@atara.finance
       - key: FEEDBACK_RECIPIENT_EMAIL
