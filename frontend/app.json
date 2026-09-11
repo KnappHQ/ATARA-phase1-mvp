@@ -14,7 +14,8 @@
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
@@ -34,6 +35,7 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      "expo-apple-authentication",
       "expo-font",
       [
         "expo-splash-screen",
