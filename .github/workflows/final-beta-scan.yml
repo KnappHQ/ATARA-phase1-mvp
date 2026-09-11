@@ -1,0 +1,113 @@
+name: Final Beta Scan
+
+on:
+  push:
+    branches: [diagnostic/final-beta-scan]
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      NO_COLOR: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Frontend install
+        working-directory: frontend
+        run: npm ci
+
+      - name: Expo doctor
+        working-directory: frontend
+        run: npx expo-doctor
+        continue-on-error: true
+
+      - name: Frontend dead-code scan
+        working-directory: frontend
+        run: npx --yes knip --reporter compact
+        continue-on-error: true
+
+      - name: Frontend runtime audit
+        working-directory: frontend
+        run: |
+          npm audit --omit=dev --json > "$RUNNER_TEMP/frontend-audit.json" || true
+          node - <<'NODE'
+          const fs=require('fs');
+          const a=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/frontend-audit.json','utf8'));
+          const high=Object.fromEntries(Object.entries(a.vulnerabilities||{})
+            .filter(([,v])=>['high','critical'].includes(v.severity))
+            .map(([k,v])=>[k,{severity:v.severity,isDirect:v.isDirect,fixAvailable:v.fixAvailable}]));
+          console.log(JSON.stringify({metadata:a.metadata?.vulnerabilities,high},null,2));
+          NODE
+
+      - name: EAS beta preflight with production environment
+        working-directory: frontend
+        run: npx eas-cli@latest env:exec production 'node scripts/release-preflight.cjs beta' --non-interactive
+
+      - name: Backend install
+        working-directory: backend
+        run: npm ci
+
+      - name: Backend runtime audit
+        working-directory: backend
+        run: |
+          npm audit --omit=dev --json > "$RUNNER_TEMP/backend-audit.json" || true
+          node - <<'NODE'
+          const fs=require('fs');
+          const a=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+'/backend-audit.json','utf8'));
+          const high=Object.fromEntries(Object.entries(a.vulnerabilities||{})
+            .filter(([,v])=>['high','critical'].includes(v.severity))
+            .map(([k,v])=>[k,{severity:v.severity,isDirect:v.isDirect,fixAvailable:v.fixAvailable}]));
+          console.log(JSON.stringify({metadata:a.metadata?.vulnerabilities,high},null,2));
+          NODE
+
+      - name: Build and test backend
+        working-directory: backend
+        env:
+          JWT_SECRET: final-beta-scan-secret
+          DATABASE_URL: postgresql://unused:unused@127.0.0.1:5432/unused
+        run: npm run build
+
+      - name: Verify no removed beta clutter returned
+        run: |
+          set -e
+          ! grep -RIn --exclude=package-lock.json --exclude-dir=node_modules -E "posthog-react-native|analytics\.service|partial-react-logo|react-logo(@2x|@3x)?\.png" frontend
+          test ! -e frontend/README.md
+          test ! -e frontend/services/security.service.ts
+          test ! -e backend/services/security.service.ts
+          test ! -e backend/controllers/security.controller.ts
+
+      - name: Live beta endpoint scan
+        run: |
+          set -e
+          echo "HEALTH"
+          code=$(curl -sS -o /tmp/health -w "%{http_code}" https://api.atara.finance/api/v1/health/backend)
+          echo "$code"; cat /tmp/health; echo
+          test "$code" = "200"
+
+          echo "APPLE_ASSOCIATION"
+          code=$(curl -sS -o /tmp/aasa -w "%{http_code}" https://api.atara.finance/.well-known/apple-app-site-association)
+          echo "$code"; cat /tmp/aasa; echo
+          test "$code" = "200"
+
+          echo "ANDROID_ASSOCIATION"
+          code=$(curl -sS -o /tmp/assetlinks -w "%{http_code}" https://api.atara.finance/.well-known/assetlinks.json)
+          echo "$code"; cat /tmp/assetlinks; echo
+          test "$code" = "200"
+
+          echo "VAULT_DISABLED"
+          code=$(curl -sS -o /tmp/vault -w "%{http_code}" https://api.atara.finance/api/v1/vaults)
+          echo "$code"; cat /tmp/vault; echo
+          test "$code" = "404"
+
+          echo "CORS_CUSTOM_DOMAIN"
+          headers=$(mktemp)
+          curl -sS -D "$headers" -o /dev/null -H "Origin: https://api.atara.finance" https://api.atara.finance/api/v1/health/backend
+          cat "$headers"
+          grep -iq "^access-control-allow-origin: https://api.atara.finance" "$headers"
