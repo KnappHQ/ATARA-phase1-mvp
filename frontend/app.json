@@ -15,7 +15,10 @@
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       },
-      "usesAppleSignIn": true
+      "usesAppleSignIn": true,
+      "associatedDomains": [
+        "webcredentials:api.atara.finance"
+      ]
     },
     "android": {
       "adaptiveIcon": {
