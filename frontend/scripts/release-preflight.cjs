@@ -46,15 +46,15 @@ function checkRelease(env, profile) {
     failures.push("Distributed builds require EXPO_PUBLIC_DEMO_MODE=false.");
   if (["beta", "preview"].includes(profile) && env.EXPO_PUBLIC_ENABLE_VAULTS !== "false")
     failures.push("Beta builds must keep EXPO_PUBLIC_ENABLE_VAULTS=false until the Vault release is explicitly approved.");
-  if (
-    env.EXPO_PUBLIC_PASSKEY_RP_ID &&
-    !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(env.EXPO_PUBLIC_PASSKEY_RP_ID)
-  )
+  const passkeyRpId = env.EXPO_PUBLIC_PASSKEY_RP_ID?.trim();
+  if (["beta", "preview"].includes(profile) && !passkeyRpId)
+    failures.push("Beta builds require EXPO_PUBLIC_PASSKEY_RP_ID because passkey is a primary sign-in path.");
+  if (passkeyRpId && !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(passkeyRpId))
     failures.push("EXPO_PUBLIC_PASSKEY_RP_ID must be a hostname without https://.");
-  if (
-    env.EXPO_PUBLIC_REOWN_PROJECT_ID &&
-    !/^[a-f0-9]{32}$/i.test(env.EXPO_PUBLIC_REOWN_PROJECT_ID)
-  )
+  const reownProjectId = env.EXPO_PUBLIC_REOWN_PROJECT_ID?.trim();
+  if (["beta", "preview"].includes(profile) && !reownProjectId)
+    failures.push("Beta builds require EXPO_PUBLIC_REOWN_PROJECT_ID so wallet-only sign-in is available.");
+  if (reownProjectId && !/^[a-f0-9]{32}$/i.test(reownProjectId))
     failures.push("EXPO_PUBLIC_REOWN_PROJECT_ID must be a 32-character Reown project id.");
   if (env.EXPO_PUBLIC_SOURCE_URL) {
     try {
