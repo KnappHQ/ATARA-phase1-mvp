@@ -86,8 +86,8 @@ export const LogoutModal = ({
               className="text-sm text-center mb-6 leading-5"
               style={{ color: `${COLORS.white}50` }}
             >
-              Are you sure you want to sign out? You can sign back in with
-              Google or Apple.
+              Are you sure you want to sign out? Sign back in with your
+              passkey, connected wallet, or an optional recovery provider.
             </Text>
 
             <Pressable

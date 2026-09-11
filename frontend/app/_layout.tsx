@@ -1,3 +1,4 @@
+import "@walletconnect/react-native-compat";
 import "node-libs-react-native/globals.js";
 import "react-native-get-random-values";
 import * as Sentry from "@sentry/react-native";
@@ -16,6 +17,7 @@ import { useAlertStore } from "@/stores/useAlertStore";
 import { AppAlert } from "@/components/alert/AppAlert";
 import { VaultOpeningAnimation } from "@/components/onboarding/VaultOpeningAnimation";
 import { analyticsScreen } from "@/services/analytics.service";
+import { ExternalWalletProvider } from "@/providers/ExternalWalletProvider";
 
 import "./global.css";
 
@@ -43,6 +45,7 @@ const PROTECTED_ROUTES = [
   "add-crypto",
   "pay-merchant",
   "security",
+  "sovereignty",
   "vault-create",
   "vault-detail",
 ];
@@ -51,11 +54,13 @@ function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#000000" }}>
       <BottomSheetModalProvider>
-        <PrivyProvider>
-          <AuthProvider>
-            <RootLayoutInner />
-          </AuthProvider>
-        </PrivyProvider>
+        <ExternalWalletProvider>
+          <PrivyProvider>
+            <AuthProvider>
+              <RootLayoutInner />
+            </AuthProvider>
+          </PrivyProvider>
+        </ExternalWalletProvider>
       </BottomSheetModalProvider>
     </GestureHandlerRootView>
   );
@@ -200,6 +205,7 @@ function RootLayoutInner() {
           }}
         />
         <Stack.Screen name="security" options={{ presentation: "card", animation: "slide_from_bottom" }} />
+        <Stack.Screen name="sovereignty" options={{ presentation: "card", animation: "slide_from_bottom" }} />
         <Stack.Screen name="vault-create" options={{ presentation: "card", animation: "slide_from_bottom" }} />
         <Stack.Screen name="vault-detail" options={{ presentation: "card", animation: "slide_from_bottom" }} />
       </Stack>

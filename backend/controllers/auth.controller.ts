@@ -48,6 +48,19 @@ export const authController = {
         );
       }
 
+      const allowedAuthProviders = [
+        "passkey",
+        "external_wallet",
+        "google",
+        "apple",
+      ];
+      if (
+        authProvider !== undefined &&
+        !allowedAuthProviders.includes(authProvider)
+      ) {
+        throw new ErrorHandler("Unsupported authentication provider", 400);
+      }
+
       await authService.verifyChallenge(
         signerAddress,
         "register",

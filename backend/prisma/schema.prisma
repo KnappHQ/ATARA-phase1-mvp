@@ -7,28 +7,29 @@ datasource db {
 }
 
 model User {
-  id                  String   @id @default(uuid())
-  handle              String   @unique
-  email               String?  @unique
-  publicAddress       String   @unique // Privy embedded owner wallet address (EOA)
-  smartAccountAddress String?  @unique // Alchemy ERC-4337 smart account on Base
-  authProvider        String? // google, apple
-  profilePicUrl          String?
-  displayName            String?
-  totpSecretEncrypted    String?
-  totpPendingSecret      String?
-  totpPendingCreatedAt   DateTime?
-  totpEnabled            Boolean  @default(false)
-  recoveryPhone          String?
+  id                      String             @id @default(uuid())
+  handle                  String             @unique
+  email                   String?            @unique
+  publicAddress           String?            @unique // Privy embedded owner wallet address (EOA)
+  smartAccountAddress     String?            @unique // Alchemy ERC-4337 smart account on Base
+  authProvider            String? // passkey, external_wallet, google, apple
+  profilePicUrl           String?
+  displayName             String?
+  totpSecretEncrypted     String?
+  totpPendingSecret       String?
+  totpPendingCreatedAt    DateTime?
+  totpEnabled             Boolean            @default(false)
+  recoveryPhone           String?
   recoveryPhoneVerifiedAt DateTime?
-  tokenVersion           Int      @default(0)
-  subscriptionTier       SubscriptionTier   @default(FREE)
-  subscriptionStatus     SubscriptionStatus @default(INACTIVE)
-  subscriptionProvider   String?
-  subscriptionProductId  String?
-  subscriptionExpiresAt  DateTime?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  deletedAt               DateTime?
+  tokenVersion            Int                @default(0)
+  subscriptionTier        SubscriptionTier   @default(FREE)
+  subscriptionStatus      SubscriptionStatus @default(INACTIVE)
+  subscriptionProvider    String?
+  subscriptionProductId   String?
+  subscriptionExpiresAt   DateTime?
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
 
   sentTx           Transaction[]       @relation("Sender")
   receivedTx       Transaction[]       @relation("Receiver")
@@ -93,14 +94,14 @@ model GroupMember {
 }
 
 model GroupExpense {
-  id          String   @id @default(uuid())
-  groupId     String
-  paidById    String
-  description String
-  amount      Decimal  @db.Decimal(24, 8)
-  assetSymbol String
+  id              String   @id @default(uuid())
+  groupId         String
+  paidById        String
+  description     String
+  amount          Decimal  @db.Decimal(24, 8)
+  assetSymbol     String
   clientRequestId String?
-  createdAt   DateTime @default(now())
+  createdAt       DateTime @default(now())
 
   group  Group               @relation(fields: [groupId], references: [id], onDelete: Cascade)
   paidBy User                @relation("PaidExpenses", fields: [paidById], references: [id])
@@ -110,11 +111,11 @@ model GroupExpense {
 }
 
 model GroupExpenseSplit {
-  id                      String    @id @default(uuid())
+  id                      String        @id @default(uuid())
   expenseId               String
   userId                  String
-  amount                  Decimal   @db.Decimal(24, 8)
-  settled                 Boolean   @default(false)
+  amount                  Decimal       @db.Decimal(24, 8)
+  settled                 Boolean       @default(false)
   decision                SplitDecision @default(PENDING)
   decidedAt               DateTime?
   settledAt               DateTime?
@@ -133,16 +134,16 @@ model Transaction {
   receiverId      String?
   receiverAddress String
 
-  txHash       String   @unique
+  txHash       String    @unique
   assetSymbol  String
-  amount       Decimal  @db.Decimal(24, 8)
+  amount       Decimal   @db.Decimal(24, 8)
   rawAmountWei String?
   chainId      Int?
   confirmedAt  DateTime?
   category     String?
   userNote     String?
-  status       TxStatus @default(PENDING)
-  createdAt    DateTime @default(now())
+  status       TxStatus  @default(PENDING)
+  createdAt    DateTime  @default(now())
 
   sender   User  @relation("Sender", fields: [senderId], references: [id])
   receiver User? @relation("Receiver", fields: [receiverId], references: [id])
@@ -175,40 +176,40 @@ enum SubscriptionStatus {
 }
 
 model SettlementIntent {
-  id           String   @id @default(uuid())
-  groupId      String
-  senderId     String
-  receiverId   String
-  amount       Decimal  @db.Decimal(24, 8)
-  splitIds     String[]
-  createdAt    DateTime @default(now())
-  expiresAt    DateTime
-  settledAt    DateTime?
+  id         String    @id @default(uuid())
+  groupId    String
+  senderId   String
+  receiverId String
+  amount     Decimal   @db.Decimal(24, 8)
+  splitIds   String[]
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  settledAt  DateTime?
 
   @@index([senderId, groupId, expiresAt])
 }
 
 // A chain receipt can discharge only one request or one group intent.
 model PaymentUse {
-  chainId      Int
-  txHash       String
-  purpose      String
-  referenceId  String @unique
-  createdAt    DateTime @default(now())
+  chainId     Int
+  txHash      String
+  purpose     String
+  referenceId String   @unique
+  createdAt   DateTime @default(now())
 
   @@id([chainId, txHash])
 }
 
 model PaymentRequest {
-  id               String   @id @default(uuid())
-  tokenHash        String   @unique
+  id               String    @id @default(uuid())
+  tokenHash        String    @unique
   creatorId        String
   recipientAddress String
-  amount           Decimal  @db.Decimal(24, 8)
+  amount           Decimal   @db.Decimal(24, 8)
   note             String
   chainId          Int
   tokenAddress     String
-  createdAt        DateTime @default(now())
+  createdAt        DateTime  @default(now())
   expiresAt        DateTime
   paidAt           DateTime?
   cancelledAt      DateTime?

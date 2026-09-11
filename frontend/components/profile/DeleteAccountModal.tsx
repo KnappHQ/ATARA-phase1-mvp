@@ -76,9 +76,9 @@ export const DeleteAccountModal = ({
               Delete Account
             </Text>
             <Text className="mb-5 text-center text-sm leading-5 text-white/55">
-              This permanently deletes your ATARA profile and app data. Your
-              completed blockchain transactions remain public and cannot be
-              erased.
+              This removes your profile and ends your sessions. Shared expenses,
+              debts and payment receipts remain under a deleted-account label
+              for the other members. Blockchain records cannot be erased.
             </Text>
 
             {error ? (

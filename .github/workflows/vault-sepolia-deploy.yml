@@ -1,22 +1,33 @@
 name: Vault Sepolia Deploy
 
 on:
+  workflow_dispatch:
+    inputs:
+      factory:
+        description: Existing factory to verify; leave empty to deploy once
+        type: string
+        default: ''
   push:
-    branches:
-      - release/vault-sepolia-deploy
+    branches: [release/vault-sepolia, release/vault-sepolia-deploy]
 
 permissions:
   contents: read
 
+concurrency:
+  group: deploy-vault-sepolia
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: contracts
     env:
       BASE_SEPOLIA_RPC_URL: https://sepolia.base.org
-      DEPLOYER_PRIVATE_KEY: ${{ secrets.DEPLOYER_PRIVATE_KEY }}
+      DEPLOYER_PRIVATE_KEY: ${{ secrets.VAULT_DEPLOYER_PRIVATE_KEY || secrets.DEPLOYER_PRIVATE_KEY }}
+      VAULT_FACTORY_ADDRESS: ${{ inputs.factory || vars.VAULT_FACTORY_ADDRESS }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -27,12 +38,27 @@ jobs:
       - run: npm ci
       - name: Contract checks
         run: npm test && npm run abi:check
-      - name: Confirm deployer secret exists
+      - name: Deploy only when no existing factory is configured
         run: |
-          if [ -z "$DEPLOYER_PRIVATE_KEY" ]; then
-            echo "MISSING_DEPLOYER_PRIVATE_KEY"
-            exit 1
+          if [ -z "$VAULT_FACTORY_ADDRESS" ]; then
+            if [ -z "$DEPLOYER_PRIVATE_KEY" ]; then
+              echo "Missing VAULT_DEPLOYER_PRIVATE_KEY (or legacy DEPLOYER_PRIVATE_KEY). No deployment was attempted."
+              exit 1
+            fi
+            npm run deploy:sepolia
+            FACTORY=$(node --input-type=module -e "import fs from 'node:fs'; const files=fs.readdirSync('deployments').filter(f=>f.endsWith('.json')); if(files.length!==1)throw Error('Expected one manifest'); console.log(JSON.parse(fs.readFileSync('deployments/'+files[0])).factory)")
+            echo "VAULT_FACTORY_ADDRESS=$FACTORY" >> "$GITHUB_ENV"
           fi
-          echo "DEPLOYER_SECRET_PRESENT"
-      - name: Deploy Vault Factory to Base Sepolia
-        run: npm run deploy:sepolia
+      - name: Verify deployed code, network, token and cap
+        run: npm run verify:sepolia
+      - name: Record public deployment configuration
+        run: |
+          echo "Verified Base Sepolia factory: $VAULT_FACTORY_ADDRESS" >> "$GITHUB_STEP_SUMMARY"
+          echo "Set repository variable VAULT_FACTORY_ADDRESS to reuse it on future runs, backend VAULT_FACTORY_ADDRESS and EAS EXPO_PUBLIC_VAULT_FACTORY_ADDRESS. Rebuild the app after configuration." >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve deployment receipt even when verification fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: atara-vault-base-sepolia-${{ github.run_id }}
+          path: contracts/deployments/*.json
+          if-no-files-found: ignore

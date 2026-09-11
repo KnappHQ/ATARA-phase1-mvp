@@ -1,7 +1,6 @@
-export const PRIVACY_POLICY_LAST_UPDATED = "07/09/2026";
+export const PRIVACY_POLICY_LAST_UPDATED = "09/09/2026";
 
-export const PRIVACY_POLICY_FOOTER_TEXT =
-  "ATARA LTD — privacy@atara.finance";
+export const PRIVACY_POLICY_FOOTER_TEXT = "ATARA LTD — privacy@atara.finance";
 
 export interface PrivacyPolicySection {
   title: string;
@@ -31,7 +30,7 @@ export const PRIVACY_POLICY_SECTIONS: PrivacyPolicySection[] = [
       "We collect information needed to provide, secure, and improve the Service.",
     ],
     bullets: [
-      "Account information: email address and name, where provided through Google or Apple sign-in, plus the username and display name you choose.",
+      "Account information: the username and display name you choose; email address and name only where you choose Google, Apple, email, or another recovery provider. Wallet-only sign-in does not require ATARA to receive an email address.",
       "Wallet and transaction information: public wallet addresses and blockchain transaction information. Public blockchain records are generally permanent and outside ATARA's control.",
       "Technical information: device type, operating system, app version, IP address received by our servers, and security or diagnostic information needed to operate the Service.",
       "Usage information: limited product events may be processed if analytics is enabled. Passive product analytics is disabled for the current beta unless separately disclosed and enabled.",
@@ -49,7 +48,7 @@ export const PRIVACY_POLICY_SECTIONS: PrivacyPolicySection[] = [
   {
     title: "5. Who we share your information with",
     body: [
-      "ATARA uses third-party providers for authentication and wallet infrastructure, blockchain connectivity, hosting/database services, error monitoring, and other technical functions. Providers process information only as needed to deliver those services and subject to their contractual and legal obligations. We may also disclose information where required by law. We do not sell personal data.",
+      "ATARA uses third-party providers for authentication and embedded-wallet infrastructure (Privy), external-wallet discovery (Reown when enabled), smart-account and blockchain connectivity (Alchemy), hosting/database services, error monitoring, and other technical functions. Providers process information only as needed to deliver those services and subject to their contractual and legal obligations. We may also disclose information where required by law. We do not sell personal data.",
     ],
   },
   {
@@ -91,7 +90,7 @@ export const PRIVACY_POLICY_SECTIONS: PrivacyPolicySection[] = [
   {
     title: "12. Account deletion",
     body: [
-      "You can request deletion from the Profile section of the ATARA app. Account deletion removes or disconnects eligible off-chain account information in accordance with our retention obligations. Public blockchain records cannot be deleted.",
+      "You can request deletion from the Profile section of the ATARA app. Account deletion removes or disconnects eligible off-chain account information in accordance with our retention obligations. Shared expenses, debts and payment receipts remain under a deleted-account label to preserve other members’ records and prevent receipt reuse. Public blockchain records cannot be deleted.",
     ],
   },
   {

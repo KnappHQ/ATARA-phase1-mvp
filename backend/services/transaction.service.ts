@@ -36,7 +36,7 @@ interface AlchemyTransfer {
 class TransactionService {
   public async resolveHandle(handle: string) {
     const user = await prisma.user.findUnique({
-      where: { handle },
+      where: { handle, deletedAt: null },
       select: {
         id: true,
         handle: true,
@@ -73,16 +73,21 @@ class TransactionService {
     if (existingTx) {
       if (
         existingTx.senderId === data.senderProfile.id &&
-        existingTx.receiverAddress.toLowerCase() === normalizedReceiverAddress &&
+        existingTx.receiverAddress.toLowerCase() ===
+          normalizedReceiverAddress &&
         existingTx.assetSymbol === normalizedAsset
       ) {
         return existingTx;
       }
-      throw new ErrorHandler("Transaction reference belongs to another transfer", 409);
+      throw new ErrorHandler(
+        "Transaction reference belongs to another transfer",
+        409,
+      );
     }
 
     const alchemyProvider = new ethers.providers.JsonRpcProvider(ALCHEMY_URL);
-    const receipt = await alchemyProvider.getTransactionReceipt(normalizedTxHash);
+    const receipt =
+      await alchemyProvider.getTransactionReceipt(normalizedTxHash);
 
     if (!receipt) {
       throw new ErrorHandler(

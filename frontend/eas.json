@@ -13,6 +13,7 @@
       }
     },
     "preview": {
+      "extends": "beta",
       "distribution": "internal",
       "android": {
         "buildType": "apk"
@@ -23,11 +24,14 @@
       "environment": "production",
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://atara-api-8ne3.onrender.com",
+        "EXPO_PUBLIC_API_URL": "https://api.atara.finance",
+        "EXPO_PUBLIC_SITE_URL": "https://atara.finance",
+        "EXPO_PUBLIC_PASSKEY_RP_ID": "api.atara.finance",
         "EXPO_PUBLIC_NETWORK": "base-sepolia",
         "EXPO_PUBLIC_DEMO_MODE": "false",
         "EXPO_PUBLIC_ENABLE_SMS_BACKUP": "false",
         "EXPO_PUBLIC_ONRAMP_PROVIDER": "moonpay",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "EXPO_PUBLIC_VAULT_RPC_URL": "https://sepolia.base.org",
         "EXPO_PUBLIC_USDC_ADDRESS_BASE_SEPOLIA": "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
       },
@@ -41,6 +45,14 @@
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.atara.finance",
+        "EXPO_PUBLIC_SITE_URL": "https://atara.finance",
+        "EXPO_PUBLIC_PASSKEY_RP_ID": "api.atara.finance",
+        "EXPO_PUBLIC_NETWORK": "base-mainnet",
+        "EXPO_PUBLIC_DEMO_MODE": "false",
+        "EXPO_PUBLIC_ENABLE_SMS_BACKUP": "false"
       }
     }
   },
@@ -50,7 +62,10 @@
         "track": "internal",
         "releaseStatus": "completed"
       },
-      "ios": {}
+      "ios": {
+        "companyName": "ATARA LTD",
+        "appName": "ATARA: Social Wallet"
+      }
     },
     "production": {
       "android": {
