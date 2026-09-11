@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, Redirect } from "expo-router";
 import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, Text, TextInput, View } from "react-native";
 import { ArrowLeft, Check, LockKeyhole, ShieldCheck, Trash2, Users } from "lucide-react-native";
 import { formatUnits, isAddress, keccak256, stringToHex } from "viem";
@@ -12,7 +12,9 @@ import { DEMO_MODE, DEMO_MEMBER_ADDRESS, DEMO_VAULT_ADDRESS, getDemoVaultSnapsho
 const dateTime = (timestamp: number) => new Date(timestamp * 1000).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" });
 const short = (address: string) => `${address.slice(0, 8)}…${address.slice(-6)}`;
 
-export default function VaultDetailScreen() {
+const VAULTS_ENABLED = process.env.EXPO_PUBLIC_ENABLE_VAULTS === "true";
+
+function VaultDetailScreenEnabled() {
   const router = useRouter();
   const { address } = useLocalSearchParams<{ address?: string }>();
   const account = useAuthStore((state) => state.user?.smartAccountAddress?.toLowerCase());
@@ -152,4 +154,9 @@ export default function VaultDetailScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+export default function VaultDetailScreen() {
+  if (!VAULTS_ENABLED) return <Redirect href="/" />;
+  return <VaultDetailScreenEnabled />;
 }

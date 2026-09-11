@@ -7,6 +7,8 @@ import { BottomNav } from "../../components/BottomNav";
 import { Header } from "../../components/Header";
 import { ShareModal } from "../../components/homeScreen/ShareModal";
 
+const VAULTS_ENABLED = process.env.EXPO_PUBLIC_ENABLE_VAULTS === "true";
+
 export default function TabsLayout() {
   const [shareModalOpen, setShareModalOpen] = useState(false);
 
@@ -43,7 +45,7 @@ export default function TabsLayout() {
             <Tabs.Screen
               name="vaults"
               options={{
-                href: "/vaults",
+                href: VAULTS_ENABLED ? "/vaults" : null,
                 title: "Vault",
               }}
             />

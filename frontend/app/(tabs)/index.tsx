@@ -14,6 +14,8 @@ import { useAuthStore } from "@/stores/useAuthStore";
 import { useGroupStore } from "@/stores/useGroupStore";
 import { ACTIVITY_LIMIT } from "@/utils/constants";
 
+const VAULTS_ENABLED = process.env.EXPO_PUBLIC_ENABLE_VAULTS === "true";
+
 export default function HomeTab() {
   const router = useRouter();
   const [shareModalOpen, setShareModalOpen] = useState(false);
@@ -58,7 +60,9 @@ export default function HomeTab() {
                 onPayMerchant={() => router.push("/pay-merchant")}
               />
 
-              <VaultEntryCard onPress={() => router.push("/vaults")} />
+              {VAULTS_ENABLED ? (
+                <VaultEntryCard onPress={() => router.push("/vaults")} />
+              ) : null}
 
               <View className="mb-6">
                 <WeeklyInsights />
