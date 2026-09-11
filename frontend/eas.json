@@ -34,7 +34,8 @@
         "SENTRY_DISABLE_AUTO_UPLOAD": "true",
         "EXPO_PUBLIC_VAULT_RPC_URL": "https://sepolia.base.org",
         "EXPO_PUBLIC_USDC_ADDRESS_BASE_SEPOLIA": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
-        "EXPO_PUBLIC_ENABLE_VAULTS": "false"
+        "EXPO_PUBLIC_ENABLE_VAULTS": "false",
+        "EXPO_PUBLIC_REOWN_PROJECT_ID": "35f77053ffe4f0ebcb92abbdd81e8d55"
       },
       "android": {
         "buildType": "app-bundle"
@@ -54,7 +55,8 @@
         "EXPO_PUBLIC_NETWORK": "base-mainnet",
         "EXPO_PUBLIC_DEMO_MODE": "false",
         "EXPO_PUBLIC_ENABLE_SMS_BACKUP": "false",
-        "EXPO_PUBLIC_ENABLE_VAULTS": "false"
+        "EXPO_PUBLIC_ENABLE_VAULTS": "false",
+        "EXPO_PUBLIC_REOWN_PROJECT_ID": "35f77053ffe4f0ebcb92abbdd81e8d55"
       }
     }
   },
