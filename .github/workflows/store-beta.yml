@@ -20,7 +20,7 @@ on:
         type: boolean
         default: false
   push:
-    branches: [release/store-beta]
+    branches: [release/store-beta, release/testflight-build-6]
 
 permissions:
   contents: read
@@ -109,7 +109,9 @@ jobs:
         if: steps.selection.outputs.enabled == 'true'
         run: |
           ARGS=()
-          if [ "$SUBMIT_BUILD" = true ]; then ARGS+=(--auto-submit-with-profile beta); fi
+          if [ "$SUBMIT_BUILD" = true ] || { [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF_NAME" = release/testflight-build-6 ] && [ "$BUILD_PLATFORM" = ios ]; }; then
+            ARGS+=(--auto-submit-with-profile beta)
+          fi
           RESULTS_FILE="$RUNNER_TEMP/eas-build-results.json"
           set +e
           npx eas-cli@latest build --platform "$BUILD_PLATFORM" --profile "$BUILD_PROFILE" --non-interactive --wait --json "${ARGS[@]}" > "$RESULTS_FILE"
