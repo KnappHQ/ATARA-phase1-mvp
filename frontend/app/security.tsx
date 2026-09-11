@@ -82,7 +82,7 @@ export default function SecurityScreen() {
         <LogOut color={COLORS.accent} />
         <Text className="text-white text-lg font-semibold mt-3">Contrôle des sessions</Text>
         <Text className="text-white/60 leading-5 mt-2">
-          Révoque toutes les sessions ATARA sur tous tes appareils. Cette action ferme l'accès au service social ATARA mais ne supprime pas ton wallet externe et ne donne jamais à ATARA le contrôle de tes clés.
+          Révoque toutes les sessions ATARA sur tous tes appareils. Cette action ferme l’accès au service social ATARA mais ne supprime pas ton wallet externe et ne donne jamais à ATARA le contrôle de tes clés.
         </Text>
         <Button
           label="Révoquer toutes les sessions ATARA"
