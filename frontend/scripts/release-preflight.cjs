@@ -85,6 +85,9 @@ if (require.main === module) {
   const app = JSON.parse(
     fs.readFileSync(path.join(__dirname, "../app.json")),
   ).expo;
+  const eas = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "../eas.json")),
+  );
   const failures = checkRelease(process.env, profile);
   if (
     ["beta", "preview", "production"].includes(profile) &&
@@ -92,6 +95,16 @@ if (require.main === module) {
       app.extra?.eas?.projectId !== "b454eaa9-f1d5-4d8c-ac09-945ce1f1d09f")
   )
     failures.push("Unexpected ATARA Expo project identity.");
+  if (
+    ["beta", "preview"].includes(profile) &&
+    !app.ios?.associatedDomains?.includes("webcredentials:api.atara.finance")
+  )
+    failures.push("iOS beta requires webcredentials:api.atara.finance for native passkeys.");
+  if (
+    profile === "beta" &&
+    eas.submit?.beta?.ios?.ascAppId !== "6810260648"
+  )
+    failures.push("Beta submit profile is missing the ATARA App Store Connect app ID.");
   if (failures.length) {
     console.error(failures.join("\n"));
     process.exitCode = 1;
