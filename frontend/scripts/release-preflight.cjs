@@ -1,5 +1,17 @@
 const fs = require("node:fs");
 const path = require("node:path");
+function resolveProfileEnv(eas, profile) {
+  const visited = new Set();
+  const resolve = (name) => {
+    if (!name || visited.has(name)) return {};
+    visited.add(name);
+    const config = eas.build?.[name] || {};
+    const parent = config.extends ? resolve(config.extends) : {};
+    return { ...parent, ...(config.env || {}) };
+  };
+  return resolve(profile);
+}
+
 function checkRelease(env, profile) {
   if (!["beta", "preview", "production"].includes(profile)) return [];
   const failures = [];
@@ -88,7 +100,15 @@ if (require.main === module) {
   const eas = JSON.parse(
     fs.readFileSync(path.join(__dirname, "../eas.json")),
   );
-  const failures = checkRelease(process.env, profile);
+  // EAS custom lifecycle hooks can expose only the selected EAS environment
+  // and omit public values declared in eas.json's build-profile env. Merge
+  // those profile values explicitly so post-install validates the exact
+  // effective beta configuration rather than stale project-level values.
+  const effectiveEnv = {
+    ...process.env,
+    ...resolveProfileEnv(eas, profile),
+  };
+  const failures = checkRelease(effectiveEnv, profile);
   if (
     ["beta", "preview", "production"].includes(profile) &&
     (app.owner !== "tk41s-team" ||
@@ -112,9 +132,9 @@ if (require.main === module) {
     console.log(
       `Configuration check passed for ${profile}. Device testing and provider activation remain separate checks.`,
     );
-  if (!process.env.EXPO_PUBLIC_VAULT_FACTORY_ADDRESS)
+  if (!effectiveEnv.EXPO_PUBLIC_VAULT_FACTORY_ADDRESS)
     console.log(
       "Vault deployment is not configured; the app displays its unavailable state.",
     );
 }
-module.exports = { checkRelease };
+module.exports = { checkRelease, resolveProfileEnv };
