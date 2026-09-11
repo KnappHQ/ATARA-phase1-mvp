@@ -2,6 +2,21 @@ import axios from "axios";
 import * as SecureStore from "expo-secure-store";
 import { API_URL } from "../utils/constants";
 
+const apiOrigin = process.env.EXPO_PUBLIC_API_URL?.trim();
+
+if (!apiOrigin) {
+  throw new Error("Missing EXPO_PUBLIC_API_URL");
+}
+
+try {
+  const parsed = new URL(apiOrigin);
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error("not http(s)");
+  }
+} catch {
+  throw new Error(`Invalid EXPO_PUBLIC_API_URL: ${apiOrigin}`);
+}
+
 type LogoutFn = () => Promise<void>;
 let _unauthorizedHandler: LogoutFn | null = null;
 
