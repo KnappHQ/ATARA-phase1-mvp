@@ -5,7 +5,7 @@ import * as Haptics from "expo-haptics";
 import { COLORS } from "@/utils/constants";
 import { truncateAddress } from "@/utils/format";
 import { DisplayTransaction } from "@/stores/useTransactionHistoryStore";
-import { ActivitySkeleton } from "./ActivitySkeleton";
+import { TransactionsSkeleton } from "./ActivitySkeleton";
 import { useRouter } from "expo-router";
 
 interface ActivityListProps {
