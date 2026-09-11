@@ -24,7 +24,7 @@ export interface SendTransactionRequest {
   onSynced?: (transactionId: string) => Promise<void> | void;
 }
 
-export interface TransactionResponse {
+interface TransactionResponse {
   transactionId: string;
   hash?: string;
   success: boolean;
