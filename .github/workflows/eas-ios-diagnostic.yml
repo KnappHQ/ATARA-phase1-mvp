@@ -22,4 +22,4 @@ jobs:
           node-version: 22
       - run: npm ci
       - name: Reproduce EAS beta post-install preflight
-        run: npx eas-cli@latest env:exec production -- node scripts/release-preflight.cjs beta
+        run: npx eas-cli@latest env:exec production 'node scripts/release-preflight.cjs beta' --non-interactive
