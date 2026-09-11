@@ -68,33 +68,3 @@ export const getPrimaryOAuthProvider = (
   return provider.type === "apple_oauth" ? "apple" : "google";
 };
 
-const generateOwnershipMessage = (
-  action: "Login" | "Register",
-  address: string,
-): string => {
-  const timestamp = Date.now();
-  return `${action} to ATARA\nWallet: ${address}\nTimestamp: ${timestamp}`;
-};
-
-/**
- * Generate a message to be signed for login authentication
- * This ensures the user owns the wallet address
- */
-export const generateLoginMessage = (address: string): string => {
-  return generateOwnershipMessage("Login", address);
-};
-
-/**
- * Generate a message to be signed for registration ownership proof
- */
-export const generateRegistrationMessage = (address: string): string => {
-  return generateOwnershipMessage("Register", address);
-};
-
-/**
- * Extract timestamp from a login message
- */
-export const extractTimestampFromMessage = (message: string): number | null => {
-  const match = message.match(/Timestamp: (\d+)/);
-  return match ? parseInt(match[1], 10) : null;
-};
