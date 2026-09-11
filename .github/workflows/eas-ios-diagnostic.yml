@@ -15,35 +15,11 @@ jobs:
         working-directory: frontend
     env:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-      BUILD_ID: fdeee9fc-11ca-48b2-a92a-ab53450ecf9c
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Fetch EAS build metadata
-        run: |
-          npx eas-cli@latest build:view "$BUILD_ID" --json > "$RUNNER_TEMP/build.json"
-          cat "$RUNNER_TEMP/build.json"
-      - name: Download EAS build logs
-        run: |
-          node - <<'NODE' > "$RUNNER_TEMP/urls.txt"
-          const fs = require('fs');
-          const data = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + '/build.json','utf8'));
-          for (const url of data.logFiles || []) console.log(url);
-          NODE
-          : > "$RUNNER_TEMP/eas-ios.log"
-          while IFS= read -r url; do
-            [ -z "$url" ] && continue
-            curl -fsSL "$url" >> "$RUNNER_TEMP/eas-ios.log"
-            printf '\n' >> "$RUNNER_TEMP/eas-ios.log"
-          done < "$RUNNER_TEMP/urls.txt"
-          echo "---- post-install / error excerpts ----"
-          grep -inE "post-install|error:|fatal|failed|exception|unsupported|pod install" "$RUNNER_TEMP/eas-ios.log" | tail -n 200 || true
-      - name: Preserve diagnostic log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: eas-ios-postinstall-log
-          path: ${{ runner.temp }}/eas-ios.log
-          if-no-files-found: warn
+      - run: npm ci
+      - name: Reproduce EAS beta post-install preflight
+        run: npx eas-cli@latest env:exec production -- node scripts/release-preflight.cjs beta
