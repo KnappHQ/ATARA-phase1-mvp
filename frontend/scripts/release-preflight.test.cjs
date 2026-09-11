@@ -9,6 +9,9 @@ const betaEnv = {
   EXPO_PUBLIC_ALCHEMY_API_KEY: "alchemy-key",
   EXPO_PUBLIC_ALCHEMY_GAS_POLICY_ID: "gas-policy",
   EXPO_PUBLIC_DEMO_MODE: "false",
+  EXPO_PUBLIC_ENABLE_VAULTS: "false",
+  EXPO_PUBLIC_PASSKEY_RP_ID: "api.atara.finance",
+  EXPO_PUBLIC_REOWN_PROJECT_ID: "0123456789abcdef0123456789abcdef",
   EXPO_PUBLIC_NETWORK: "base-sepolia",
 };
 
@@ -28,6 +31,9 @@ test("rejects missing credentials and an unsafe API URL", () => {
   assert.ok(failures.some((failure) => failure.includes("HTTPS API")));
   assert.ok(failures.some((failure) => failure.includes("PRIVY_APP_ID")));
   assert.ok(failures.some((failure) => failure.includes("base-sepolia")));
+  assert.ok(failures.some((failure) => failure.includes("REOWN_PROJECT_ID")));
+  assert.ok(failures.some((failure) => failure.includes("PASSKEY_RP_ID")));
+  assert.ok(failures.some((failure) => failure.includes("ENABLE_VAULTS")));
 });
 
 test("blocks public production until release evidence is complete", () => {
