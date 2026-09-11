@@ -27,6 +27,10 @@ jobs:
       - name: Unused files and dependencies
         run: npx --yes knip --reporter compact
         continue-on-error: true
+      - name: Backend unused code and dependencies
+        working-directory: backend
+        run: npx --yes knip --reporter compact
+        continue-on-error: true
       - name: Targeted dead-code references
         run: |
           echo "=== POSTHOG ==="
