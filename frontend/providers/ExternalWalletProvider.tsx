@@ -1,122 +1,15 @@
-import "@walletconnect/react-native-compat";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import {
-  AppKit,
-  AppKitProvider,
-  createAppKit,
-  type AppKitNetwork,
-  type Storage,
-  useAccount,
-  useAppKit,
-  useProvider,
-} from "@reown/appkit-react-native";
-import { EthersAdapter } from "@reown/appkit-ethers-react-native";
+import type { ComponentType, ReactNode } from "react";
 import {
   createContext,
-  type ReactNode,
   useCallback,
   useContext,
   useMemo,
+  useState,
 } from "react";
 
 import type { EthereumSignerWallet } from "@/services/smartAccount.service";
-import { APP_NETWORK, CHAIN_ID } from "@/utils/constants";
 
-const projectId = process.env.EXPO_PUBLIC_REOWN_PROJECT_ID?.trim() || "";
-const STORAGE_PREFIX = "@atara/reown/";
-const storageKey = (key: string) => `${STORAGE_PREFIX}${key}`;
-
-const baseNetwork: AppKitNetwork = {
-  id: CHAIN_ID,
-  name: APP_NETWORK === "base-mainnet" ? "Base" : "Base Sepolia",
-  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-  rpcUrls: {
-    default: {
-      http: [
-        APP_NETWORK === "base-mainnet"
-          ? "https://mainnet.base.org"
-          : "https://sepolia.base.org",
-      ],
-    },
-  },
-  blockExplorers: {
-    default: {
-      name: "BaseScan",
-      url:
-        APP_NETWORK === "base-mainnet"
-          ? "https://basescan.org"
-          : "https://sepolia.basescan.org",
-    },
-  },
-  chainNamespace: "eip155",
-  caipNetworkId: `eip155:${CHAIN_ID}`,
-  testnet: APP_NETWORK !== "base-mainnet",
-};
-
-const storage: Storage = {
-  getKeys: () =>
-    AsyncStorage.getAllKeys().then((keys) =>
-      keys
-        .filter((key) => key.startsWith(STORAGE_PREFIX))
-        .map((key) => key.slice(STORAGE_PREFIX.length)),
-    ),
-  getEntries: async <T,>() => {
-    const keys = await storage.getKeys();
-    const entries = await AsyncStorage.multiGet(keys.map(storageKey));
-    return entries.flatMap(([storedKey, value]) => {
-      if (value === null) return [];
-      const key = storedKey.slice(STORAGE_PREFIX.length);
-      try {
-        return [[key, JSON.parse(value) as T] as [string, T]];
-      } catch {
-        return [[key, value as T] as [string, T]];
-      }
-    });
-  },
-  getItem: async <T,>(key: string) => {
-    const value = await AsyncStorage.getItem(storageKey(key));
-    if (value === null) return undefined;
-    try {
-      return JSON.parse(value) as T;
-    } catch {
-      return value as T;
-    }
-  },
-  setItem: async <T,>(key: string, value: T) => {
-    await AsyncStorage.setItem(storageKey(key), JSON.stringify(value));
-  },
-  removeItem: (key: string) => AsyncStorage.removeItem(storageKey(key)),
-};
-
-const appKit = projectId
-  ? createAppKit({
-      projectId,
-      metadata: {
-        name: "ATARA",
-        description: "A self-custodial social wallet for people and groups.",
-        url: process.env.EXPO_PUBLIC_SITE_URL || "https://atara.finance",
-        icons: [
-          `${process.env.EXPO_PUBLIC_SITE_URL || "https://atara.finance"}/icon.png`,
-        ],
-        redirect: { native: "atara://" },
-      },
-      adapters: [new EthersAdapter()],
-      networks: [baseNetwork],
-      defaultNetwork: baseNetwork,
-      storage,
-      enableAnalytics: false,
-      themeMode: "dark",
-      themeVariables: { accent: "#3c83f6" },
-      features: {
-        onramp: false,
-        swaps: false,
-        socials: false,
-        showWallets: true,
-      },
-    })
-  : null;
-
-type ExternalWalletContextValue = {
+export type ExternalWalletContextValue = {
   enabled: boolean;
   isConnected: boolean;
   address?: string;
@@ -127,92 +20,73 @@ type ExternalWalletContextValue = {
   ensureSupportedNetwork: () => Promise<void>;
 };
 
-const ExternalWalletContext = createContext<ExternalWalletContextValue>({
+export const ExternalWalletContext = createContext<ExternalWalletContextValue>({
   enabled: false,
   isConnected: false,
   connect: async () => {
-    throw new Error("La connexion par wallet attend son identifiant Reown.");
+    throw new Error("La connexion par wallet n'est pas disponible.");
   },
   disconnect: async () => undefined,
   ensureSupportedNetwork: async () => undefined,
 });
 
-const ConfiguredExternalWalletProvider = ({ children }: { children: ReactNode }) => {
-  const { address, isConnected, chainId } = useAccount();
-  const { provider, providerType } = useProvider();
-  const { open, disconnect, switchNetwork } = useAppKit();
-
-  const connect = useCallback(async () => {
-    open({ view: "Connect" });
-  }, [open]);
-
-  const disconnectWallet = useCallback(async () => {
-    await disconnect("eip155");
-  }, [disconnect]);
-
-  const ensureSupportedNetwork = useCallback(async () => {
-    if (chainId && Number(chainId) !== CHAIN_ID) {
-      await switchNetwork(baseNetwork);
-    }
-  }, [chainId, switchNetwork]);
-
-  const wallet = useMemo<EthereumSignerWallet | undefined>(() => {
-    if (!address || !provider || providerType !== "eip155") return undefined;
-    return {
-      address,
-      getProvider: async () => ({
-        request: (args) => provider.request(args),
-      }),
-    };
-  }, [address, provider, providerType]);
-
-  const value = useMemo<ExternalWalletContextValue>(
-    () => ({
-      enabled: true,
-      isConnected,
-      address,
-      chainId,
-      wallet,
-      connect,
-      disconnect: disconnectWallet,
-      ensureSupportedNetwork,
-    }),
-    [address, chainId, connect, disconnectWallet, ensureSupportedNetwork, isConnected, wallet],
-  );
-
-  return (
-    <ExternalWalletContext.Provider value={value}>
-      {children}
-      <AppKit />
-    </ExternalWalletContext.Provider>
-  );
+type RuntimeProps = {
+  children: ReactNode;
+  autoConnect?: boolean;
 };
 
+const projectId = process.env.EXPO_PUBLIC_REOWN_PROJECT_ID?.trim() || "";
+
 export const ExternalWalletProvider = ({ children }: { children: ReactNode }) => {
-  if (!appKit) {
-    return (
-      <ExternalWalletContext.Provider
-        value={{
-          enabled: false,
-          isConnected: false,
-          connect: async () => {
-            throw new Error(
-              "La connexion par wallet sera disponible dès que le projet Reown sera configuré.",
-            );
-          },
-          disconnect: async () => undefined,
-          ensureSupportedNetwork: async () => undefined,
-        }}
-      >
-        {children}
-      </ExternalWalletContext.Provider>
-    );
+  const [Runtime, setRuntime] =
+    useState<ComponentType<RuntimeProps> | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const loadRuntime = useCallback(async () => {
+    if (Runtime) return;
+    try {
+      // Keep Reown out of the app-launch path. Native wallet modules are loaded
+      // only when the user explicitly asks to connect an external wallet.
+      const module = require("./ReownExternalWalletRuntime") as {
+        ReownExternalWalletRuntime: ComponentType<RuntimeProps>;
+      };
+      setRuntime(() => module.ReownExternalWalletRuntime);
+      setLoadError(null);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Wallet module unavailable";
+      console.warn("Reown runtime failed to load:", message);
+      setLoadError(message);
+      throw error;
+    }
+  }, [Runtime]);
+
+  const connect = useCallback(async () => {
+    if (!projectId) {
+      throw new Error("La connexion par wallet attend la configuration Reown.");
+    }
+    await loadRuntime();
+  }, [loadRuntime]);
+
+  const fallbackValue = useMemo<ExternalWalletContextValue>(
+    () => ({
+      enabled: Boolean(projectId) && !loadError,
+      isConnected: false,
+      connect,
+      disconnect: async () => undefined,
+      ensureSupportedNetwork: async () => undefined,
+    }),
+    [connect, loadError],
+  );
+
+  if (Runtime) {
+    return <Runtime autoConnect>{children}</Runtime>;
   }
 
   return (
-    <AppKitProvider instance={appKit}>
-      <ConfiguredExternalWalletProvider>{children}</ConfiguredExternalWalletProvider>
-    </AppKitProvider>
+    <ExternalWalletContext.Provider value={fallbackValue}>
+      {children}
+    </ExternalWalletContext.Provider>
   );
 };
 
