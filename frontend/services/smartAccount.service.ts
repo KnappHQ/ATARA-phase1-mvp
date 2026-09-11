@@ -124,7 +124,7 @@ export type EthereumSignerWallet = {
   }>;
 };
 
-export const getAlchemyWalletConfig = () => {
+const getAlchemyWalletConfig = () => {
   const alchemyApiKey =
     process.env.EXPO_PUBLIC_ALCHEMY_API_KEY ||
     (Constants.expoConfig?.extra?.EXPO_PUBLIC_ALCHEMY_API_KEY as
