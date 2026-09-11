@@ -73,16 +73,6 @@ export const parseAmount = (amountStr: string): number => {
   return isNaN(parsed) ? 0 : parsed;
 };
 
-export const formatChange = (
-  change: number,
-  showSign: boolean = true,
-): string => {
-  if (isNaN(change)) return "0.00%";
-
-  const sign = change >= 0 ? (showSign ? "+" : "") : "";
-  return `${sign}${change.toFixed(2)}%`;
-};
-
 export const truncateAddress = (address: string): string => {
   if (!address || address.length < 12) return address;
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
