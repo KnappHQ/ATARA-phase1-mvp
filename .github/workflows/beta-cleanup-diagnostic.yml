@@ -1,0 +1,38 @@
+name: Beta Cleanup Diagnostic
+
+on:
+  push:
+    branches: [diagnostic/beta-cleanup-scan]
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - name: Expo doctor
+        run: npx expo-doctor
+        continue-on-error: true
+      - name: Unused files and dependencies
+        run: npx --yes knip --reporter compact
+        continue-on-error: true
+      - name: Targeted dead-code references
+        run: |
+          echo "=== POSTHOG ==="
+          grep -RIn --exclude=package-lock.json -E "posthog-react-native|analytics(Screen|Events|Identify|Reset)" . || true
+          echo "=== TEMPLATE ASSETS ==="
+          grep -RIn --exclude=package-lock.json -E "partial-react-logo|react-logo(@2x|@3x)?\.png" . || true
+          echo "=== PREVIEW REFERENCES OUTSIDE PREVIEW/TESTS ==="
+          cd ..
+          grep -RIn --exclude-dir=.git --exclude-dir=node_modules --exclude-dir=preview --exclude-dir=tests -E "preview/(app|ledger|pilot)|simulation web" . || true
