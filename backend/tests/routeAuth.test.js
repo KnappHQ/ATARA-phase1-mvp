@@ -53,9 +53,6 @@ const PROTECTED = [
 
   ["post", "/api/v1/feedback"],
 
-  ["get", "/api/v1/vaults"],
-  ["get", "/api/v1/vaults/0xabc"],
-
   // Retired, but still behind authentication: it answers 410, never 200.
   ["get", "/api/v1/security/totp"],
 
@@ -73,6 +70,12 @@ test("every protected route refuses an anonymous caller", async () => {
       `${method.toUpperCase()} ${path} answered ${response.status}, expected 401`,
     );
   }
+});
+
+test("Vault API stays absent while the beta feature flag is disabled", async () => {
+  assert.notEqual(process.env.ENABLE_VAULTS, "true");
+  assert.equal((await request(app).get("/api/v1/vaults")).status, 404);
+  assert.equal((await request(app).get("/api/v1/vaults/0xabc")).status, 404);
 });
 
 test("a malformed bearer token is refused too", async () => {
