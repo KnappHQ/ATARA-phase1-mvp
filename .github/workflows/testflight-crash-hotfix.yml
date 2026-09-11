@@ -1,0 +1,47 @@
+name: TestFlight Crash Hotfix
+
+on:
+  push:
+    branches: [release/testflight-crash-hotfix]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testflight-crash-hotfix
+  cancel-in-progress: false
+
+jobs:
+  build-and-submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Validate beta environment
+        run: npx eas-cli@latest env:exec production 'node scripts/release-preflight.cjs beta' --non-interactive
+      - name: Build and submit crash hotfix
+        run: |
+          set -o pipefail
+          test -n "$EXPO_TOKEN"
+          RESULTS_FILE="$RUNNER_TEMP/testflight-hotfix.json"
+          npx eas-cli@latest build --platform ios --profile beta --non-interactive --wait --auto-submit-with-profile beta --json | tee "$RESULTS_FILE"
+          cp "$RESULTS_FILE" testflight-hotfix.json
+      - name: Preserve release result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testflight-crash-hotfix
+          path: frontend/testflight-hotfix.json
+          if-no-files-found: warn
