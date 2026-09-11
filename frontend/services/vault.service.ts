@@ -25,7 +25,7 @@ const tokenAbi = [
 const client = createPublicClient({ chain: baseSepolia, transport: http(VAULT_RPC_URL) });
 const asAddress = (value: string) => value as Address;
 
-export type VaultMember = {
+type VaultMember = {
   address: string;
   accepted: boolean;
   contribution: string;
