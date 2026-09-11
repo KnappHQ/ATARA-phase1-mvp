@@ -5,8 +5,7 @@ export const VAULT_RPC_URL =
   process.env.EXPO_PUBLIC_VAULT_RPC_URL || "https://sepolia.base.org";
 export const VAULT_FACTORY_ADDRESS =
   process.env.EXPO_PUBLIC_VAULT_FACTORY_ADDRESS || "";
-export const VAULT_CHAIN_ID = 84532;
-export const VAULT_USDC_DECIMALS = 6;
+const VAULT_CHAIN_ID = 84532;
 
 export const isVaultConfigured =
   APP_NETWORK === "base-sepolia" &&
