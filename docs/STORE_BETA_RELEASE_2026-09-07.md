@@ -2,7 +2,7 @@
 
 Date: 7 September 2026
 Target: iOS TestFlight + Google Play Internal testing
-Branch: `codex/atara-vault`
+Branch: `release/store-beta` (cut from `main` after CI is green)
 
 ## Fastest safe distribution path
 
@@ -32,10 +32,6 @@ Set these on the EAS project before starting a beta build:
 - `EXPO_PUBLIC_PASSKEY_RP_ID` — **required** for beta, since passkey is a primary
   sign-in path. A bare hostname, no `https://`. See the domain-association
   condition below.
-- `EXPO_PUBLIC_REOWN_PROJECT_ID` — **required** for beta, so wallet-only sign-in
-  is available. 32 hexadecimal characters.
-- `EXPO_PUBLIC_ENABLE_VAULTS=false` — **required** for beta and preview. The
-  Vault is out of scope for this release and the preflight enforces it.
 - `EXPO_PUBLIC_VAULT_FACTORY_ADDRESS` is **not** required while the Vault is
   disabled. If set, it must still be a valid non-zero address.
 - Canonical product domain: `https://atara.finance`.
@@ -44,7 +40,11 @@ Set these on the EAS project before starting a beta build:
   - `https://api.atara.finance/.well-known/apple-app-site-association`
   - `https://api.atara.finance/.well-known/assetlinks.json`
 - Configure `APPLE_TEAM_ID` on the domain backend from Apple Developer membership details.
-- Configure `ANDROID_SHA256_CERT_FINGERPRINTS` from Play Console > App integrity > App signing certificate, and add the same fingerprint to Privy's allowed Android key hashes.
+- Configure `ANDROID_SHA256_CERT_FINGERPRINTS` from the signing certificate, add the same SHA-256 fingerprint to Privy's Android key hashes, and whitelist `com.atara.app` in Reown for both iOS and Android.
+- `EXPO_PUBLIC_REOWN_PROJECT_ID` — required for wallet-only sign-in. The preflight
+  wants 32 hexadecimal characters.
+- `EXPO_PUBLIC_ENABLE_VAULTS=false` — mandatory for this beta and for preview;
+  the preflight refuses the build otherwise.
 - `EXPO_PUBLIC_SENTRY_DSN` optional but recommended for beta diagnostics.
 
 The `beta` profile forces, and the preflight verifies:
@@ -69,12 +69,11 @@ At minimum:
 - `ALCHEMY_API_KEY`
 - `ALCHEMY_NETWORK=base-sepolia`
 - `PUBLIC_PAYMENT_ORIGIN` — same public HTTPS backend origin, `https://api.atara.finance`.
-  Without it the service falls back to `RENDER_EXTERNAL_URL`, and payment links
-  carry the wrong host.
+  Without it the service falls back to `RENDER_EXTERNAL_URL`, so payment links
+  carry the `onrender.com` host and the self-origin the CORS allow-list accepts
+  stops matching the origin that serves the payment page.
 - `APPLE_TEAM_ID` and `ANDROID_SHA256_CERT_FINGERPRINTS` — the domain-association
-  files return 503 until both are set, and passkey sign-in fails with them.
-- `VAULT_FACTORY_ADDRESS` — only once the Vault ships; not needed for this beta.
-- `VAULT_RPC_URL=https://sepolia.base.org`
+  files answer 503 until both are set, and passkey sign-in fails without them.
 - `BASE_SEPOLIA_USDC_ADDRESS=0x036CbD53842c5426634e7929541eC2318f3dCF7e`
 - `ENABLE_MAINNET_PAYMENT_REQUESTS=false`
 - MoonPay sandbox variables only if the sandbox widget is exposed in this beta.
@@ -88,13 +87,12 @@ Once the backend is deployed at `https://<backend-origin>`, these endpoints are 
 - Privacy policy: `https://<backend-origin>/api/v1/legal/privacy`
 - Terms: `https://<backend-origin>/api/v1/legal/terms`
 - Account deletion: `https://<backend-origin>/api/v1/legal/account-deletion`
-- Health: `https://<backend-origin>/api/v1/health/backend`
+- Public health: `https://<backend-origin>/api/v1/health/backend`
+- Database health: `https://<backend-origin>/api/v1/health/db` (authenticated)
 
-`/api/v1/health/backend` is the public liveness probe — it is what
-`healthCheckPath` in `render.yaml` points at, and it touches no database.
-`/api/v1/health/db` exists too but **requires a bearer token**: it runs a query
-on every call, so leaving it open let anyone drain the connection pool. A 401
-there means the route is protected, not that the service is down.
+`/health/backend` is what `healthCheckPath` in `render.yaml` probes, and it
+touches no database. A 401 from `/health/db` means the route is protected, not
+that the service is down.
 
 Company identity used in the app and pages:
 
@@ -113,7 +111,7 @@ ATARA
 Send, split and organize crypto payments.
 
 ### Beta description
-ATARA is a self-custodial crypto payment app designed to make blockchain payments easier between people and groups. The beta includes username-based transfers, group expenses, payment requests and shared Vault experiments. The first beta uses Base Sepolia and test assets while the payment and recovery flows are validated.
+ATARA is a self-custodial crypto payment app designed to make blockchain payments easier between people and groups. The beta includes username-based transfers, group expenses, payment requests and self-custodial wallet flows. Vault is intentionally not exposed in this beta. The first beta uses Base Sepolia and test assets while the payment and recovery flows are validated.
 
 ### Keywords / positioning
 crypto wallet, payments, split expenses, groups, USDC, Base, self custody
@@ -154,7 +152,8 @@ Before upload/submission:
   pins `branch:` — confirm it points at the branch carrying the code this build
   expects, or the app will talk to an API that predates its endpoints.
 - Database migrations applied to the staging database.
-- Registration/login works with real Privy credentials.
+- Registration/login works with the real Privy mobile client: passkey, Apple, Google and external-wallet paths tested.
+- Reown allows `https://atara.finance` and `com.atara.app` on iOS + Android.
 - Smart-account ownership verification works server-side.
 - Alchemy gas policy configured and capped for testnet.
 - Vault stays disabled: `EXPO_PUBLIC_ENABLE_VAULTS=false`, no Vault entry in the
@@ -179,6 +178,7 @@ The repository alone cannot complete these account-side operations:
 
 - Apple signing/App Store Connect authentication and agreements.
 - Google Play Console service-account/authentication and required declarations.
+- Expo/EAS project ownership: `app.json` identifies the owner as `tk41s-team` and project ID `b454eaa9-f1d5-4d8c-ac09-945ce1f1d09f`. Keep Apple/Google store credentials attached to that ATARA-managed Expo project, and make sure the `EXPO_TOKEN` repository secret belongs to that account.
 - Public production/staging hosting and secrets must be configured in the selected hosting provider.
 - `PUBLIC_PAYMENT_ORIGIN` is not declared in `render.yaml`, so the service falls
   back to `RENDER_EXTERNAL_URL`. Payment links would then carry the
@@ -190,8 +190,5 @@ The repository alone cannot complete these account-side operations:
   `EXPO_PUBLIC_ALCHEMY_GAS_POLICY_ID`) live in the project's `production`
   environment, not in `eas.json`. They cannot be reviewed from the repository —
   confirm them in the EAS dashboard before starting a build.
-
-Expo/EAS project ownership has been transferred: `app.json` identifies the owner
-as `tk41s-team`. The `EXPO_TOKEN` repository secret must belong to that account.
 
 Do not move to mainnet or public production release just because TestFlight/Internal testing accepts the binary.
