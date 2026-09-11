@@ -13,6 +13,21 @@ function checkRelease(env, profile) {
     if (!env[key]?.trim())
       failures.push(`${key} is missing from the EAS environment.`);
   }
+
+  const privyAppId = env.EXPO_PUBLIC_PRIVY_APP_ID?.trim();
+  const privyClientId = env.EXPO_PUBLIC_PRIVY_CLIENT_ID?.trim();
+  if (privyAppId && privyClientId && privyAppId === privyClientId)
+    failures.push(
+      "Privy App ID and mobile App Client ID must be different values.",
+    );
+  for (const [name, value] of [
+    ["EXPO_PUBLIC_PRIVY_APP_ID", privyAppId],
+    ["EXPO_PUBLIC_PRIVY_CLIENT_ID", privyClientId],
+  ]) {
+    if (value && /^(your-|replace-|changeme|example)/i.test(value))
+      failures.push(`${name} still contains a placeholder value.`);
+  }
+
   try {
     const url = new URL(env.EXPO_PUBLIC_API_URL);
     if (
