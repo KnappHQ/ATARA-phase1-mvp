@@ -68,7 +68,8 @@
       },
       "ios": {
         "companyName": "ATARA LTD",
-        "appName": "ATARA: Social Wallet"
+        "appName": "ATARA: Social Wallet",
+        "ascAppId": "6810260648"
       }
     },
     "production": {
