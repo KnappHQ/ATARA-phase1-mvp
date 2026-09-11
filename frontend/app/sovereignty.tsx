@@ -99,6 +99,7 @@ export default function SovereigntyScreen() {
           <Blocks color={COLORS.accent} />
           <Text className="text-white text-lg font-semibold mt-3">Path to credible decentralization</Text>
           <Fact>Passkey-first access and wallet-only sign-in, with social login kept optional.</Fact>
+          <Fact>User-paid gas fallback when sponsored gas is unavailable, so a paymaster is not the only transaction route.</Fact>
           <Fact>Portable recovery and signer migration before real-value launch.</Fact>
           <Fact>Multiple RPC/bundler providers and an exportable, self-hostable social layer.</Fact>
           <Fact>Public source code, reproducible builds and independent security review.</Fact>
