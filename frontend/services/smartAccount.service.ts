@@ -124,9 +124,6 @@ export type EthereumSignerWallet = {
   }>;
 };
 
-/** @deprecated Use EthereumSignerWallet; kept for local compatibility. */
-export type PrivyEthereumWallet = EthereumSignerWallet;
-
 export const getAlchemyWalletConfig = () => {
   const alchemyApiKey =
     process.env.EXPO_PUBLIC_ALCHEMY_API_KEY ||
