@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { checkRelease } = require("./release-preflight.cjs");
+const { checkRelease, resolveProfileEnv } = require("./release-preflight.cjs");
 
 const betaEnv = {
   EXPO_PUBLIC_API_URL: "https://atara-api-8ne3.onrender.com",
@@ -57,4 +57,63 @@ test("validates optional sovereignty providers when configured", () => {
   assert.ok(failures.some((failure) => failure.includes("PASSKEY_RP_ID")));
   assert.ok(failures.some((failure) => failure.includes("REOWN_PROJECT_ID")));
   assert.ok(failures.some((failure) => failure.includes("SOURCE_URL")));
+});
+
+
+test("build-profile env overrides stale EAS project values", () => {
+  const eas = {
+    build: {
+      beta: {
+        env: {
+          EXPO_PUBLIC_PRIVY_APP_ID: "cmql9uzpi00p60cky8jr0stcw",
+          EXPO_PUBLIC_PRIVY_CLIENT_ID:
+            "client-WY6aSgVTdkUNG9eQoZ7YaufEnNBLkyyRregx2qH1ui4nf",
+          EXPO_PUBLIC_ENABLE_VAULTS: "false",
+          EXPO_PUBLIC_REOWN_PROJECT_ID: "35f77053ffe4f0ebcb92abbdd81e8d55",
+        },
+      },
+    },
+  };
+  const effective = {
+    EXPO_PUBLIC_PRIVY_APP_ID: "stale-same-id",
+    EXPO_PUBLIC_PRIVY_CLIENT_ID: "stale-same-id",
+    ...resolveProfileEnv(eas, "beta"),
+  };
+
+  assert.equal(
+    effective.EXPO_PUBLIC_PRIVY_APP_ID,
+    "cmql9uzpi00p60cky8jr0stcw",
+  );
+  assert.equal(
+    effective.EXPO_PUBLIC_PRIVY_CLIENT_ID,
+    "client-WY6aSgVTdkUNG9eQoZ7YaufEnNBLkyyRregx2qH1ui4nf",
+  );
+  assert.equal(effective.EXPO_PUBLIC_ENABLE_VAULTS, "false");
+  assert.equal(
+    effective.EXPO_PUBLIC_REOWN_PROJECT_ID,
+    "35f77053ffe4f0ebcb92abbdd81e8d55",
+  );
+});
+
+test("preview inherits beta build-profile env", () => {
+  const eas = {
+    build: {
+      beta: {
+        env: {
+          EXPO_PUBLIC_ENABLE_VAULTS: "false",
+          EXPO_PUBLIC_REOWN_PROJECT_ID: "0123456789abcdef0123456789abcdef",
+        },
+      },
+      preview: {
+        extends: "beta",
+        env: { EXPO_PUBLIC_DEMO_MODE: "false" },
+      },
+    },
+  };
+
+  assert.deepEqual(resolveProfileEnv(eas, "preview"), {
+    EXPO_PUBLIC_ENABLE_VAULTS: "false",
+    EXPO_PUBLIC_REOWN_PROJECT_ID: "0123456789abcdef0123456789abcdef",
+    EXPO_PUBLIC_DEMO_MODE: "false",
+  });
 });
