@@ -9,7 +9,6 @@ import {
 } from "@/stores/useGroupStore";
 import { useContactStore } from "@/stores/useContactStore";
 import { useAlertStore } from "@/stores/useAlertStore";
-import { analyticsEvents } from "@/services/analytics.service";
 import { GroupCreateHeader } from "@/components/groupCreate/GroupCreateHeader";
 import { GroupNameInput } from "@/components/groupCreate/GroupNameInput";
 import { GroupMemberPills } from "@/components/groupCreate/GroupMemberPills";
@@ -69,7 +68,6 @@ export default function GroupCreateScreen() {
     try {
       const handles = selectedMembers.map((m) => m.handle);
       await createGroup(groupName.trim(), handles);
-      analyticsEvents.groupCreated({ memberCount: selectedMembers.length });
       router.back();
     } catch (err: any) {
       useAlertStore
