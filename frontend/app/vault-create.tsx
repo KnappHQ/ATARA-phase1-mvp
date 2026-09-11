@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "expo-router";
+import { useRouter, Redirect } from "expo-router";
 import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, Text, TextInput, View } from "react-native";
 import { ArrowLeft, LockKeyhole, UserPlus, X } from "lucide-react-native";
 import { isAddress } from "viem";
@@ -10,7 +10,9 @@ import { useSmartAccountService } from "@/services/smartAccount.service";
 import { VaultService } from "@/services/vault.service";
 import { DEMO_MODE, DEMO_MEMBER_ADDRESS, DEMO_VAULT_ADDRESS, DEMO_VAULT_CONTACTS } from "@/utils/demoMode";
 
-export default function VaultCreateScreen() {
+const VAULTS_ENABLED = process.env.EXPO_PUBLIC_ENABLE_VAULTS === "true";
+
+function VaultCreateScreenEnabled() {
   const router = useRouter();
   const account = useAuthStore((state) => state.user?.smartAccountAddress);
   const smartAccount = useSmartAccountService();
@@ -121,4 +123,9 @@ export default function VaultCreateScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+export default function VaultCreateScreen() {
+  if (!VAULTS_ENABLED) return <Redirect href="/" />;
+  return <VaultCreateScreenEnabled />;
 }
