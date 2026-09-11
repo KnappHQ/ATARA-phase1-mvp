@@ -30,10 +30,14 @@ const ActivityIcon = ({
   </Svg>
 );
 
+const VAULTS_ENABLED = process.env.EXPO_PUBLIC_ENABLE_VAULTS === "true";
+
 const tabs = [
   { id: "home", route: "index", icon: Home, label: "Home" },
   { id: "activity", route: "activity", icon: ActivityIcon, label: "Activity" },
-  { id: "vaults", route: "vaults", icon: LockKeyhole, label: "Vault" },
+  ...(VAULTS_ENABLED
+    ? [{ id: "vaults", route: "vaults", icon: LockKeyhole, label: "Vault" }]
+    : []),
   { id: "profile", route: "profile", icon: User, label: "Profile" },
 ];
 
