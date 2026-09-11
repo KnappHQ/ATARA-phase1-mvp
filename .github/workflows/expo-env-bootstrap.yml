@@ -38,3 +38,7 @@ jobs:
           set_var EXPO_PUBLIC_ONRAMP_PROVIDER moonpay
           set_var EXPO_PUBLIC_VAULT_RPC_URL https://sepolia.base.org
           set_var EXPO_PUBLIC_USDC_ADDRESS_BASE_SEPOLIA 0x036CbD53842c5426634e7929541eC2318f3dCF7e
+          set_var EXPO_PUBLIC_ENABLE_VAULTS false
+          set_var EXPO_PUBLIC_REOWN_PROJECT_ID 35f77053ffe4f0ebcb92abbdd81e8d55
+          set_var EXPO_PUBLIC_PRIVY_APP_ID cmql9uzpi00p60cky8jr0stcw
+          set_var EXPO_PUBLIC_PRIVY_CLIENT_ID client-WY6aSgVTdkUNG9eQoZ7YaufEnNBLkyyRregx2qH1ui4nf
