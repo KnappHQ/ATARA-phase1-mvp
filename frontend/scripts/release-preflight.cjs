@@ -44,6 +44,8 @@ function checkRelease(env, profile) {
   }
   if (env.EXPO_PUBLIC_DEMO_MODE !== "false")
     failures.push("Distributed builds require EXPO_PUBLIC_DEMO_MODE=false.");
+  if (["beta", "preview"].includes(profile) && env.EXPO_PUBLIC_ENABLE_VAULTS !== "false")
+    failures.push("Beta builds must keep EXPO_PUBLIC_ENABLE_VAULTS=false until the Vault release is explicitly approved.");
   if (
     env.EXPO_PUBLIC_PASSKEY_RP_ID &&
     !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(env.EXPO_PUBLIC_PASSKEY_RP_ID)
