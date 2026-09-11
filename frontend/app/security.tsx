@@ -4,10 +4,11 @@ import { usePrivy, useLinkSMS } from "@privy-io/expo";
 import { useLinkWithPasskey } from "@privy-io/expo/passkey";
 import { useMfaEnrollmentUI } from "@privy-io/expo/ui";
 import { Pressable, SafeAreaView, ScrollView, Text, TextInput, View } from "react-native";
-import { ArrowLeft, KeyRound, ShieldCheck, Smartphone, WalletCards } from "lucide-react-native";
+import { ArrowLeft, KeyRound, LogOut, ShieldCheck, Smartphone, WalletCards } from "lucide-react-native";
 import { COLORS } from "@/utils/constants";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useExternalWallet } from "@/providers/ExternalWalletProvider";
+import { AuthService } from "@/services/auth.service";
 
 const PASSKEY_RP = process.env.EXPO_PUBLIC_PASSKEY_RP_ID || "";
 const SMS_ENABLED = process.env.EXPO_PUBLIC_ENABLE_SMS_BACKUP === "true";
@@ -76,6 +77,23 @@ export default function SecurityScreen() {
           <Button label="Recevoir un code" disabled={busy || !/^\+[1-9]\d{7,14}$/.test(phone)} onPress={() => run(async () => { await sendCode({ phone }); setSentPhone(phone); setCode(""); }, "Code envoyé. Vérifie le SMS pour associer ce numéro.")} />
           {!!sentPhone && <><TextInput accessibilityLabel="Code SMS" value={code} onChangeText={v => setCode(v.replace(/\D/g, "").slice(0, 6))} keyboardType="number-pad" placeholder="Code SMS" placeholderTextColor="#666" className="text-white rounded-2xl bg-white/5 p-4 mt-3" /><Button label="Vérifier et associer" disabled={busy || code.length !== 6} onPress={() => run(async () => { await linkWithCode({ phone: sentPhone, code }); setCode(""); setSentPhone(""); }, "Numéro vérifié et associé.")} /></>}
         </> : <Text className="text-white/40 text-xs leading-5 mt-3">Les SMS seront ouverts après validation du fournisseur et de leur coût. Aucune collecte de numéro pour le moment.</Text>}
+      </Card>
+      <Card>
+        <LogOut color={COLORS.accent} />
+        <Text className="text-white text-lg font-semibold mt-3">Contrôle des sessions</Text>
+        <Text className="text-white/60 leading-5 mt-2">
+          Révoque toutes les sessions ATARA sur tous tes appareils. Cette action ferme l'accès au service social ATARA mais ne supprime pas ton wallet externe et ne donne jamais à ATARA le contrôle de tes clés.
+        </Text>
+        <Button
+          label="Révoquer toutes les sessions ATARA"
+          disabled={busy}
+          onPress={() =>
+            run(
+              () => AuthService.logoutAll(),
+              "Toutes les sessions ATARA ont été révoquées.",
+            )
+          }
+        />
       </Card>
       <Text className="text-white/45 text-xs leading-5">Garde au moins deux moyens de connexion accessibles et teste la récupération avant d’utiliser des fonds réels. Les anciens codes de démonstration ATARA ne récupèrent pas les clés du portefeuille.</Text>
     </ScrollView>
