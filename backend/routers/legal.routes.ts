@@ -33,7 +33,7 @@ router.get("/privacy", (_req, res) => {
       `<h1>Privacy Policy</h1>
       <p class="muted">Last updated: 9 September 2026</p>
       <p>${COMPANY.name} (company number ${COMPANY.number}), registered office ${COMPANY.address}, is the controller for personal data described here.</p>
-      <h2>What ATARA is</h2><p>ATARA is software for self-custodial crypto payments and related group and Vault features. ATARA does not hold a conventional custodial crypto balance for users.</p>
+      <h2>What ATARA is</h2><p>ATARA is software for self-custodial crypto payments and related group features. Vault functionality is not exposed in the current beta. ATARA does not hold a conventional custodial crypto balance for users.</p>
       <h2>Data we process</h2><p>We may process usernames, public wallet addresses, blockchain transaction information, technical/server security information, support messages and feedback. Email address and name are processed only where a user chooses a social or recovery provider. Wallet-only sign-in does not require ATARA to receive an email address. Passive product analytics is disabled for the current beta unless separately disclosed and enabled.</p>
       <h2>Why we process it</h2><p>We process data to operate and secure the Service, authenticate users, prevent fraud and abuse, provide support, comply with law and improve ATARA.</p>
       <h2>Providers and transfers</h2><p>ATARA currently uses Privy for embedded authentication/wallet infrastructure, Reown for external-wallet discovery when enabled, Alchemy for smart-account and blockchain connectivity, plus hosting/database and error-monitoring providers. Some providers may process data outside the UK or EEA under applicable transfer safeguards.</p>

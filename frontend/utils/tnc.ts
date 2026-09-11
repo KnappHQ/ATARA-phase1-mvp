@@ -25,7 +25,7 @@ export const TNC_SECTIONS: TncSection[] = [
   },
   {
     title: "2. The Service",
-    body: "ATARA is software for self-custodial crypto payments and related group and Vault features on supported blockchain networks. The beta may use test networks, limited assets, and experimental functionality. Features may change, be suspended, or be removed during the beta.",
+    body: "ATARA is software for self-custodial crypto payments and related group features on supported blockchain networks. The current beta does not expose Vault functionality. The beta may use test networks, limited assets, and experimental functionality. Features may change, be suspended, or be removed during the beta.",
   },
   {
     title: "3. Self-custody and your responsibilities",
