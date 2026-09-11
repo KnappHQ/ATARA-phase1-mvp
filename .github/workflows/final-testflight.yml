@@ -33,8 +33,11 @@ jobs:
         run: npx eas-cli@latest env:exec production 'node scripts/release-preflight.cjs beta' --non-interactive
       - name: Build and submit final iOS beta
         run: |
+          set -o pipefail
           test -n "$EXPO_TOKEN"
-          npx eas-cli@latest build --platform ios --profile beta --non-interactive --wait --auto-submit-with-profile beta --json | tee testflight-build.json
+          RESULTS_FILE="$RUNNER_TEMP/testflight-build.json"
+          npx eas-cli@latest build --platform ios --profile beta --non-interactive --wait --auto-submit-with-profile beta --json | tee "$RESULTS_FILE"
+          cp "$RESULTS_FILE" testflight-build.json
       - name: Preserve release result
         if: always()
         uses: actions/upload-artifact@v4
