@@ -5,7 +5,7 @@ import * as Haptics from "expo-haptics";
 import { COLORS } from "@/utils/constants";
 import { truncateAddress } from "@/utils/format";
 import { DisplayTransaction } from "@/stores/useTransactionHistoryStore";
-import { ActivitySkeleton } from "./ActivitySkeleton";
+import { TransactionsSkeleton } from "./ActivitySkeleton";
 import { useRouter } from "expo-router";
 
 interface ActivityListProps {
@@ -46,7 +46,7 @@ export const ActivityList = ({
       </Text>
 
       {isLoading && transactions.length === 0 ? (
-        <ActivitySkeleton />
+        <TransactionsSkeleton />
       ) : transactions.length === 0 ? (
         <View className="py-8 items-center">
           <Text className="text-sm text-white/30">No transactions yet</Text>

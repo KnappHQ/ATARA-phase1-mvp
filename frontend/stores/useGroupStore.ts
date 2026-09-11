@@ -88,16 +88,6 @@ export function mapContactToMember(c: Contact): GroupMember {
   };
 }
 
-export function mapSearchUserToMember(u: SearchUserResult): GroupMember {
-  return {
-    id: u.id,
-    name: `@${u.handle}`,
-    handle: u.handle,
-    address: u.smartAccountAddress,
-    avatar: getInitials(u.displayName, u.handle),
-  };
-}
-
 function mapDetailResponse(d: GroupDetailResponse): GroupDetail {
   return {
     id: d.id,

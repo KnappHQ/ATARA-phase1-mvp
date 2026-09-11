@@ -3,7 +3,7 @@ import * as Haptics from "expo-haptics";
 
 export type AlertType = "success" | "error" | "warning" | "info";
 
-export interface AlertPayload {
+interface AlertPayload {
   type: AlertType;
   title: string;
   message?: string;

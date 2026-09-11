@@ -9,7 +9,7 @@ import { useAddressBookStore } from "@/stores/useAddressBookStore";
 import { useWalletStore } from "@/stores/useWalletStore";
 import * as Sentry from "@sentry/react-native";
 
-export interface WeeklyDayData {
+interface WeeklyDayData {
   day: string;
   dateShort: string;
   totalSentUSD: number;

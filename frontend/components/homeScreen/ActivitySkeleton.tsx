@@ -95,5 +95,3 @@ export const ContactsSkeleton = () => (
   </View>
 );
 
-// backward-compatible alias
-export const ActivitySkeleton = TransactionsSkeleton;

@@ -262,7 +262,7 @@ export const AmountStep = ({
         setIsGasDialogOpen(false);
         throw new Error(result.error || "Transaction failed");
       }
-    } catch (error: any) {
+    } catch {
       setSwipeResetKey((key) => key + 1);
       // Error is stored in transaction store
     } finally {

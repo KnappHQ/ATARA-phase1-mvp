@@ -21,12 +21,9 @@ export const CHAIN_ID = IS_MAINNET ? 8453 : 84532;
 export const NETWORK_NAME = IS_MAINNET ? "Base Mainnet" : "Base Sepolia";
 
 export const API_URL = `${process.env.EXPO_PUBLIC_API_URL}/api/v1`;
-export const NOTION_LEGAL_URL =
-  "https://www.notion.so/ATARA-L-gal-7e2600d5ec90443fb86748254be86885?source=copy_link";
 export const TX_EXPLORER_BASE_URL = IS_MAINNET
   ? "https://basescan.org/tx"
   : "https://sepolia.basescan.org/tx";
-export const CHART_DATA = [30, 45, 35, 60, 55, 70, 75];
 export const ACTIVITY_LIMIT = 5;
 
 interface Category {
