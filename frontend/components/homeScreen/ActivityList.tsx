@@ -46,7 +46,7 @@ export const ActivityList = ({
       </Text>
 
       {isLoading && transactions.length === 0 ? (
-        <ActivitySkeleton />
+        <TransactionsSkeleton />
       ) : transactions.length === 0 ? (
         <View className="py-8 items-center">
           <Text className="text-sm text-white/30">No transactions yet</Text>
