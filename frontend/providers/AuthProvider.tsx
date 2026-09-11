@@ -247,6 +247,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         );
       }
 
+      if (useConnectedWallet) {
+        await externalWallet.ensureSupportedNetwork();
+      }
+
       const smartAccountService = await createAlchemySmartAccountService({
         wallet: signerWallet,
       });
@@ -288,6 +292,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       create,
       embeddedWallets,
       externalWallet.address,
+      externalWallet.ensureSupportedNetwork,
       externalWallet.wallet,
       playAuthenticatedTransition,
       user,
