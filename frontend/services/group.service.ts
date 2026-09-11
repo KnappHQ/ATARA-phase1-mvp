@@ -20,7 +20,7 @@ export interface SearchUserResult {
   smartAccountAddress: string;
 }
 
-export interface GroupExpenseDetailResponse {
+interface GroupExpenseDetailResponse {
   id: string;
   description: string;
   amount: string;
