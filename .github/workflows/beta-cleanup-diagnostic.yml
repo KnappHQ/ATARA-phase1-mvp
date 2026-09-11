@@ -27,10 +27,38 @@ jobs:
       - name: Unused files and dependencies
         run: npx --yes knip --reporter compact
         continue-on-error: true
+      - name: Runtime dependency audit
+        run: |
+          echo "=== FRONTEND RUNTIME AUDIT ==="
+          npm audit --omit=dev --json > "$RUNNER_TEMP/frontend-audit.json" || true
+          node -e 'const a=require(process.env.RUNNER_TEMP+"/frontend-audit.json"); console.log(JSON.stringify({metadata:a.metadata?.vulnerabilities, vulnerabilities:Object.fromEntries(Object.entries(a.vulnerabilities||{}).filter(([,v])=>["high","critical"].includes(v.severity)).map(([k,v])=>[k,{severity:v.severity,isDirect:v.isDirect,via:(v.via||[]).map(x=>typeof x==="string"?x:x.title).slice(0,4)}]))},null,2))'
+          echo "=== RANDOMBYTES TREE ==="
+          npm ls react-native-randombytes || true
+      - name: Backend runtime dependency audit
+        working-directory: backend
+        run: |
+          npm audit --omit=dev --json > "$RUNNER_TEMP/backend-audit.json" || true
+          node -e 'const a=require(process.env.RUNNER_TEMP+"/backend-audit.json"); console.log(JSON.stringify({metadata:a.metadata?.vulnerabilities, vulnerabilities:Object.fromEntries(Object.entries(a.vulnerabilities||{}).filter(([,v])=>["high","critical"].includes(v.severity)).map(([k,v])=>[k,{severity:v.severity,isDirect:v.isDirect,via:(v.via||[]).map(x=>typeof x==="string"?x:x.title).slice(0,4)}]))},null,2))'
       - name: Backend unused code and dependencies
         working-directory: backend
         run: npx --yes knip --reporter compact
         continue-on-error: true
+      - name: Live beta endpoint checks
+        working-directory: ..
+        run: |
+          set -e
+          echo "=== HEALTH ==="
+          curl -fsS -o /tmp/health.json -w "%{http_code}\n" https://api.atara.finance/api/v1/health/backend
+          cat /tmp/health.json
+          echo
+          echo "=== APPLE PASSKEY ASSOCIATION ==="
+          curl -fsS -o /tmp/aasa -w "%{http_code} %{redirect_url}\n" https://api.atara.finance/.well-known/apple-app-site-association
+          cat /tmp/aasa
+          echo
+          echo "=== ANDROID PASSKEY ASSOCIATION ==="
+          curl -fsS -o /tmp/assetlinks -w "%{http_code} %{redirect_url}\n" https://api.atara.finance/.well-known/assetlinks.json
+          cat /tmp/assetlinks
+          echo
       - name: Targeted dead-code references
         run: |
           echo "=== POSTHOG ==="
