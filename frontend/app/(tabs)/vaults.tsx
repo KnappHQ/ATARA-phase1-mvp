@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useRouter, Redirect } from "expo-router";
 import { ActivityIndicator, Pressable, SafeAreaView, ScrollView, Text, View } from "react-native";
 import { ArrowLeft, ChevronRight, LockKeyhole, Plus } from "lucide-react-native";
 import { COLORS } from "@/utils/constants";
@@ -9,7 +9,9 @@ import { DEMO_MODE, DEMO_VAULT_ADDRESS } from "@/utils/demoMode";
 
 const shortAddress = (address: string) => `${address.slice(0, 8)}…${address.slice(-6)}`;
 
-export default function VaultsScreen() {
+const VAULTS_ENABLED = process.env.EXPO_PUBLIC_ENABLE_VAULTS === "true";
+
+function VaultsScreenEnabled() {
   const router = useRouter();
   const account = useAuthStore((state) => state.user?.smartAccountAddress);
   const [vaults, setVaults] = useState<string[]>([]);
@@ -103,4 +105,9 @@ export default function VaultsScreen() {
       </ScrollView>
     </SafeAreaView>
   );
+}
+
+export default function VaultsScreen() {
+  if (!VAULTS_ENABLED) return <Redirect href="/" />;
+  return <VaultsScreenEnabled />;
 }
