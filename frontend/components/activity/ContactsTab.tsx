@@ -4,8 +4,6 @@ import { ContactThread } from "@/stores/useTransactionHistoryStore";
 import { ContactsSkeleton } from "../homeScreen/ActivitySkeleton";
 import { useRouter } from "expo-router";
 
-export type { ContactThread };
-
 interface ContactsTabProps {
   contactThreads: ContactThread[];
   isLoading?: boolean;
