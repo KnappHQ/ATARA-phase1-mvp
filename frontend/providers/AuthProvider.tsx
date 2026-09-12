@@ -28,6 +28,10 @@ import {
   type EthereumSignerWallet,
 } from "@/services/smartAccount.service";
 import { useExternalWallet } from "@/providers/ExternalWalletProvider";
+import {
+  describeAuthFailure,
+  formatAuthFailure,
+} from "@/utils/authDiagnostics";
 import { useAlertStore } from "@/stores/useAlertStore";
 import { useAuthStore } from "@/stores/useAuthStore";
 import {
@@ -177,7 +181,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         });
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       } catch (error) {
-        setOauthError(error instanceof Error ? error.message : String(error));
+        setOauthError(
+          formatAuthFailure(describeAuthFailure(error, { method: "oauth" })),
+        );
       } finally {
         setIsStartingOAuth(false);
       }
@@ -195,7 +201,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (mode === "signup") await signupWithPasskey(input);
       else await loginWithPasskey(input);
     }
-    catch (error) { setOauthError(error instanceof Error ? error.message : "Connexion non terminée."); }
+    catch (error) {
+      // A bare provider string ("Signup with passkey not allowed") says nothing
+      // about which system refused or what to change, and a store build has no
+      // console to dig further.
+      setOauthError(
+        formatAuthFailure(describeAuthFailure(error, { method: "passkey" })),
+      );
+    }
     finally { setIsStartingOAuth(false); }
   }, [loginWithPasskey, signupWithPasskey]);
 
@@ -211,9 +224,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await externalWallet.connect();
     } catch (error) {
       setOauthError(
-        error instanceof Error
-          ? error.message
-          : "La connexion au wallet n'a pas pu démarrer.",
+        formatAuthFailure(describeAuthFailure(error, { method: "wallet" })),
       );
     }
   }, [externalWallet]);
