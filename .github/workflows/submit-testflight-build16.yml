@@ -1,0 +1,38 @@
+name: Submit TestFlight Build 16
+
+on:
+  push:
+    branches: [release/submit-testflight-build16]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: submit-testflight-build16
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Verify Expo authentication
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "EXPO_TOKEN is not configured."
+            exit 1
+          fi
+      - name: Submit the exact iOS build 16 to TestFlight
+        run: npx eas-cli@latest submit --platform ios --id 4a6fa564-d6aa-4a75-9959-2bd6285d1601 --profile beta --non-interactive --wait
