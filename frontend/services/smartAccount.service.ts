@@ -125,16 +125,23 @@ export type EthereumSignerWallet = {
 };
 
 const getAlchemyWalletConfig = () => {
-  const alchemyApiKey =
+  // Trimmed, because a value that is only whitespace passes a plain truthiness
+  // check and then reaches Alchemy as an empty bearer token, which comes back
+  // as "Must be authenticated!" rather than as the missing-key error.
+  const alchemyApiKey = (
     process.env.EXPO_PUBLIC_ALCHEMY_API_KEY ||
     (Constants.expoConfig?.extra?.EXPO_PUBLIC_ALCHEMY_API_KEY as
       | string
-      | undefined);
-  const alchemyGasPolicyId =
+      | undefined) ||
+    ""
+  ).trim();
+  const alchemyGasPolicyId = (
     process.env.EXPO_PUBLIC_ALCHEMY_GAS_POLICY_ID ||
     (Constants.expoConfig?.extra?.EXPO_PUBLIC_ALCHEMY_GAS_POLICY_ID as
       | string
-      | undefined);
+      | undefined) ||
+    ""
+  ).trim();
 
   return { alchemyApiKey, alchemyGasPolicyId };
 };

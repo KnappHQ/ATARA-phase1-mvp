@@ -13,6 +13,10 @@ import { CrownIcon } from "./CrownIcon";
 import { COLORS } from "@/utils/constants";
 import { useState, useEffect, useMemo } from "react";
 import debounce from "@/utils/debounce";
+import {
+  describeAuthFailure,
+  formatAuthFailure,
+} from "@/utils/authDiagnostics";
 import { TermsOfServiceScreen } from "@/components/profile/TermsOfServiceScreen";
 import { PrivacyPolicyScreen } from "@/components/profile/PrivacyPolicyScreen";
 
@@ -76,11 +80,17 @@ export const IdentityScreen = ({
     try {
       await onSubmit({ handle });
     } catch (err: any) {
-      const message =
-        err?.response?.data?.message ||
-        err?.message ||
-        "Registration failed. Please try again.";
-      setError(message);
+      // The ATARA API's own refusals are already written for a person. Anything
+      // else reaching here is a provider error - viem dumps the whole request
+      // body, signer address included - so it goes through the diagnostic
+      // instead of onto the screen verbatim.
+      const apiMessage = err?.response?.data?.message;
+      setError(
+        apiMessage ||
+          formatAuthFailure(
+            describeAuthFailure(err, { method: "registration" }),
+          ),
+      );
     } finally {
       setIsRegistering(false);
     }

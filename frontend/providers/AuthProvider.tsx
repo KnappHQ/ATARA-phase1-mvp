@@ -492,6 +492,15 @@ const AuthenticationManager = ({
         if (autoLoginKeyRef.current === autoLoginKey) {
           autoLoginKeyRef.current = null;
           onCheckingBackendChange(false);
+          return;
+        }
+        // The key changed while this attempt was in flight. When it changed to
+        // another attempt, that one owns the spinner and will lower it. When it
+        // was cleared - a logout, for instance - nobody else will, and leaving
+        // it raised locks the gate screen with every button greyed out behind
+        // "Verifying ownership...".
+        if (autoLoginKeyRef.current === null) {
+          onCheckingBackendChange(false);
         }
       });
   }, [
@@ -551,6 +560,12 @@ const AuthenticationManager = ({
       .finally(() => {
         if (autoLoginKeyRef.current === autoLoginKey) {
           autoLoginKeyRef.current = null;
+          onCheckingBackendChange(false);
+          return;
+        }
+        // Same reasoning as the embedded-wallet attempt above: when the key was
+        // cleared rather than replaced, no other attempt will lower the spinner.
+        if (autoLoginKeyRef.current === null) {
           onCheckingBackendChange(false);
         }
       });
