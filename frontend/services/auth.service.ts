@@ -1,5 +1,6 @@
 import { useAuthStore } from "../stores/useAuthStore";
 import { api } from "./api";
+import { assertActive } from "../utils/walletReadiness";
 
 interface RegisterParams {
   handle: string;
@@ -26,8 +27,10 @@ export const AuthService = {
     };
   },
 
-  register: async (params: RegisterParams) => {
-    const response = await api.post("/auth/register", params);
+  register: async (params: RegisterParams, signal?: AbortSignal) => {
+    assertActive(signal);
+    const response = await api.post("/auth/register", params, { signal });
+    assertActive(signal);
 
     const { user, token } = response.data;
     await useAuthStore.getState().setAuth(user, token);
