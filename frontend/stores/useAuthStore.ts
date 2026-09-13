@@ -79,6 +79,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    // Clear the visible account before slow secure-storage operations finish.
+    useWalletStore.getState().reset();
+    set({ user: null, token: null, isAuthenticated: false, justLoggedOut: true });
     await SecureStore.deleteItemAsync("auth_token");
     await SecureStore.deleteItemAsync("user_profile");
     // Persist a short-term flag to avoid immediate auto-login (survives app restart)

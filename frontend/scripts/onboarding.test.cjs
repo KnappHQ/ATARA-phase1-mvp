@@ -134,3 +134,86 @@ test('Back stays in safe-area flow, with a 48pt touch target and outside keyboar
   assert.match(source, /keyboardShouldPersistTaps="handled"/);
   assert.ok(source.indexOf('onPress={handleBack}') < source.indexOf('<KeyboardAvoidingView'));
 });
+
+test('concurrent sends on the same wallet are rejected before any network call', async () => {
+  const { runExclusiveOperation } = load('utils/exclusiveOperation.ts');
+  let finish; let sent = 0;
+  const first = runExclusiveOperation('base:wallet', () => {
+    sent++;
+    return new Promise(resolve => { finish = resolve; });
+  });
+  await assert.rejects(runExclusiveOperation('base:wallet', async () => { sent++; }), /already in progress/);
+  assert.equal(sent, 1);
+  finish('receipt');
+  assert.equal(await first, 'receipt');
+  assert.equal(await runExclusiveOperation('base:wallet', async () => 'next'), 'next');
+});
+
+test('operation lock releases on failure and does not block a different wallet', async () => {
+  const { runExclusiveOperation } = load('utils/exclusiveOperation.ts');
+  await assert.rejects(runExclusiveOperation('a', async () => { throw new Error('rejected'); }), /rejected/);
+  await runExclusiveOperation('a', async () => runExclusiveOperation('b', async () => 'ok'));
+});
+
+function walletStoreHarness() {
+  let state; const requests = [];
+  const { useWalletStore } = load('stores/useWalletStore.ts', {
+    zustand: { create: initializer => {
+      state = initializer(update => { state = { ...state, ...update }; }, () => state);
+      return { getState: () => state };
+    } },
+    '@sentry/react-native': { captureException: () => {} },
+    '@/utils/constants': { DEFAULT_ASSETS: [{ symbol: 'ETH', balance: '0', usdValue: '$0', usdPrice: 0 }], CHAIN_ID: 84532, NETWORK_NAME: 'Base Sepolia' },
+    '@/services/wallet.service': { WalletService: { getPortfolio: () => new Promise((resolve, reject) => requests.push({ resolve, reject })) } },
+  });
+  const portfolio = (amount) => ({ totalUSD: amount, change24h: 0, percentChange24h: 0, tokens: [{ symbol: 'ETH', balance: String(amount), usdValue: amount }] });
+  return { store: useWalletStore, requests, portfolio };
+}
+
+test('switching wallets clears old balances and ignores a late portfolio response', async () => {
+  const h = walletStoreHarness();
+  h.store.getState().setWalletAddress('0xA');
+  const first = h.store.getState().refreshBalances();
+  h.store.getState().setWalletAddress('0xB');
+  h.requests[0].resolve(h.portfolio(900)); await first;
+  assert.equal(h.store.getState().totalUSDValue, 0);
+  assert.equal(h.store.getState().smartAccountAddress, '0xB');
+});
+
+test('logout/reset discards in-flight data; newer refresh wins over older refresh', async () => {
+  const h = walletStoreHarness();
+  h.store.getState().setWalletAddress('0xA');
+  const first = h.store.getState().refreshBalances();
+  const second = h.store.getState().refreshBalances();
+  h.requests[1].resolve(h.portfolio(2)); await second;
+  h.requests[0].resolve(h.portfolio(1)); await first;
+  assert.equal(h.store.getState().totalUSDValue, 2);
+  const third = h.store.getState().refreshBalances();
+  h.store.getState().reset();
+  h.requests[2].resolve(h.portfolio(100)); await third;
+  assert.equal(h.store.getState().totalUSDValue, 0);
+  assert.equal(h.store.getState().smartAccountAddress, undefined);
+});
+
+test('late 401 for an old token and anonymous 401 do not log out the current account', async () => {
+  let responseError; let logouts = 0;
+  const previous = process.env.EXPO_PUBLIC_API_URL;
+  process.env.EXPO_PUBLIC_API_URL = 'https://example.test';
+  try {
+    const { registerUnauthorizedHandler } = load('services/api.ts', {
+      axios: { default: { create: () => ({ interceptors: { request: { use: () => {} }, response: { use: (_ok, handler) => { responseError = handler; } } } }) } },
+      'expo-secure-store': { getItemAsync: async () => 'current-token' },
+      '../utils/constants': { API_URL: 'https://example.test/api' },
+    });
+    registerUnauthorizedHandler(async () => { logouts++; await pause(5); });
+    const error = (token) => ({ response: { status: 401 }, config: { headers: { Authorization: token ? `Bearer ${token}` : undefined } } });
+    await assert.rejects(responseError(error('old-token')));
+    await assert.rejects(responseError(error()));
+    assert.equal(logouts, 0);
+    await Promise.allSettled([responseError(error('current-token')), responseError(error('current-token'))]);
+    assert.equal(logouts, 1);
+  } finally {
+    if (previous === undefined) delete process.env.EXPO_PUBLIC_API_URL;
+    else process.env.EXPO_PUBLIC_API_URL = previous;
+  }
+});

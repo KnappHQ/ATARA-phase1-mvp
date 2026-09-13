@@ -28,6 +28,7 @@ export interface WalletState {
   percentChange24h: number;
 
   setWalletAddress: (smartAccountAddress: string) => void;
+  reset: () => void;
   updateTokenBalances: (tokens: Token[]) => void;
   refreshBalances: () => Promise<void>;
   getAssetBySymbol: (symbol: string) => Token | undefined;
@@ -35,7 +36,18 @@ export interface WalletState {
   setBalanceError: (error: string | null) => void;
 }
 
-export const useWalletStore = create<WalletState>((set, get) => ({
+export const useWalletStore = create<WalletState>((set, get) => {
+  let balanceRequest = 0;
+  const emptyPortfolio = () => ({
+    assets: DEFAULT_ASSETS.map(asset => ({ ...asset })),
+    totalUSDValue: 0,
+    change24h: 0,
+    percentChange24h: 0,
+    lastUpdated: undefined,
+    isLoadingBalances: false,
+    balanceError: null,
+  });
+  return ({
   assets: [...DEFAULT_ASSETS],
   isLoadingBalances: false,
   networkName: NETWORK_NAME,
@@ -46,10 +58,18 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   percentChange24h: 0,
 
   setWalletAddress: (smartAccountAddress: string) => {
+    if (get().smartAccountAddress?.toLowerCase() === smartAccountAddress.toLowerCase()) return;
+    balanceRequest++;
     set({
+      ...emptyPortfolio(),
       smartAccountAddress,
       balanceError: null,
     });
+  },
+
+  reset: () => {
+    balanceRequest++;
+    set({ ...emptyPortfolio(), smartAccountAddress: undefined });
   },
 
   updateTokenBalances: (tokens: Token[]) => {
@@ -79,6 +99,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   },
 
   refreshBalances: async () => {
+    const request = ++balanceRequest;
     const { smartAccountAddress } = get();
 
     if (!smartAccountAddress) {
@@ -90,6 +111,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
 
     try {
       const portfolio = await WalletService.getPortfolio();
+      if (request !== balanceRequest) return;
 
       set({
         totalUSDValue: portfolio.totalUSD,
@@ -138,6 +160,7 @@ export const useWalletStore = create<WalletState>((set, get) => ({
         balanceError: null,
       });
     } catch (error: any) {
+      if (request !== balanceRequest) return;
       console.error("Failed to refresh balances:", error);
       Sentry.captureException(error);
       set({
@@ -161,4 +184,5 @@ export const useWalletStore = create<WalletState>((set, get) => ({
   setBalanceError: (error: string | null) => {
     set({ balanceError: error });
   },
-}));
+  });
+});
