@@ -8,7 +8,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MotiView } from "moti";
-import { Check, ChevronRight, AlertCircle } from "lucide-react-native";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  AlertCircle,
+} from "lucide-react-native";
 import { CrownIcon } from "./CrownIcon";
 import { COLORS } from "@/utils/constants";
 import { useState, useEffect, useMemo } from "react";
@@ -21,13 +26,29 @@ interface IdentityScreenProps {
   setHandle: (h: string) => void;
   onCheckHandle: (handle: string) => Promise<boolean>;
   onSubmit: (params: { handle: string }) => Promise<void>;
+  onBack: () => Promise<void>;
 }
+
+const formatRegistrationError = (error: any): string => {
+  const raw = String(error?.response?.data?.message || error?.message || "");
+
+  if (
+    /alchemy|wallet_requestAccount|must be authenticated|EXPO_PUBLIC_ALCHEMY/i.test(
+      raw,
+    )
+  ) {
+    return "Account setup is temporarily unavailable. Please go back and try another sign-in method.";
+  }
+
+  return raw || "Registration failed. Please try again.";
+};
 
 export const IdentityScreen = ({
   handle,
   setHandle,
   onCheckHandle,
   onSubmit,
+  onBack,
 }: IdentityScreenProps) => {
   const isValid = handle.length >= 3;
   const [isChecking, setIsChecking] = useState(false);
@@ -37,6 +58,7 @@ export const IdentityScreen = ({
   const [acceptedLegalTerms, setAcceptedLegalTerms] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
+  const [isGoingBack, setIsGoingBack] = useState(false);
 
   // Debounced handle availability check
   const checkHandleAvailability = useMemo(
@@ -76,13 +98,20 @@ export const IdentityScreen = ({
     try {
       await onSubmit({ handle });
     } catch (err: any) {
-      const message =
-        err?.response?.data?.message ||
-        err?.message ||
-        "Registration failed. Please try again.";
-      setError(message);
+      setError(formatRegistrationError(err));
     } finally {
       setIsRegistering(false);
+    }
+  };
+
+  const handleBack = async () => {
+    if (isGoingBack || isRegistering) return;
+    setIsGoingBack(true);
+    setError(null);
+    try {
+      await onBack();
+    } finally {
+      setIsGoingBack(false);
     }
   };
 
@@ -91,6 +120,22 @@ export const IdentityScreen = ({
 
   return (
     <SafeAreaView className="flex-1 items-center justify-center px-8">
+      <TouchableOpacity
+        onPress={handleBack}
+        disabled={isGoingBack || isRegistering}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel="Back to sign-in methods"
+        className="absolute left-5 top-4 z-10 flex-row items-center gap-1 rounded-full border border-white/15 bg-black/60 px-3 py-2"
+      >
+        {isGoingBack ? (
+          <ActivityIndicator size="small" color={COLORS.white} />
+        ) : (
+          <ChevronLeft size={20} color={COLORS.white} />
+        )}
+        <Text className="text-sm font-medium text-white">Back</Text>
+      </TouchableOpacity>
+
       <MotiView
         from={{ opacity: 0 }}
         animate={{ opacity: 1 }}
