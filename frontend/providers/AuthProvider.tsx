@@ -23,6 +23,7 @@ import * as Haptics from "expo-haptics";
 import { retryPendingSettlements } from "@/services/settlementRecovery.service";
 import { registerUnauthorizedHandler } from "@/services/api";
 import { AuthService } from "@/services/auth.service";
+import { assertActive, waitForWallet } from "@/utils/walletReadiness";
 import {
   createAlchemySmartAccountService,
   type EthereumSignerWallet,
@@ -116,6 +117,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const embeddedWallets = wallets as EthereumSignerWallet[];
+  const walletsRef = useRef(embeddedWallets);
+  walletsRef.current = embeddedWallets;
+  const registrationRef = useRef<AbortController | null>(null);
+  const [isRegistering, setIsRegistering] = useState(false);
+  useEffect(() => () => registrationRef.current?.abort(), []);
   // A valid backend session is enough to read ATARA data. Requiring a live
   // Privy session here would make wallet-only users depend on a social-login
   // provider even after proving ownership with their wallet.
@@ -150,6 +156,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const logout = useCallback(async () => {
+    registrationRef.current?.abort();
+    registrationRef.current = null;
+    setIsRegistering(false);
+    ignoredAutoLoginUserIdRef.current = user?.id ?? null;
+    autoLoginKeyRef.current = null;
+    setIsCheckingBackend(false);
+    setOnboardingStep("gate");
     try {
       await privyLogout();
     } catch (error) {
@@ -159,9 +172,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await useAuthStore.getState().logout();
       setOnboardingStep("gate");
       autoLoginKeyRef.current = null;
-      ignoredAutoLoginUserIdRef.current = null;
     }
-  }, [externalWallet, privyLogout]);
+  }, [externalWallet, privyLogout, user?.id]);
 
   const startOAuth = useCallback(
     async (provider: OAuthProvider) => {
@@ -231,77 +243,96 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const registerWithHandle = useCallback(
     async ({ handle }: RegisterWithHandleParams) => {
-      const useConnectedWallet =
-        activeAuthMethod === "external_wallet" && !!externalWallet.wallet;
-      let signerWallet: EthereumSignerWallet | undefined = useConnectedWallet
-        ? externalWallet.wallet
-        : embeddedWallets[0];
-      let signerAddress = useConnectedWallet
-        ? externalWallet.address
-        : signerWallet?.address || getPrimaryEmbeddedEthereumWalletAddress(user);
+      if (registrationRef.current) return;
+      const controller = new AbortController();
+      registrationRef.current = controller;
+      setIsRegistering(true);
+      const { signal } = controller;
+      try {
+        const useConnectedWallet =
+          activeAuthMethod === "external_wallet";
+        if (useConnectedWallet && !externalWallet.wallet) {
+          throw new Error("Your wallet disconnected. Go back and reconnect it.");
+        }
+        let signerWallet: EthereumSignerWallet | undefined = useConnectedWallet
+          ? externalWallet.wallet
+          : findWalletByAddress(walletsRef.current, getPrimaryEmbeddedEthereumWalletAddress(user));
+        let signerAddress = useConnectedWallet
+          ? externalWallet.address
+          : signerWallet?.address || getPrimaryEmbeddedEthereumWalletAddress(user);
 
-      if (!signerAddress && !useConnectedWallet) {
-        const result = await create({ createAdditional: false });
-        signerAddress =
-          getPrimaryEmbeddedEthereumWalletAddress(result.user) ||
-          getPrimaryEmbeddedEthereumWalletAddress(user);
-        signerWallet = findWalletByAddress(embeddedWallets, signerAddress);
-      }
+        if (!signerAddress && !useConnectedWallet) {
+          const result = await create({ createAdditional: false });
+          assertActive(signal);
+          signerAddress =
+            getPrimaryEmbeddedEthereumWalletAddress(result.user) ||
+            getPrimaryEmbeddedEthereumWalletAddress(user);
+        }
 
-      if (!signerAddress) {
-        throw new Error("Wallet not ready. Please wait...");
-      }
+        if (!signerAddress) {
+          throw new Error("Wallet not ready. Please wait...");
+        }
 
-      if (!signerWallet) {
-        throw new Error(
-          "Wallet provider not ready. Please try again in a moment.",
+        if (!useConnectedWallet) {
+          signerWallet = await waitForWallet(() => walletsRef.current, signerAddress, signal);
+        }
+        if (!signerWallet) throw new Error("Your wallet disconnected. Go back and reconnect it.");
+        assertActive(signal);
+
+        if (useConnectedWallet) {
+          await externalWallet.ensureSupportedNetwork();
+        }
+        assertActive(signal);
+
+        const smartAccountService = await createAlchemySmartAccountService({
+          wallet: signerWallet,
+        });
+        assertActive(signal);
+        const smartAccountAddress = smartAccountService.getSmartAccountAddress();
+
+        if (!smartAccountAddress) {
+          throw new Error("Smart account not ready. Please try again.");
+        }
+
+        const challenge = await AuthService.requestChallenge(
+          signerAddress,
+          "register",
         );
+        assertActive(signal);
+        const registrationSignature = await signPersonalMessage(
+          signerWallet,
+          challenge.message,
+        );
+        assertActive(signal);
+
+        if (!registrationSignature) {
+          throw new Error("Failed to verify wallet ownership. Please try again.");
+        }
+
+        await AuthService.register({
+          handle,
+          smartAccountAddress,
+          signerAddress,
+          email: getPrimaryEmailAddress(user) || undefined,
+          authProvider: useConnectedWallet
+            ? "external_wallet"
+            : getPrimaryOAuthProvider(user) ?? "passkey",
+          message: challenge.message,
+          signature: registrationSignature,
+        }, signal);
+
+        assertActive(signal);
+        playAuthenticatedTransition(Haptics.ImpactFeedbackStyle.Medium);
+      } finally {
+        if (registrationRef.current === controller) {
+          registrationRef.current = null;
+          setIsRegistering(false);
+        }
       }
-
-      if (useConnectedWallet) {
-        await externalWallet.ensureSupportedNetwork();
-      }
-
-      const smartAccountService = await createAlchemySmartAccountService({
-        wallet: signerWallet,
-      });
-      const smartAccountAddress = smartAccountService.getSmartAccountAddress();
-
-      if (!smartAccountAddress) {
-        throw new Error("Smart account not ready. Please try again.");
-      }
-
-      const challenge = await AuthService.requestChallenge(
-        signerAddress,
-        "register",
-      );
-      const registrationSignature = await signPersonalMessage(
-        signerWallet,
-        challenge.message,
-      );
-
-      if (!registrationSignature) {
-        throw new Error("Failed to verify wallet ownership. Please try again.");
-      }
-
-      await AuthService.register({
-        handle,
-        smartAccountAddress,
-        signerAddress,
-        email: getPrimaryEmailAddress(user) || undefined,
-        authProvider: useConnectedWallet
-          ? "external_wallet"
-          : getPrimaryOAuthProvider(user) ?? "passkey",
-        message: challenge.message,
-        signature: registrationSignature,
-      });
-
-      playAuthenticatedTransition(Haptics.ImpactFeedbackStyle.Medium);
     },
     [
       activeAuthMethod,
       create,
-      embeddedWallets,
       externalWallet.address,
       externalWallet.ensureSupportedNetwork,
       externalWallet.wallet,
@@ -357,6 +388,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AuthContext.Provider value={value}>
       <AuthenticationManager
+        isRegistering={isRegistering}
         embeddedWallets={embeddedWallets}
         externalWallet={externalWallet.wallet}
         externalWalletConnected={externalWallet.isConnected}
@@ -376,6 +408,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 };
 
 type AuthenticationManagerProps = {
+  isRegistering: boolean;
   embeddedWallets: EthereumSignerWallet[];
   externalWallet?: EthereumSignerWallet;
   externalWalletConnected: boolean;
@@ -391,6 +424,7 @@ type AuthenticationManagerProps = {
 };
 
 const AuthenticationManager = ({
+  isRegistering,
   embeddedWallets,
   externalWallet,
   externalWalletConnected,
@@ -409,9 +443,12 @@ const AuthenticationManager = ({
   const showAuthError = useAlertStore((state) => state.error);
 
   useEffect(() => {
+    registerUnauthorizedHandler(logout);
+  }, [logout]);
+
+  useEffect(() => {
     let mounted = true;
 
-    registerUnauthorizedHandler(logout);
     useAuthStore
       .getState()
       .loadSession()
@@ -424,11 +461,11 @@ const AuthenticationManager = ({
     return () => {
       mounted = false;
     };
-  }, [logout, onSessionLoaded]);
+  }, [onSessionLoaded]);
 
   useEffect(() => {
     if (
-      !isPrivyReady ||
+      isRegistering || !isPrivyReady ||
       !hasLoadedSession ||
       !user ||
       externalWalletConnected
@@ -496,6 +533,7 @@ const AuthenticationManager = ({
       });
   }, [
     embeddedWallets,
+    isRegistering,
     externalWalletConnected,
     hasLoadedSession,
     ignoredAutoLoginUserIdRef,
@@ -512,7 +550,7 @@ const AuthenticationManager = ({
 
   useEffect(() => {
     if (
-      !hasLoadedSession ||
+      isRegistering || !hasLoadedSession ||
       isAuthenticated ||
       !externalWalletConnected ||
       !externalWallet
@@ -556,6 +594,7 @@ const AuthenticationManager = ({
       });
   }, [
     autoLoginKeyRef,
+    isRegistering,
     ensureExternalWalletNetwork,
     externalWallet,
     externalWalletConnected,

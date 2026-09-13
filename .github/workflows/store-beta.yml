@@ -49,7 +49,7 @@ jobs:
         run: npm ci && npm run build && npm test
       - name: Frontend checks including both native bundles
         working-directory: frontend
-        run: npm ci && npm run lint && npm run typecheck && npm run bundle:native && node --test scripts/release-preflight.test.cjs
+        run: npm ci && npm run lint && npm run typecheck && npm run bundle:native && node --test scripts/release-preflight.test.cjs scripts/onboarding.test.cjs
       - name: Contract checks
         working-directory: contracts
         run: npm ci && npm test && npm run abi:check
