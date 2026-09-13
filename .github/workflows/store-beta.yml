@@ -105,6 +105,28 @@ jobs:
             echo "An internal APK cannot be submitted to stores. Choose beta."
             exit 1
           fi
+      - name: Sync Alchemy client configuration to EAS
+        if: steps.selection.outputs.enabled == 'true'
+        env:
+          ALCHEMY_API_KEY_VALUE: ${{ secrets.EXPO_PUBLIC_ALCHEMY_API_KEY }}
+          ALCHEMY_GAS_POLICY_ID_VALUE: ${{ secrets.EXPO_PUBLIC_ALCHEMY_GAS_POLICY_ID }}
+        run: |
+          if [ -z "$ALCHEMY_API_KEY_VALUE" ] || [ -z "$ALCHEMY_GAS_POLICY_ID_VALUE" ]; then
+            echo "Configure EXPO_PUBLIC_ALCHEMY_API_KEY and EXPO_PUBLIC_ALCHEMY_GAS_POLICY_ID as GitHub repository secrets before building."
+            exit 1
+          fi
+          npx eas-cli@latest env:create production \
+            --name EXPO_PUBLIC_ALCHEMY_API_KEY \
+            --value "$ALCHEMY_API_KEY_VALUE" \
+            --visibility sensitive \
+            --force \
+            --non-interactive
+          npx eas-cli@latest env:create production \
+            --name EXPO_PUBLIC_ALCHEMY_GAS_POLICY_ID \
+            --value "$ALCHEMY_GAS_POLICY_ID_VALUE" \
+            --visibility sensitive \
+            --force \
+            --non-interactive
       - name: Build and wait for signed artifacts
         if: steps.selection.outputs.enabled == 'true'
         run: |
