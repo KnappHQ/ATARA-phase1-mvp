@@ -17,6 +17,7 @@ export default function Onboarding() {
     startExternalWallet,
     registerWithHandle,
     checkHandle,
+    logout,
   } = useAuth();
 
   return (
@@ -39,6 +40,7 @@ export default function Onboarding() {
           setHandle={setHandle}
           onCheckHandle={checkHandle}
           onSubmit={registerWithHandle}
+          onBack={logout}
         />
       )}
     </View>
