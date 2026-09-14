@@ -49,7 +49,7 @@ const baseNetwork: AppKitNetwork = {
     },
   },
   chainNamespace: "eip155",
-  caipNetworkId: "eip155:" + CHAIN_ID,
+  caipNetworkId: `eip155:${CHAIN_ID}`,
   testnet: APP_NETWORK !== "base-mainnet",
 };
 
