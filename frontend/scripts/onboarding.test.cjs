@@ -217,3 +217,86 @@ test('late 401 for an old token and anonymous 401 do not log out the current acc
     else process.env.EXPO_PUBLIC_API_URL = previous;
   }
 });
+
+
+test('external wallet loading keeps the app root mounted and contains runtime failures', () => {
+  const providerSource = fs.readFileSync(path.join(__dirname, '../providers/ExternalWalletProvider.tsx'), 'utf8');
+  const runtimeSource = fs.readFileSync(path.join(__dirname, '../providers/ReownExternalWalletRuntime.tsx'), 'utf8');
+  assert.doesNotMatch(providerSource, /if\s*\(Runtime\)\s*\{\s*return\s*<Runtime/s);
+  assert.match(providerSource, /<ExternalWalletContext\.Provider value=\{value\}>/);
+  assert.match(providerSource, /<WalletRuntimeBoundary/);
+  assert.match(providerSource, /shouldRestoreExternalWalletSession/);
+  assert.doesNotMatch(runtimeSource, /autoConnect/);
+  assert.doesNotMatch(runtimeSource, /\{children\}/);
+  assert.match(runtimeSource, /onValue\(value\)/);
+});
+
+test('external wallet restore marker is explicit and reversible', async () => {
+  const values = new Map();
+  const asyncStorage = {
+    getItem: async key => values.get(key) ?? null,
+    setItem: async (key, value) => { values.set(key, value); },
+    removeItem: async key => { values.delete(key); },
+  };
+  const session = load('utils/externalWalletSession.ts', {
+    '@react-native-async-storage/async-storage': { default: asyncStorage },
+  });
+  assert.equal(await session.shouldRestoreExternalWalletSession(), false);
+  await session.rememberExternalWalletSession();
+  assert.equal(await session.shouldRestoreExternalWalletSession(), true);
+  await session.forgetExternalWalletSession();
+  assert.equal(await session.shouldRestoreExternalWalletSession(), false);
+});
+
+test('a valid SecureStore backend session survives a normal app relaunch', async () => {
+  const profile = {
+    id: 'user-1',
+    handle: 'tanguy',
+    smartAccountAddress: '0x123',
+  };
+  const secureValues = new Map([
+    ['auth_token', 'valid.jwt.token'],
+    ['user_profile', JSON.stringify(profile)],
+  ]);
+  let state;
+  let restoredWalletAddress;
+  const create = initializer => {
+    const set = update => {
+      const next = typeof update === 'function' ? update(state) : update;
+      state = { ...state, ...next };
+    };
+    state = initializer(set, () => state);
+    const hook = () => state;
+    hook.getState = () => state;
+    return hook;
+  };
+  const { useAuthStore } = load('stores/useAuthStore.ts', {
+    'expo-secure-store': {
+      getItemAsync: async key => secureValues.get(key) ?? null,
+      setItemAsync: async (key, value) => { secureValues.set(key, value); },
+      deleteItemAsync: async key => { secureValues.delete(key); },
+    },
+    'zustand': { create },
+    'jwt-decode': {
+      jwtDecode: () => ({ exp: Math.floor(Date.now() / 1000) + 3600 }),
+    },
+    './useWalletStore': {
+      useWalletStore: {
+        getState: () => ({
+          setWalletAddress: address => { restoredWalletAddress = address; },
+          reset: () => {},
+        }),
+      },
+    },
+    '@/services/user.service': { UserService: {} },
+    '@sentry/react-native': {
+      setUser: () => {},
+      captureException: () => {},
+    },
+  });
+
+  await useAuthStore.getState().loadSession();
+  assert.equal(useAuthStore.getState().isAuthenticated, true);
+  assert.equal(useAuthStore.getState().user.handle, 'tanguy');
+  assert.equal(restoredWalletAddress, profile.smartAccountAddress);
+});
