@@ -12,23 +12,19 @@ import {
   useProvider,
 } from "@reown/appkit-react-native";
 import { EthersAdapter } from "@reown/appkit-ethers-react-native";
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-} from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
-import {
-  ExternalWalletContext,
-  type ExternalWalletContextValue,
-} from "@/providers/ExternalWalletProvider";
+import type { ExternalWalletContextValue } from "@/providers/ExternalWalletProvider";
 import type { EthereumSignerWallet } from "@/services/smartAccount.service";
+import {
+  forgetExternalWalletSession,
+  rememberExternalWalletSession,
+} from "@/utils/externalWalletSession";
 import { APP_NETWORK, CHAIN_ID } from "@/utils/constants";
 
 const projectId = process.env.EXPO_PUBLIC_REOWN_PROJECT_ID?.trim() || "";
 const STORAGE_PREFIX = "@atara/reown/";
-const storageKey = (key: string) => `${STORAGE_PREFIX}${key}`;
+const storageKey = (key: string) => STORAGE_PREFIX + key;
 
 const baseNetwork: AppKitNetwork = {
   id: CHAIN_ID,
@@ -95,15 +91,16 @@ const storage: Storage = {
 const createAtaraAppKit = () => {
   if (!projectId) return null;
   try {
+    const siteUrl =
+      process.env.EXPO_PUBLIC_SITE_URL || "https://atara.finance";
+
     return createAppKit({
       projectId,
       metadata: {
         name: "ATARA",
         description: "A self-custodial social wallet for people and groups.",
-        url: process.env.EXPO_PUBLIC_SITE_URL || "https://atara.finance",
-        icons: [
-          `${process.env.EXPO_PUBLIC_SITE_URL || "https://atara.finance"}/icon.png`,
-        ],
+        url: siteUrl,
+        icons: [siteUrl + "/icon.png"],
         redirect: { native: "atara://" },
       },
       adapters: [new EthersAdapter()],
@@ -129,11 +126,9 @@ const createAtaraAppKit = () => {
 const appKit = createAtaraAppKit();
 
 const ConfiguredRuntime = ({
-  children,
-  autoConnect,
+  onValue,
 }: {
-  children: ReactNode;
-  autoConnect?: boolean;
+  onValue: (value: ExternalWalletContextValue) => void;
 }) => {
   const { address, isConnected, chainId } = useAccount();
   const { provider, providerType } = useProvider();
@@ -143,18 +138,12 @@ const ConfiguredRuntime = ({
     await open({ view: "Connect" });
   }, [open]);
 
-  useEffect(() => {
-    if (!autoConnect) return;
-    const timer = setTimeout(() => {
-      void connect().catch((error) =>
-        console.warn("Reown connect failed:", error),
-      );
-    }, 150);
-    return () => clearTimeout(timer);
-  }, [autoConnect, connect]);
-
   const disconnectWallet = useCallback(async () => {
-    await disconnect("eip155");
+    try {
+      await disconnect("eip155");
+    } finally {
+      await forgetExternalWalletSession();
+    }
   }, [disconnect]);
 
   const ensureSupportedNetwork = useCallback(async () => {
@@ -195,44 +184,45 @@ const ConfiguredRuntime = ({
     ],
   );
 
-  return (
-    <ExternalWalletContext.Provider value={value}>
-      {children}
-      <AppKit />
-    </ExternalWalletContext.Provider>
-  );
+  useEffect(() => {
+    onValue(value);
+  }, [onValue, value]);
+
+  useEffect(() => {
+    if (isConnected) {
+      void rememberExternalWalletSession().catch((error) =>
+        console.warn("Wallet restore marker could not be saved:", error),
+      );
+    }
+  }, [isConnected]);
+
+  return <AppKit />;
+};
+
+const RuntimeUnavailable = ({
+  onError,
+}: {
+  onError: (error: unknown) => void;
+}) => {
+  useEffect(() => {
+    onError(new Error("Reown n'a pas pu être initialisé."));
+  }, [onError]);
+
+  return null;
 };
 
 export const ReownExternalWalletRuntime = ({
-  children,
-  autoConnect,
+  onValue,
+  onError,
 }: {
-  children: ReactNode;
-  autoConnect?: boolean;
+  onValue: (value: ExternalWalletContextValue) => void;
+  onError: (error: unknown) => void;
 }) => {
-  if (!appKit) {
-    return (
-      <ExternalWalletContext.Provider
-        value={{
-          enabled: false,
-          isConnected: false,
-          connect: async () => {
-            throw new Error("Reown n'a pas pu être initialisé.");
-          },
-          disconnect: async () => undefined,
-          ensureSupportedNetwork: async () => undefined,
-        }}
-      >
-        {children}
-      </ExternalWalletContext.Provider>
-    );
-  }
+  if (!appKit) return <RuntimeUnavailable onError={onError} />;
 
   return (
     <AppKitProvider instance={appKit}>
-      <ConfiguredRuntime autoConnect={autoConnect}>
-        {children}
-      </ConfiguredRuntime>
+      <ConfiguredRuntime onValue={onValue} />
     </AppKitProvider>
   );
 };

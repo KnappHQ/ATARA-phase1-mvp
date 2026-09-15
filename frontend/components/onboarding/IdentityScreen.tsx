@@ -5,18 +5,22 @@ import {
   Pressable,
   TouchableOpacity,
   ActivityIndicator,
+  ScrollView,
+  KeyboardAvoidingView,
+  Keyboard,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MotiView } from "moti";
-import { Check, ChevronRight, AlertCircle } from "lucide-react-native";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  AlertCircle,
+} from "lucide-react-native";
 import { CrownIcon } from "./CrownIcon";
 import { COLORS } from "@/utils/constants";
-import { useState, useEffect, useMemo } from "react";
-import debounce from "@/utils/debounce";
-import {
-  describeAuthFailure,
-  formatAuthFailure,
-} from "@/utils/authDiagnostics";
+import { useState, useEffect, useRef } from "react";
 import { TermsOfServiceScreen } from "@/components/profile/TermsOfServiceScreen";
 import { PrivacyPolicyScreen } from "@/components/profile/PrivacyPolicyScreen";
 
@@ -25,13 +29,29 @@ interface IdentityScreenProps {
   setHandle: (h: string) => void;
   onCheckHandle: (handle: string) => Promise<boolean>;
   onSubmit: (params: { handle: string }) => Promise<void>;
+  onBack: () => Promise<void>;
 }
+
+const formatRegistrationError = (error: any): string => {
+  const raw = String(error?.response?.data?.message || error?.message || "");
+
+  if (
+    /alchemy|wallet_requestAccount|must be authenticated|EXPO_PUBLIC_ALCHEMY/i.test(
+      raw,
+    )
+  ) {
+    return "Account setup is temporarily unavailable. Please go back and try another sign-in method.";
+  }
+
+  return raw || "Registration failed. Please try again.";
+};
 
 export const IdentityScreen = ({
   handle,
   setHandle,
   onCheckHandle,
   onSubmit,
+  onBack,
 }: IdentityScreenProps) => {
   const isValid = handle.length >= 3;
   const [isChecking, setIsChecking] = useState(false);
@@ -41,38 +61,32 @@ export const IdentityScreen = ({
   const [acceptedLegalTerms, setAcceptedLegalTerms] = useState(false);
   const [termsOpen, setTermsOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
-
-  // Debounced handle availability check
-  const checkHandleAvailability = useMemo(
-    () =>
-      debounce(async (h: string) => {
-        if (h.length < 3) {
-          setIsAvailable(null);
-          return;
-        }
-        setIsChecking(true);
-        try {
-          const available = await onCheckHandle(h);
-          setIsAvailable(available);
-        } catch {
-          setIsAvailable(null);
-        } finally {
-          setIsChecking(false);
-        }
-      }, 500),
-    [onCheckHandle],
-  );
+  const [isGoingBack, setIsGoingBack] = useState(false);
+  const busyRef = useRef(false);
 
   useEffect(() => {
+    let cancelled = false;
     setIsAvailable(null);
     setError(null);
-    if (handle.length >= 3) {
-      checkHandleAvailability(handle);
-    }
-  }, [checkHandleAvailability, handle]);
+    setIsChecking(handle.length >= 3);
+    const timer = setTimeout(async () => {
+      if (handle.length < 3) return;
+      try {
+        const available = await onCheckHandle(handle);
+        if (!cancelled) setIsAvailable(available);
+      } catch {
+        if (!cancelled) setError("Unable to check this handle. Check your connection and edit it to retry.");
+      } finally {
+        if (!cancelled) setIsChecking(false);
+      }
+    }, 500);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [onCheckHandle, handle]);
 
   const handleFinish = async () => {
-    if (!isValid || !isAvailable || !acceptedLegalTerms) return;
+    if (busyRef.current || isGoingBack || isChecking || !isValid || !isAvailable || !acceptedLegalTerms) return;
+    busyRef.current = true;
+    Keyboard.dismiss();
 
     setIsRegistering(true);
     setError(null);
@@ -80,27 +94,55 @@ export const IdentityScreen = ({
     try {
       await onSubmit({ handle });
     } catch (err: any) {
-      // The ATARA API's own refusals are already written for a person. Anything
-      // else reaching here is a provider error - viem dumps the whole request
-      // body, signer address included - so it goes through the diagnostic
-      // instead of onto the screen verbatim.
-      const apiMessage = err?.response?.data?.message;
-      setError(
-        apiMessage ||
-          formatAuthFailure(
-            describeAuthFailure(err, { method: "registration" }),
-          ),
-      );
+      setError(formatRegistrationError(err));
     } finally {
+      busyRef.current = false;
       setIsRegistering(false);
     }
   };
 
+  const handleBack = async () => {
+    if (isGoingBack) return;
+    Keyboard.dismiss();
+    setIsGoingBack(true);
+    setError(null);
+    try {
+      await onBack();
+    } catch {
+      setError("Unable to sign out. Please try again.");
+    } finally {
+      setIsGoingBack(false);
+    }
+  };
+
   const canSubmit =
-    isValid && isAvailable === true && acceptedLegalTerms && !isRegistering;
+    isValid && isAvailable === true && acceptedLegalTerms && !isRegistering && !isGoingBack && !isChecking;
 
   return (
-    <SafeAreaView className="flex-1 items-center justify-center px-8">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
+      <View style={{ paddingHorizontal: 20, paddingVertical: 8 }}>
+      <TouchableOpacity
+        onPress={handleBack}
+        disabled={isGoingBack}
+        hitSlop={8}
+        style={{ minHeight: 48, alignSelf: "flex-start" }}
+        activeOpacity={0.75}
+        accessibilityRole="button"
+        accessibilityLabel="Back to sign-in methods"
+        className="flex-row items-center gap-1 rounded-full border border-white/15 bg-black/60 px-4 py-2"
+      >
+        {isGoingBack ? (
+          <ActivityIndicator size="small" color={COLORS.white} />
+        ) : (
+          <ChevronLeft size={20} color={COLORS.white} />
+        )}
+        <Text className="text-sm font-medium text-white">Back</Text>
+      </TouchableOpacity>
+      </View>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+      <ScrollView keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag"
+        contentContainerStyle={{ flexGrow: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24, paddingVertical: 24 }}>
+
       <MotiView
         from={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -134,6 +176,7 @@ export const IdentityScreen = ({
               autoFocus
               autoCapitalize="none"
               autoCorrect={false}
+              editable={!isRegistering && !isGoingBack}
             />
             {isChecking && (
               <ActivityIndicator size="small" color={COLORS.white} />
@@ -159,6 +202,10 @@ export const IdentityScreen = ({
 
         <View className="mt-5 flex-row items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
           <Pressable
+            hitSlop={12}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: acceptedLegalTerms }}
+            accessibilityLabel="Accept terms and privacy policy"
             onPress={() => setAcceptedLegalTerms((value) => !value)}
             className={`mt-0.5 h-5 w-5 items-center justify-center rounded-[6px] border ${
               acceptedLegalTerms
@@ -241,6 +288,8 @@ export const IdentityScreen = ({
           )}
         </TouchableOpacity>
       </MotiView>
+      </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };

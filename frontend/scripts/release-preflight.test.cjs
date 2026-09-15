@@ -65,9 +65,9 @@ test("build-profile env overrides stale EAS project values", () => {
     build: {
       beta: {
         env: {
-          EXPO_PUBLIC_PRIVY_APP_ID: "cmql9uzpi00p60cky8jr0stcw",
+          EXPO_PUBLIC_PRIVY_APP_ID: "cmqmg9qss00580cl48pp5enxs",
           EXPO_PUBLIC_PRIVY_CLIENT_ID:
-            "client-WY6aSgVTdkUNG9eQoZ7YaufEnNBLkyyRregx2qH1ui4nf",
+            "client-WY6aSvC1vAstj49sRqJe2L6YHDaety8D8z5fHQrrJAJuo",
           EXPO_PUBLIC_ENABLE_VAULTS: "false",
           EXPO_PUBLIC_REOWN_PROJECT_ID: "35f77053ffe4f0ebcb92abbdd81e8d55",
         },
@@ -82,11 +82,11 @@ test("build-profile env overrides stale EAS project values", () => {
 
   assert.equal(
     effective.EXPO_PUBLIC_PRIVY_APP_ID,
-    "cmql9uzpi00p60cky8jr0stcw",
+    "cmqmg9qss00580cl48pp5enxs",
   );
   assert.equal(
     effective.EXPO_PUBLIC_PRIVY_CLIENT_ID,
-    "client-WY6aSgVTdkUNG9eQoZ7YaufEnNBLkyyRregx2qH1ui4nf",
+    "client-WY6aSvC1vAstj49sRqJe2L6YHDaety8D8z5fHQrrJAJuo",
   );
   assert.equal(effective.EXPO_PUBLIC_ENABLE_VAULTS, "false");
   assert.equal(

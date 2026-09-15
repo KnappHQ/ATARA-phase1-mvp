@@ -1,6 +1,5 @@
 import {
   ActivityIndicator,
-  Image,
   Text,
   TouchableOpacity,
   View,
@@ -158,11 +157,6 @@ export const GateScreen = ({
               showLoading ? "opacity-50" : ""
             }`}
           >
-            <Image
-              source={require("@/assets/images/google-logo.png")}
-              className="w-4 h-4"
-              resizeMode="contain"
-            />
             <Text className="text-sm text-white">Google</Text>
           </TouchableOpacity>
 
@@ -174,11 +168,6 @@ export const GateScreen = ({
               showLoading ? "opacity-50" : ""
             }`}
           >
-            <Image
-              source={require("@/assets/images/apple-logo.png")}
-              className="w-4 h-4"
-              resizeMode="contain"
-            />
             <Text className="text-sm text-white">Apple</Text>
           </TouchableOpacity>
         </View>

@@ -57,8 +57,9 @@ const PRIVY_RELYING_PARTY = /relying ?party|rp ?id/i;
  * "Unable to verify webcredentials association of <TEAM>.<bundle> with domain
  * <host>". The app is configured correctly at that point - the operating system
  * fetched the association file and did not get what it needed. That is a server
- * or provisioning problem, never a Privy setting, so it must not be answered
- * with "check your Privy dashboard".
+ * problem, never a Privy setting, so it must not be answered with "check your
+ * Privy dashboard". `associated domain` leaves the Privy pattern above for the
+ * same reason: the two failures share that vocabulary and nothing else.
  */
 const DOMAIN_ASSOCIATION =
   /webcredentials|associated ?domain|association of .* with domain/i;
@@ -70,18 +71,9 @@ const DOMAIN_ASSOCIATION =
 const CANCELLED =
   /user (rejected|cancell?ed|denied)|cancell?ed by|request rejected|abort/i;
 
-/**
- * Alchemy sends the API key as `Authorization: Bearer <key>`, so the request URL
- * legitimately ends at `/v2` with no key in the path - that part is not the
- * fault. "Must be authenticated!" means Alchemy received the header and refused
- * the credential behind it.
- */
-const ALCHEMY_REFUSED =
-  /must be authenticated|alchemy\.com|wallet_requestAccount|unauthorized/i;
-
 export const describeAuthFailure = (
   error: unknown,
-  context: { method: "passkey" | "oauth" | "wallet" | "registration" },
+  context: { method: "passkey" | "oauth" | "wallet" },
 ): AuthFailure => {
   const raw = textOf(error).trim();
   const lower = raw.toLowerCase();
@@ -144,16 +136,6 @@ export const describeAuthFailure = (
       message: "Privy n'autorise pas ce fournisseur.",
       action:
         "Activez Google ou Apple dans le dashboard Privy, et autorisez la redirection atara://oauth-callback.",
-      raw,
-    };
-  }
-
-  if (context.method === "registration" && ALCHEMY_REFUSED.test(raw)) {
-    return {
-      layer: "api",
-      message: "Alchemy refuse la clé utilisée pour créer le smart account.",
-      action:
-        "Vérifiez que EXPO_PUBLIC_ALCHEMY_API_KEY est bien la clé d'une app Alchemy dont les Wallet APIs (Smart Wallets) sont activées, et que la gas policy appartient à cette même app.",
       raw,
     };
   }

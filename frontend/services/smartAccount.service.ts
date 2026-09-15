@@ -9,6 +9,7 @@ import { toAccount } from "viem/accounts";
 import type { LocalAccount } from "viem";
 import * as Sentry from "@sentry/react-native";
 import { useEmbeddedEthereumWallet } from "@privy-io/expo";
+import { runExclusiveOperation } from "@/utils/exclusiveOperation";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { base, baseSepolia } from "viem/chains";
 import {
@@ -260,6 +261,16 @@ export class SmartAccountService {
   }
 
   private async sendCallsAndWait(
+    calls: SmartAccountCall[],
+    overrides?: Record<string, unknown>,
+  ): Promise<TransactionResult> {
+    return runExclusiveOperation(
+      `${CHAIN_ID}:${this.smartAccountAddress.toLowerCase()}`,
+      () => this.sendCallsAndWaitExclusive(calls, overrides),
+    );
+  }
+
+  private async sendCallsAndWaitExclusive(
     calls: SmartAccountCall[],
     overrides?: Record<string, unknown>,
   ): Promise<TransactionResult> {
