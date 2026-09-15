@@ -32,6 +32,7 @@ import { useExternalWallet } from "@/providers/ExternalWalletProvider";
 import {
   describeAuthFailure,
   formatAuthFailure,
+  probeDomainAssociation,
 } from "@/utils/authDiagnostics";
 import { useAlertStore } from "@/stores/useAlertStore";
 import { useAuthStore } from "@/stores/useAuthStore";
@@ -217,9 +218,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // A bare provider string ("Signup with passkey not allowed") says nothing
       // about which system refused or what to change, and a store build has no
       // console to dig further.
-      setOauthError(
-        formatAuthFailure(describeAuthFailure(error, { method: "passkey" })),
-      );
+      const failure = describeAuthFailure(error, { method: "passkey" });
+      // Privy's wording rarely says whether the missing domain association is
+      // the real reason. Ask the association file directly rather than send
+      // someone into the Privy dashboard for a server-side problem.
+      const association =
+        failure.layer === "api"
+          ? undefined
+          : await probeDomainAssociation(relyingParty);
+      setOauthError(formatAuthFailure(association ?? failure));
     }
     finally { setIsStartingOAuth(false); }
   }, [loginWithPasskey, signupWithPasskey]);
