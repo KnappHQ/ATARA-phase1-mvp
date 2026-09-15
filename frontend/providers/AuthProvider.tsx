@@ -32,6 +32,7 @@ import { useExternalWallet } from "@/providers/ExternalWalletProvider";
 import {
   describeAuthFailure,
   formatAuthFailure,
+  probeDomainAssociation,
 } from "@/utils/authDiagnostics";
 import { useAlertStore } from "@/stores/useAlertStore";
 import { useAuthStore } from "@/stores/useAuthStore";
@@ -217,9 +218,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // A bare provider string ("Signup with passkey not allowed") says nothing
       // about which system refused or what to change, and a store build has no
       // console to dig further.
-      setOauthError(
-        formatAuthFailure(describeAuthFailure(error, { method: "passkey" })),
-      );
+      const failure = describeAuthFailure(error, { method: "passkey" });
+      // Privy's wording rarely says whether the missing domain association is
+      // the real reason. Ask the association file directly rather than send
+      // someone into the Privy dashboard for a server-side problem.
+      const association =
+        failure.layer === "api"
+          ? undefined
+          : await probeDomainAssociation(relyingParty);
+      setOauthError(formatAuthFailure(association ?? failure));
     }
     finally { setIsStartingOAuth(false); }
   }, [loginWithPasskey, signupWithPasskey]);
@@ -529,6 +536,15 @@ const AuthenticationManager = ({
         if (autoLoginKeyRef.current === autoLoginKey) {
           autoLoginKeyRef.current = null;
           onCheckingBackendChange(false);
+          return;
+        }
+        // The key changed while this attempt was in flight. When it changed to
+        // another attempt, that one owns the spinner and will lower it. When it
+        // was cleared - a logout, for instance - nobody else will, and leaving
+        // it raised locks the gate screen with every button greyed out behind
+        // "Verifying ownership...".
+        if (autoLoginKeyRef.current === null) {
+          onCheckingBackendChange(false);
         }
       });
   }, [
@@ -589,6 +605,12 @@ const AuthenticationManager = ({
       .finally(() => {
         if (autoLoginKeyRef.current === autoLoginKey) {
           autoLoginKeyRef.current = null;
+          onCheckingBackendChange(false);
+          return;
+        }
+        // Same reasoning as the embedded-wallet attempt above: when the key was
+        // cleared rather than replaced, no other attempt will lower the spinner.
+        if (autoLoginKeyRef.current === null) {
           onCheckingBackendChange(false);
         }
       });
