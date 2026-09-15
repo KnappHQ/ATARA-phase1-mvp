@@ -147,10 +147,19 @@ const ConfiguredRuntime = ({
   }, [disconnect]);
 
   const ensureSupportedNetwork = useCallback(async () => {
-    if (chainId && Number(chainId) !== CHAIN_ID) {
+    const providerChainId = provider
+      ? Number(await provider.request({ method: "eth_chainId" }))
+      : Number.NaN;
+    const currentChainId = chainId ? Number(chainId) : providerChainId;
+
+    if (!Number.isFinite(currentChainId)) {
+      throw new Error("Le réseau du wallet n'est pas encore disponible.");
+    }
+
+    if (currentChainId !== CHAIN_ID) {
       await switchNetwork(baseNetwork);
     }
-  }, [chainId, switchNetwork]);
+  }, [chainId, provider, switchNetwork]);
 
   const wallet = useMemo<EthereumSignerWallet | undefined>(() => {
     if (!address || !provider || providerType !== "eip155") return undefined;
