@@ -9,7 +9,10 @@ type SmartAccountOwnershipOptions = {
   apiKey?: string;
   fetchImpl?: FetchLike;
   accountTypes?: string[];
+  timeoutMs?: number;
 };
+
+const DEFAULT_VERIFICATION_TIMEOUT_MS = 8_000;
 
 /**
  * Account types to try when deriving the expected smart account.
@@ -46,6 +49,7 @@ export const resolveExpectedSmartAccountAddress = async (
   const normalizedSigner = normalizeAddress(signerAddress, "signer");
   const apiKey = options.apiKey ?? process.env.ALCHEMY_API_KEY;
   const fetchImpl = options.fetchImpl ?? fetch;
+  const timeoutMs = options.timeoutMs ?? DEFAULT_VERIFICATION_TIMEOUT_MS;
 
   if (!apiKey) {
     throw new ErrorHandler(
@@ -55,12 +59,15 @@ export const resolveExpectedSmartAccountAddress = async (
   }
 
   let response: Response;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
     response = await fetchImpl(
       `${ALCHEMY_WALLET_RPC_ORIGIN}/${encodeURIComponent(apiKey)}`,
       {
         method: "POST",
         headers: { "content-type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify({
           jsonrpc: "2.0",
           id: 1,
@@ -79,6 +86,8 @@ export const resolveExpectedSmartAccountAddress = async (
       "Unable to verify smart account ownership right now",
       503,
     );
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   if (!response.ok) {

@@ -8,6 +8,7 @@ export default function Onboarding() {
   const [handle, setHandle] = useState("");
   const {
     onboardingStep,
+    isPrivyReady,
     isCheckingBackend,
     isStartingOAuth,
     oauthError,
@@ -25,6 +26,7 @@ export default function Onboarding() {
       {onboardingStep === "gate" && (
         <GateScreen
           isCheckingBackend={isCheckingBackend}
+          isPrivyReady={isPrivyReady}
           isStartingOAuth={isStartingOAuth}
           oauthError={oauthError}
           isExternalWalletEnabled={isExternalWalletEnabled}

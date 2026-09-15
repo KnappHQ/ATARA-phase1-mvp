@@ -51,6 +51,7 @@ type RegisterWithHandleParams = {
 
 type AuthContextValue = {
   isReady: boolean;
+  isPrivyReady: boolean;
   isFullyAuthenticated: boolean;
   isAuthTransitioning: boolean;
   onboardingStep: OnboardingStep;
@@ -112,6 +113,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [activeAuthMethod, setActiveAuthMethod] = useState<AuthMethod>("privy");
   const ignoredAutoLoginUserIdRef = useRef<string | null>(null);
   const autoLoginKeyRef = useRef<string | null>(null);
+  const autoLoginAbortRef = useRef<AbortController | null>(null);
   const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -158,25 +160,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = useCallback(async () => {
     registrationRef.current?.abort();
     registrationRef.current = null;
+    autoLoginAbortRef.current?.abort();
+    autoLoginAbortRef.current = null;
     setIsRegistering(false);
     ignoredAutoLoginUserIdRef.current = user?.id ?? null;
     autoLoginKeyRef.current = null;
     setIsCheckingBackend(false);
     setOnboardingStep("gate");
-    try {
-      await privyLogout();
-    } catch (error) {
-      console.warn("Privy logout failed:", error);
-    } finally {
-      await externalWallet.disconnect().catch(() => undefined);
-      await useAuthStore.getState().logout();
-      setOnboardingStep("gate");
-      autoLoginKeyRef.current = null;
+    // Revoke the local ATARA session first. A slow or unavailable provider must
+    // never leave private screens visible after an explicit logout.
+    await useAuthStore.getState().logout();
+    const [privyResult] = await Promise.allSettled([
+      privyLogout(),
+      externalWallet.disconnect(),
+    ]);
+    if (privyResult.status === "rejected") {
+      console.warn("Privy logout failed:", privyResult.reason);
     }
+    setOnboardingStep("gate");
+    autoLoginKeyRef.current = null;
   }, [externalWallet, privyLogout, user?.id]);
 
   const startOAuth = useCallback(
     async (provider: OAuthProvider) => {
+      if (!isPrivyReady) {
+        setOauthError("Le service de connexion démarre encore. Réessaie dans un instant.");
+        return;
+      }
       setIsStartingOAuth(true);
       setOauthError(null);
       setActiveAuthMethod("privy");
@@ -200,12 +210,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsStartingOAuth(false);
       }
     },
-    [loginWithOAuth],
+    [isPrivyReady, loginWithOAuth],
   );
 
   const startPasskey = useCallback(async (mode: "login" | "signup") => {
     const relyingParty = process.env.EXPO_PUBLIC_PASSKEY_RP_ID;
     if (!relyingParty) { setOauthError("La connexion par passkey attend la configuration du domaine."); return; }
+    if (!isPrivyReady) { setOauthError("Le service de passkey démarre encore. Réessaie dans un instant."); return; }
     setIsStartingOAuth(true); setOauthError(null); setActiveAuthMethod("privy"); ignoredAutoLoginUserIdRef.current = null;
     await useAuthStore.getState().clearJustLoggedOut();
     try {
@@ -222,9 +233,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       );
     }
     finally { setIsStartingOAuth(false); }
-  }, [loginWithPasskey, signupWithPasskey]);
+  }, [isPrivyReady, loginWithPasskey, signupWithPasskey]);
 
   const startExternalWallet = useCallback(async () => {
+    setIsStartingOAuth(true);
     setOauthError(null);
     setActiveAuthMethod("external_wallet");
     ignoredAutoLoginUserIdRef.current = null;
@@ -238,6 +250,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setOauthError(
         formatAuthFailure(describeAuthFailure(error, { method: "wallet" })),
       );
+    } finally {
+      setIsStartingOAuth(false);
     }
   }, [externalWallet]);
 
@@ -297,6 +311,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const challenge = await AuthService.requestChallenge(
           signerAddress,
           "register",
+          signal,
         );
         assertActive(signal);
         const registrationSignature = await signPersonalMessage(
@@ -352,6 +367,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const value = useMemo<AuthContextValue>(
     () => ({
       isReady,
+      isPrivyReady,
       isFullyAuthenticated,
       isAuthTransitioning,
       onboardingStep,
@@ -372,6 +388,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       isCheckingBackend,
       isFullyAuthenticated,
       isReady,
+      isPrivyReady,
       isStartingOAuth,
       logout,
       oauthError,
@@ -396,6 +413,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         hasLoadedSession={hasLoadedSession}
         ignoredAutoLoginUserIdRef={ignoredAutoLoginUserIdRef}
         autoLoginKeyRef={autoLoginKeyRef}
+        autoLoginAbortRef={autoLoginAbortRef}
         onSessionLoaded={handleSessionLoaded}
         onCheckingBackendChange={setIsCheckingBackend}
         onOnboardingStepChange={setOnboardingStep}
@@ -416,6 +434,7 @@ type AuthenticationManagerProps = {
   hasLoadedSession: boolean;
   ignoredAutoLoginUserIdRef: MutableRefObject<string | null>;
   autoLoginKeyRef: MutableRefObject<string | null>;
+  autoLoginAbortRef: MutableRefObject<AbortController | null>;
   onSessionLoaded: () => void;
   onCheckingBackendChange: (isChecking: boolean) => void;
   onOnboardingStepChange: (step: OnboardingStep) => void;
@@ -432,6 +451,7 @@ const AuthenticationManager = ({
   hasLoadedSession,
   ignoredAutoLoginUserIdRef,
   autoLoginKeyRef,
+  autoLoginAbortRef,
   onSessionLoaded,
   onCheckingBackendChange,
   onOnboardingStepChange,
@@ -503,10 +523,14 @@ const AuthenticationManager = ({
     }
 
     autoLoginKeyRef.current = autoLoginKey;
+    autoLoginAbortRef.current?.abort();
+    const controller = new AbortController();
+    autoLoginAbortRef.current = controller;
     onCheckingBackendChange(true);
 
     AuthService.loginWithSigner(signerAddress, (message) =>
       signPersonalMessage(signerWallet, message),
+      controller.signal,
     )
       .then(() => {
         if (autoLoginKeyRef.current === autoLoginKey) {
@@ -526,11 +550,25 @@ const AuthenticationManager = ({
         }
       })
       .finally(() => {
+        if (autoLoginAbortRef.current === controller) {
+          autoLoginAbortRef.current = null;
+        }
         if (autoLoginKeyRef.current === autoLoginKey) {
           autoLoginKeyRef.current = null;
           onCheckingBackendChange(false);
         }
       });
+
+    return () => {
+      controller.abort();
+      if (autoLoginAbortRef.current === controller) {
+        autoLoginAbortRef.current = null;
+      }
+      if (autoLoginKeyRef.current === autoLoginKey) {
+        autoLoginKeyRef.current = null;
+        onCheckingBackendChange(false);
+      }
+    };
   }, [
     embeddedWallets,
     isRegistering,
@@ -541,6 +579,7 @@ const AuthenticationManager = ({
     isPrivyReady,
     justLoggedOut,
     autoLoginKeyRef,
+    autoLoginAbortRef,
     onAuthenticated,
     onCheckingBackendChange,
     onOnboardingStepChange,
@@ -564,14 +603,20 @@ const AuthenticationManager = ({
     if (autoLoginKeyRef.current === autoLoginKey) return;
 
     autoLoginKeyRef.current = autoLoginKey;
+    autoLoginAbortRef.current?.abort();
+    const controller = new AbortController();
+    autoLoginAbortRef.current = controller;
     onCheckingBackendChange(true);
 
     ensureExternalWalletNetwork()
-      .then(() =>
-        AuthService.loginWithSigner(externalWallet.address, (message) =>
-          signPersonalMessage(externalWallet, message),
-        ),
-      )
+      .then(() => {
+        assertActive(controller.signal);
+        return AuthService.loginWithSigner(
+          externalWallet.address,
+          (message) => signPersonalMessage(externalWallet, message),
+          controller.signal,
+        );
+      })
       .then(() => {
         if (autoLoginKeyRef.current === autoLoginKey) onAuthenticated();
       })
@@ -587,12 +632,27 @@ const AuthenticationManager = ({
         }
       })
       .finally(() => {
+        if (autoLoginAbortRef.current === controller) {
+          autoLoginAbortRef.current = null;
+        }
         if (autoLoginKeyRef.current === autoLoginKey) {
           autoLoginKeyRef.current = null;
           onCheckingBackendChange(false);
         }
       });
+
+    return () => {
+      controller.abort();
+      if (autoLoginAbortRef.current === controller) {
+        autoLoginAbortRef.current = null;
+      }
+      if (autoLoginKeyRef.current === autoLoginKey) {
+        autoLoginKeyRef.current = null;
+        onCheckingBackendChange(false);
+      }
+    };
   }, [
+    autoLoginAbortRef,
     autoLoginKeyRef,
     isRegistering,
     ensureExternalWalletNetwork,

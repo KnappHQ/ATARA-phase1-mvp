@@ -12,45 +12,20 @@ import {
   View,
 } from "react-native";
 import { ArrowLeft, ClipboardPaste, ShoppingBasket, ShieldCheck } from "lucide-react-native";
-import { COLORS, NETWORK_NAME } from "@/utils/constants";
+import { CHAIN_ID, COLORS, NETWORK_NAME } from "@/utils/constants";
 import { DEMO_MODE } from "@/utils/demoMode";
 import { useSmartAccountService } from "@/services/smartAccount.service";
 import { useTransactionService } from "@/services/transaction.service";
 import { useWalletStore } from "@/stores/useWalletStore";
 import { useAuthStore } from "@/stores/useAuthStore";
+import {
+  baseUnitsToDecimal,
+  decimalToBaseUnits,
+  normalizeDecimalAmount,
+  parsePaymentRequest,
+} from "@/utils/paymentRequest";
 
 const ADDRESS_PATTERN = /^0x[a-fA-F0-9]{40}$/;
-
-const parsePaymentRequest = (value: string) => {
-  const raw = value.trim();
-  if (!raw) return null;
-  try {
-    if (raw.startsWith("{")) {
-      const parsed = JSON.parse(raw);
-      return {
-        address: typeof parsed.address === "string" ? parsed.address : "",
-        amount: typeof parsed.amount === "string" || typeof parsed.amount === "number" ? String(parsed.amount) : "",
-        symbol:
-          typeof parsed.token === "string"
-            ? parsed.token
-            : typeof parsed.symbol === "string"
-              ? parsed.symbol
-              : "",
-      };
-    }
-    const normalized = raw.replace(/^ethereum:/i, "");
-    const [address, query] = normalized.split("?");
-    const params = new URLSearchParams(query || "");
-    const valueInEth = params.get("value") || params.get("amount") || "";
-    return {
-      address,
-      amount: valueInEth,
-      symbol: params.get("token") || params.get("symbol") || "",
-    };
-  } catch {
-    return null;
-  }
-};
 
 export default function PayMerchantScreen() {
   const router = useRouter();
@@ -77,33 +52,64 @@ export default function PayMerchantScreen() {
   const pastePaymentRequest = async () => {
     const clipboard = await Clipboard.getStringAsync();
     const request = parsePaymentRequest(clipboard);
+    if (request?.chainId && request.chainId !== CHAIN_ID) {
+      setMessage(`Cette demande utilise un autre réseau que ${NETWORK_NAME}.`);
+      return;
+    }
     if (!request?.address || !ADDRESS_PATTERN.test(request.address)) {
       setMessage("Aucune demande de paiement QR valide dans le presse-papiers.");
       return;
     }
-    setRecipient(request.address);
-    if (request.amount) setAmount(request.amount);
-    const requestedSymbol = request.symbol?.toUpperCase();
-    if (requestedSymbol && assets.some((asset) => asset.symbol === requestedSymbol)) {
-      setSelectedTokenSymbol(requestedSymbol);
+    const requestedAsset = request.tokenAddress
+      ? assets.find(
+          (asset) =>
+            asset.contractAddress?.toLowerCase() ===
+            request.tokenAddress?.toLowerCase(),
+        )
+      : assets.find(
+          (asset) => asset.symbol === request.symbol?.toUpperCase(),
+        );
+    if (request.tokenAddress && !requestedAsset) {
+      setMessage("Le jeton demandé n'est pas pris en charge par ATARA.");
+      return;
     }
+    const asset = requestedAsset ?? selectedToken;
+    const requestedAmount = request.amountInBaseUnits
+      ? asset
+        ? baseUnitsToDecimal(request.amountInBaseUnits, asset.decimals)
+        : null
+      : request.amount;
+    if (request.amountInBaseUnits && !requestedAmount) {
+      setMessage("Le montant de cette demande QR est invalide.");
+      return;
+    }
+
+    setRecipient(request.address);
+    if (requestedAmount) setAmount(requestedAmount);
+    if (requestedAsset) setSelectedTokenSymbol(requestedAsset.symbol);
     setMessage("Demande QR importée. Vérifie le commerçant et le montant avant de payer.");
   };
 
   const rawAddress = recipient.trim();
   const isValidAddress = ADDRESS_PATTERN.test(rawAddress);
-  const parsedAmount = Number(amount.replace(",", "."));
-  const isValidAmount = Number.isFinite(parsedAmount) && parsedAmount > 0;
+  const normalizedAmount = normalizeDecimalAmount(amount);
   const balanceText = useMemo(() => {
     if (!selectedToken) return "0.00";
     if (DEMO_MODE && selectedToken.symbol === "USDC") return "500.00";
     return selectedToken.balance || "0.00";
   }, [selectedToken]);
   const maxDecimals = selectedToken?.decimals ?? 6;
-  const hasValidDecimals =
-    !amount.includes(".") || amount.split(".")[1].length <= maxDecimals;
+  const amountInBaseUnits = normalizedAmount
+    ? decimalToBaseUnits(normalizedAmount, maxDecimals)
+    : null;
+  const balanceInBaseUnits = decimalToBaseUnits(balanceText, maxDecimals);
+  const isValidAmount = amountInBaseUnits !== null && amountInBaseUnits > 0n;
+  const hasValidDecimals = amountInBaseUnits !== null;
   const hasBalance =
-    !!selectedToken && parsedAmount <= Number(balanceText.replace(",", "."));
+    !!selectedToken &&
+    amountInBaseUnits !== null &&
+    balanceInBaseUnits !== null &&
+    amountInBaseUnits <= balanceInBaseUnits;
   const canPay =
     !!selectedToken &&
     (DEMO_MODE || !!transactionService) &&
@@ -120,7 +126,7 @@ export default function PayMerchantScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       if (DEMO_MODE) {
-        setMessage(`Simulation : paiement de ${parsedAmount.toFixed(2)} ${selectedToken.symbol} validé. Aucune transaction réelle n’a été envoyée.`);
+        setMessage(`Simulation : paiement de ${normalizedAmount} ${selectedToken.symbol} validé. Aucune transaction réelle n’a été envoyée.`);
         setAmount("");
         return;
       }
@@ -128,13 +134,13 @@ export default function PayMerchantScreen() {
       const result = await transactionService.sendTransaction({
         recipientAddress: rawAddress,
         recipientName: "Commerçant",
-        amount: parsedAmount.toFixed(selectedToken.decimals),
+        amount: normalizedAmount!,
         tokenSymbol: selectedToken.symbol,
         tokenAddress: selectedToken.contractAddress,
         decimals: selectedToken.decimals,
         usdValue:
           selectedToken.usdPrice > 0
-            ? (parsedAmount * selectedToken.usdPrice).toFixed(2)
+            ? (Number(normalizedAmount) * selectedToken.usdPrice).toFixed(2)
             : selectedToken.usdValue,
         note,
       });
