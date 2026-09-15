@@ -50,7 +50,18 @@ const NETWORK_PATTERNS = [
  */
 const PRIVY_NOT_ALLOWED = /\bnot allowed\b|\bnot enabled\b|\bdisabled\b/i;
 
-const PRIVY_RELYING_PARTY = /relying ?party|rp ?id|associated ?domain/i;
+const PRIVY_RELYING_PARTY = /relying ?party|rp ?id/i;
+
+/**
+ * iOS's own wording when it could not verify the associated domain:
+ * "Unable to verify webcredentials association of <TEAM>.<bundle> with domain
+ * <host>". The app is configured correctly at that point - the operating system
+ * fetched the association file and did not get what it needed. That is a server
+ * or provisioning problem, never a Privy setting, so it must not be answered
+ * with "check your Privy dashboard".
+ */
+const DOMAIN_ASSOCIATION =
+  /webcredentials|associated ?domain|association of .* with domain/i;
 
 /**
  * Someone closing the sheet is not a misconfiguration. Saying "check your Reown
@@ -89,6 +100,19 @@ export const describeAuthFailure = (
       message: "Aucune réponse du réseau.",
       action:
         "Vérifiez la connexion de l'appareil, puis que l'API ATARA répond.",
+      raw,
+    };
+  }
+
+  // Checked before the Privy branches: the operating system, not Privy, is the
+  // one refusing here, and the remedies have nothing in common.
+  if (DOMAIN_ASSOCIATION.test(raw)) {
+    return {
+      layer: "api",
+      message:
+        "Le système n'a pas pu vérifier l'association de domaine des passkeys.",
+      action:
+        "api.atara.finance doit servir /.well-known/apple-app-site-association en 200, sans redirection. Il répond 503 tant que APPLE_TEAM_ID est absente du serveur.",
       raw,
     };
   }
