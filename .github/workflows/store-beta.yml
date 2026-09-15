@@ -49,7 +49,7 @@ jobs:
         run: npm ci && npm run build && npm test
       - name: Frontend checks including both native bundles
         working-directory: frontend
-        run: npm ci && npm run lint && npm run typecheck && npm run bundle:native && node --test scripts/release-preflight.test.cjs scripts/onboarding.test.cjs
+        run: npm ci && npm run lint && npm run typecheck && npm run bundle:native && node --test scripts/*.test.cjs
       - name: Contract checks
         working-directory: contracts
         run: npm ci && npm test && npm run abi:check
@@ -69,7 +69,7 @@ jobs:
       EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       BUILD_PLATFORM: ${{ matrix.platform }}
       BUILD_PROFILE: ${{ inputs.profile || 'beta' }}
-      SUBMIT_BUILD: ${{ inputs.submit || 'false' }}
+      SUBMIT_BUILD: ${{ github.event_name == 'push' && 'true' || inputs.submit || 'false' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -81,7 +81,9 @@ jobs:
         id: selection
         run: |
           ENABLED=false
-          if [ -z "${{ inputs.platform }}" ] || [ "${{ inputs.platform }}" = all ] || [ "${{ inputs.platform }}" = "$BUILD_PLATFORM" ]; then
+          if [ "${{ github.event_name }}" = push ]; then
+            if [ "$BUILD_PLATFORM" = ios ]; then ENABLED=true; fi
+          elif [ "${{ inputs.platform }}" = all ] || [ "${{ inputs.platform }}" = "$BUILD_PLATFORM" ]; then
             ENABLED=true
           fi
           if [ "$BUILD_PROFILE" = preview ] && [ "$BUILD_PLATFORM" = ios ]; then

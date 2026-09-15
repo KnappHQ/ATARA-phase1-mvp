@@ -126,6 +126,42 @@ test('cancelled registration response never commits a local session', async () =
   assert.equal(saved, false);
 });
 
+test('cancelled automatic login never commits a late backend session', async () => {
+  const controller = new AbortController();
+  let saved = false;
+  let requestCount = 0;
+  const { AuthService } = load('services/auth.service.ts', {
+    '../utils/walletReadiness': readiness,
+    '../stores/useAuthStore': { useAuthStore: { getState: () => ({ setAuth: async () => { saved = true; } }) } },
+    './api': { api: { post: async (_path, _body, config) => {
+      assert.equal(config.signal, controller.signal);
+      requestCount++;
+      if (requestCount === 1) return { data: { message: 'challenge' } };
+      controller.abort();
+      return { data: { user: {}, token: 'late-token' } };
+    } } },
+  });
+
+  await assert.rejects(
+    AuthService.loginWithSigner('0xabc', async () => 'signature', controller.signal),
+    /cancelled/,
+  );
+  assert.equal(requestCount, 2);
+  assert.equal(saved, false);
+});
+
+test('logout-all clears this device even when remote revocation fails', async () => {
+  let localLogouts = 0;
+  const { AuthService } = load('services/auth.service.ts', {
+    '../utils/walletReadiness': readiness,
+    '../stores/useAuthStore': { useAuthStore: { getState: () => ({ logout: async () => { localLogouts++; } }) } },
+    './api': { api: { post: async () => { throw new Error('offline'); } } },
+  });
+
+  await assert.rejects(AuthService.logoutAll(), /offline/);
+  assert.equal(localLogouts, 1);
+});
+
 test('Back stays in safe-area flow, with a 48pt touch target and outside keyboard scroll', () => {
   const source = fs.readFileSync(path.join(__dirname, '../components/onboarding/IdentityScreen.tsx'), 'utf8');
   assert.doesNotMatch(source, /absolute left-5 top-4/);
@@ -133,6 +169,14 @@ test('Back stays in safe-area flow, with a 48pt touch target and outside keyboar
   assert.match(source, /disabled=\{isGoingBack\}/);
   assert.match(source, /keyboardShouldPersistTaps="handled"/);
   assert.ok(source.indexOf('onPress={handleBack}') < source.indexOf('<KeyboardAvoidingView'));
+});
+
+test('the sign-in gate scrolls on small phones and blocks Privy actions until ready', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../components/onboarding/GateScreen.tsx'), 'utf8');
+  assert.match(source, /<ScrollView/);
+  assert.match(source, /contentContainerStyle=\{\{/);
+  assert.match(source, /!isPrivyReady/);
+  assert.match(source, /Preparing secure sign-in/);
 });
 
 test('concurrent sends on the same wallet are rejected before any network call', async () => {
@@ -299,4 +343,58 @@ test('a valid SecureStore backend session survives a normal app relaunch', async
   assert.equal(useAuthStore.getState().isAuthenticated, true);
   assert.equal(useAuthStore.getState().user.handle, 'tanguy');
   assert.equal(restoredWalletAddress, profile.smartAccountAddress);
+});
+
+test('logout wins over a login whose SecureStore write completes late', async () => {
+  const values = new Map();
+  let releaseTokenWrite;
+  let markTokenWriteStarted;
+  const tokenWriteStarted = new Promise(resolve => { markTokenWriteStarted = resolve; });
+  const tokenWriteBlock = new Promise(resolve => { releaseTokenWrite = resolve; });
+  let state;
+  const create = initializer => {
+    const set = update => {
+      const next = typeof update === 'function' ? update(state) : update;
+      state = { ...state, ...next };
+    };
+    state = initializer(set, () => state);
+    const hook = () => state;
+    hook.getState = () => state;
+    return hook;
+  };
+  const { useAuthStore } = load('stores/useAuthStore.ts', {
+    'expo-secure-store': {
+      getItemAsync: async key => values.get(key) ?? null,
+      setItemAsync: async (key, value) => {
+        if (key === 'auth_token') {
+          markTokenWriteStarted();
+          await tokenWriteBlock;
+        }
+        values.set(key, value);
+      },
+      deleteItemAsync: async key => { values.delete(key); },
+    },
+    'zustand': { create },
+    'jwt-decode': { jwtDecode: () => ({ exp: 0 }) },
+    './useWalletStore': {
+      useWalletStore: { getState: () => ({ setWalletAddress: () => {}, reset: () => {} }) },
+    },
+    '@/services/user.service': { UserService: {} },
+    '@sentry/react-native': { setUser: () => {}, captureException: () => {} },
+  });
+
+  const lateLogin = useAuthStore.getState().setAuth(
+    { id: 'late', handle: 'late', smartAccountAddress: '0x123' },
+    'late-token',
+  );
+  await tokenWriteStarted;
+  const logout = useAuthStore.getState().logout();
+  assert.equal(useAuthStore.getState().isAuthenticated, false);
+  releaseTokenWrite();
+
+  await assert.rejects(lateLogin, /cancelled/);
+  await logout;
+  assert.equal(values.has('auth_token'), false);
+  assert.equal(values.has('user_profile'), false);
+  assert.equal(useAuthStore.getState().isAuthenticated, false);
 });
