@@ -50,7 +50,19 @@ const NETWORK_PATTERNS = [
  */
 const PRIVY_NOT_ALLOWED = /\bnot allowed\b|\bnot enabled\b|\bdisabled\b/i;
 
-const PRIVY_RELYING_PARTY = /relying ?party|rp ?id|associated ?domain/i;
+const PRIVY_RELYING_PARTY = /relying ?party|rp ?id/i;
+
+/**
+ * iOS's own wording when it could not verify the associated domain:
+ * "Unable to verify webcredentials association of <TEAM>.<bundle> with domain
+ * <host>". The app is configured correctly at that point - the operating system
+ * fetched the association file and did not get what it needed. That is a server
+ * problem, never a Privy setting, so it must not be answered with "check your
+ * Privy dashboard". `associated domain` leaves the Privy pattern above for the
+ * same reason: the two failures share that vocabulary and nothing else.
+ */
+const DOMAIN_ASSOCIATION =
+  /webcredentials|associated ?domain|association of .* with domain/i;
 
 /**
  * Someone closing the sheet is not a misconfiguration. Saying "check your Reown
@@ -80,6 +92,19 @@ export const describeAuthFailure = (
       message: "Aucune réponse du réseau.",
       action:
         "Vérifiez la connexion de l'appareil, puis que l'API ATARA répond.",
+      raw,
+    };
+  }
+
+  // Checked before the Privy branches: the operating system, not Privy, is the
+  // one refusing here, and the remedies have nothing in common.
+  if (DOMAIN_ASSOCIATION.test(raw)) {
+    return {
+      layer: "api",
+      message:
+        "Le système n'a pas pu vérifier l'association de domaine des passkeys.",
+      action:
+        "api.atara.finance doit servir /.well-known/apple-app-site-association en 200, sans redirection. Il répond 503 tant que APPLE_TEAM_ID est absente du serveur.",
       raw,
     };
   }
@@ -137,3 +162,64 @@ export const describeAuthFailure = (
 /** One string for the gate screen, which has room for two short lines. */
 export const formatAuthFailure = (failure: AuthFailure): string =>
   failure.action ? `${failure.message}\n${failure.action}` : failure.message;
+
+const DOMAIN_ASSOCIATION_TIMEOUT_MS = 4000;
+
+/**
+ * A passkey refusal has two causes that live outside the app - Privy has not
+ * been told to allow the method, or the API is not publishing the association
+ * file iOS needs - and the provider string usually names neither. The second
+ * one is observable: the association file is a public URL. So the app asks it
+ * instead of leaving whoever reads the screen to guess between two settings
+ * that look identical from there.
+ *
+ * Returns undefined when the file is being served correctly, and also when the
+ * check could not conclude. A timeout or an offline device says nothing about
+ * the server's configuration, and reporting it as one would send someone
+ * editing environment variables that were never the problem.
+ */
+export const probeDomainAssociation = async (
+  relyingParty: string,
+  timeoutMs: number = DOMAIN_ASSOCIATION_TIMEOUT_MS,
+): Promise<AuthFailure | undefined> => {
+  const url = `https://${relyingParty}/.well-known/apple-app-site-association`;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    const body = (await response.json().catch(() => null)) as {
+      error?: unknown;
+      webcredentials?: { apps?: unknown };
+    } | null;
+
+    if (response.ok) {
+      const apps = body?.webcredentials?.apps;
+      if (Array.isArray(apps) && apps.length > 0) return undefined;
+
+      return {
+        layer: "api",
+        message: `${relyingParty} publie une association de domaine vide.`,
+        action:
+          "Le fichier doit contenir webcredentials.apps avec <APPLE_TEAM_ID>.com.atara.app.",
+        raw: JSON.stringify(body),
+      };
+    }
+
+    // The route answers 503 with the name of the variable it is waiting for,
+    // which is the one thing worth putting on screen.
+    const detail =
+      typeof body?.error === "string" ? body.error : `HTTP ${response.status}`;
+
+    return {
+      layer: "api",
+      message: "L'API ne publie pas encore l'association de domaine.",
+      action: `${url} répond ${response.status} : ${detail}`,
+      raw: detail,
+    };
+  } catch {
+    return undefined;
+  } finally {
+    clearTimeout(timer);
+  }
+};
