@@ -10,6 +10,7 @@ const betaEnv = {
   EXPO_PUBLIC_ALCHEMY_GAS_POLICY_ID: "gas-policy",
   EXPO_PUBLIC_DEMO_MODE: "false",
   EXPO_PUBLIC_ENABLE_VAULTS: "false",
+  EXPO_PUBLIC_ENABLE_SAVINGS: "false",
   EXPO_PUBLIC_PASSKEY_RP_ID: "api.atara.finance",
   EXPO_PUBLIC_REOWN_PROJECT_ID: "0123456789abcdef0123456789abcdef",
   EXPO_PUBLIC_NETWORK: "base-sepolia",
@@ -34,6 +35,7 @@ test("rejects missing credentials and an unsafe API URL", () => {
   assert.ok(failures.some((failure) => failure.includes("REOWN_PROJECT_ID")));
   assert.ok(failures.some((failure) => failure.includes("PASSKEY_RP_ID")));
   assert.ok(failures.some((failure) => failure.includes("ENABLE_VAULTS")));
+  assert.ok(failures.some((failure) => failure.includes("ENABLE_SAVINGS")));
 });
 
 test("blocks public production until release evidence is complete", () => {
@@ -69,6 +71,7 @@ test("build-profile env overrides stale EAS project values", () => {
           EXPO_PUBLIC_PRIVY_CLIENT_ID:
             "client-WY6aSvC1vAstj49sRqJe2L6YHDaety8D8z5fHQrrJAJuo",
           EXPO_PUBLIC_ENABLE_VAULTS: "false",
+          EXPO_PUBLIC_ENABLE_SAVINGS: "false",
           EXPO_PUBLIC_REOWN_PROJECT_ID: "35f77053ffe4f0ebcb92abbdd81e8d55",
         },
       },
@@ -101,6 +104,7 @@ test("preview inherits beta build-profile env", () => {
       beta: {
         env: {
           EXPO_PUBLIC_ENABLE_VAULTS: "false",
+          EXPO_PUBLIC_ENABLE_SAVINGS: "false",
           EXPO_PUBLIC_REOWN_PROJECT_ID: "0123456789abcdef0123456789abcdef",
         },
       },
@@ -113,6 +117,7 @@ test("preview inherits beta build-profile env", () => {
 
   assert.deepEqual(resolveProfileEnv(eas, "preview"), {
     EXPO_PUBLIC_ENABLE_VAULTS: "false",
+    EXPO_PUBLIC_ENABLE_SAVINGS: "false",
     EXPO_PUBLIC_REOWN_PROJECT_ID: "0123456789abcdef0123456789abcdef",
     EXPO_PUBLIC_DEMO_MODE: "false",
   });

@@ -8,8 +8,16 @@
     "test": "npm run build && node --test test/*.test.mjs",
     "abi:check": "node scripts/compile.mjs --check",
     "deploy:sepolia": "npm run build && node --env-file-if-exists=.env scripts/deploy.mjs",
-    "verify:sepolia": "node --env-file-if-exists=.env scripts/verify-deployment.mjs"
+    "verify:sepolia": "node --env-file-if-exists=.env scripts/verify-deployment.mjs",
+    "deploy:savings:sepolia": "npm run build && node --env-file-if-exists=.env scripts/deploy.mjs --savings",
+    "verify:savings:sepolia": "node --env-file-if-exists=.env scripts/verify-deployment.mjs --savings"
   },
-  "dependencies": { "@openzeppelin/contracts": "5.6.1" },
-  "devDependencies": { "ethers": "6.17.0", "hardhat": "3.15.0", "solc": "0.8.36" }
+  "dependencies": {
+    "@openzeppelin/contracts": "5.6.1"
+  },
+  "devDependencies": {
+    "ethers": "6.17.0",
+    "hardhat": "3.15.0",
+    "solc": "0.8.36"
+  }
 }

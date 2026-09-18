@@ -16,6 +16,7 @@ import { useAlertStore } from "@/stores/useAlertStore";
 import { AppAlert } from "@/components/alert/AppAlert";
 import { VaultOpeningAnimation } from "@/components/onboarding/VaultOpeningAnimation";
 import { ExternalWalletProvider } from "@/providers/ExternalWalletProvider";
+import { MfaGate } from "@/providers/MfaGate";
 
 import "./global.css";
 
@@ -57,6 +58,9 @@ function RootLayout() {
             <AuthProvider>
               <RootLayoutInner />
             </AuthProvider>
+            {/* Privy suspends a sensitive signature until the app answers its
+                MFA request. Mounted here so every screen is covered. */}
+            <MfaGate />
           </PrivyProvider>
         </ExternalWalletProvider>
       </BottomSheetModalProvider>
@@ -200,6 +204,8 @@ function RootLayoutInner() {
         <Stack.Screen name="sovereignty" options={{ presentation: "card", animation: "slide_from_bottom" }} />
         <Stack.Screen name="vault-create" options={{ presentation: "card", animation: "slide_from_bottom" }} />
         <Stack.Screen name="vault-detail" options={{ presentation: "card", animation: "slide_from_bottom" }} />
+        <Stack.Screen name="savings-create" options={{ presentation: "card", animation: "slide_from_bottom" }} />
+        <Stack.Screen name="savings-detail" options={{ presentation: "card", animation: "slide_from_bottom" }} />
       </Stack>
       {alert && (
         <AppAlert
