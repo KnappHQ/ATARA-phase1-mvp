@@ -55,5 +55,6 @@ export const ONRAMP_REDIRECT_URL = process.env.ONRAMP_REDIRECT_URL || "";
 // Vault reads are public-chain reads. The factory address stays empty until the
 // Sepolia deployment has been reviewed and configured for the environment.
 export const VAULT_FACTORY_ADDRESS = process.env.VAULT_FACTORY_ADDRESS || "";
+export const SAVINGS_LOCK_FACTORY_ADDRESS = process.env.SAVINGS_LOCK_FACTORY_ADDRESS || "";
 export const VAULT_RPC_URL = process.env.VAULT_RPC_URL || "https://sepolia.base.org";
 export const VAULT_CHAIN_ID = 84532;

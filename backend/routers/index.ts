@@ -8,6 +8,7 @@ import userRouter from "./user.route";
 import groupRouter from "./group.routes";
 import feedbackRouter from "./feedback.routes";
 import vaultRouter from "./vault.routes";
+import savingsLockRouter from "./savingsLock.routes";
 import paymentRequestRouter from "./paymentRequest.routes";
 import securityRouter from "./security.routes";
 import legalRouter from "./legal.routes";
@@ -21,6 +22,9 @@ app.use("/user", userRouter);
 app.use("/groups", groupRouter);
 app.use("/feedback", feedbackRouter);
 if (process.env.ENABLE_VAULTS === "true") app.use("/vaults", vaultRouter);
+// Savings locks ship on their own switch: they are a personal feature and do
+// not wait on the group Vault release.
+if (process.env.ENABLE_SAVINGS === "true") app.use("/savings", savingsLockRouter);
 app.use("/security", securityRouter);
 app.use("/requests", paymentRequestRouter);
 app.use("/legal", legalRouter);

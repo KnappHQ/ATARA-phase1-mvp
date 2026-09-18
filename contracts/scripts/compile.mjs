@@ -32,7 +32,7 @@ fs.mkdirSync(path.join(root, "artifacts"), { recursive: true });
 for (const contracts of Object.values(output.contracts)) {
   for (const [name, artifact] of Object.entries(contracts)) {
     fs.writeFileSync(path.join(root, "artifacts", `${name}.json`), JSON.stringify(artifact, null, 2) + "\n");
-    if (!["AtaraGroupVault", "AtaraVaultFactory"].includes(name)) continue;
+    if (!["AtaraGroupVault", "AtaraVaultFactory", "AtaraSavingsLock", "AtaraSavingsLockFactory"].includes(name)) continue;
     const abi = JSON.stringify(artifact.abi, null, 2) + "\n";
     for (const app of ["backend", "frontend"]) {
       const destination = path.join(root, "..", app, "contracts", `${name}.json`);

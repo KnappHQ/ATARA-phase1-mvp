@@ -78,6 +78,14 @@ test("Vault API stays absent while the beta feature flag is disabled", async () 
   assert.equal((await request(app).get("/api/v1/vaults/0xabc")).status, 404);
 });
 
+test("Savings lock API stays absent while its own feature flag is disabled", async () => {
+  // A separate switch from ENABLE_VAULTS: savings locks are personal and must be
+  // releasable without also opening the group Vault.
+  assert.notEqual(process.env.ENABLE_SAVINGS, "true");
+  assert.equal((await request(app).get("/api/v1/savings")).status, 404);
+  assert.equal((await request(app).get("/api/v1/savings/0xabc")).status, 404);
+});
+
 test("a malformed bearer token is refused too", async () => {
   const response = await request(app)
     .get("/api/v1/user/me")

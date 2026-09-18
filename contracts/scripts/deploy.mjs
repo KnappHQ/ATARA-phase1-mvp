@@ -10,12 +10,18 @@ if ((await provider.getNetwork()).chainId !== 84532n) throw new Error("Vault bet
 const tokenAddress = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 const token = new Contract(tokenAddress, ["function decimals() view returns(uint8)"], provider);
 if (await token.decimals() !== 6n) throw new Error("Unexpected token decimals");
-const artifact = JSON.parse(fs.readFileSync(new URL("../artifacts/AtaraVaultFactory.json", import.meta.url), "utf8"));
+// Two factories share this script. The group Vault stays the default so the
+// existing deploy workflow keeps working untouched.
+const savings = process.argv.includes("--savings");
+const contractName = savings ? "AtaraSavingsLockFactory" : "AtaraVaultFactory";
+const backendVar = savings ? "SAVINGS_LOCK_FACTORY_ADDRESS" : "VAULT_FACTORY_ADDRESS";
+const expoVar = savings ? "EXPO_PUBLIC_SAVINGS_LOCK_FACTORY_ADDRESS" : "EXPO_PUBLIC_VAULT_FACTORY_ADDRESS";
+const artifact = JSON.parse(fs.readFileSync(new URL(`../artifacts/${contractName}.json`, import.meta.url), "utf8"));
 const factory = await new ContractFactory(artifact.abi, artifact.evm.bytecode.object, new Wallet(process.env.DEPLOYER_PRIVATE_KEY, provider)).deploy(tokenAddress);
 const receipt = await factory.deploymentTransaction().wait(2);
 const address = await factory.getAddress();
-const manifest = { chainId: 84532, factory: address, token: tokenAddress, transactionHash: receipt.hash, blockNumber: receipt.blockNumber };
+const manifest = { chainId: 84532, contract: contractName, factory: address, token: tokenAddress, transactionHash: receipt.hash, blockNumber: receipt.blockNumber };
 fs.mkdirSync(new URL("../deployments/", import.meta.url), { recursive: true });
 fs.writeFileSync(new URL(`../deployments/${address}.json`, import.meta.url), JSON.stringify(manifest, null, 2) + "\n");
 console.log(JSON.stringify(manifest, null, 2));
-console.log(`Set VAULT_FACTORY_ADDRESS=${address} on the backend and EXPO_PUBLIC_VAULT_FACTORY_ADDRESS=${address} in the Sepolia build.`);
+console.log(`Set ${backendVar}=${address} on the backend and ${expoVar}=${address} in the Sepolia build.`);

@@ -31,6 +31,8 @@ services:
         value: "false"
       - key: ENABLE_VAULTS
         value: "false"
+      - key: ENABLE_SAVINGS
+        value: "false"
       - key: FEEDBACK_FROM_EMAIL
         value: feedback@atara.finance
       - key: FEEDBACK_RECIPIENT_EMAIL
@@ -56,6 +58,8 @@ services:
       - key: MOONPAY_SECRET_KEY
         sync: false
       - key: VAULT_FACTORY_ADDRESS
+        sync: false
+      - key: SAVINGS_LOCK_FACTORY_ADDRESS
         sync: false
       - key: RESEND_API_KEY
         sync: false

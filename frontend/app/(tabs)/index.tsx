@@ -7,6 +7,7 @@ import { BalanceRevealSection } from "../../components/homeScreen/BalanceRevealS
 import { ActionButtons } from "../../components/homeScreen/ActionButtons";
 import { CryptoActions } from "../../components/homeScreen/CryptoActions";
 import { VaultEntryCard } from "../../components/homeScreen/VaultEntryCard";
+import { SavingsEntryCard } from "../../components/homeScreen/SavingsEntryCard";
 import { ActivityList } from "../../components/homeScreen/ActivityList";
 import { useTransactionHistoryStore } from "@/stores/useTransactionHistoryStore";
 import { useAuthStore } from "@/stores/useAuthStore";
@@ -14,6 +15,7 @@ import { useGroupStore } from "@/stores/useGroupStore";
 import { ACTIVITY_LIMIT } from "@/utils/constants";
 
 const VAULTS_ENABLED = process.env.EXPO_PUBLIC_ENABLE_VAULTS === "true";
+const SAVINGS_ENABLED = process.env.EXPO_PUBLIC_ENABLE_SAVINGS === "true";
 
 export default function HomeTab() {
   const router = useRouter();
@@ -61,6 +63,10 @@ export default function HomeTab() {
 
               {VAULTS_ENABLED ? (
                 <VaultEntryCard onPress={() => router.push("/vaults")} />
+              ) : null}
+
+              {SAVINGS_ENABLED ? (
+                <SavingsEntryCard onPress={() => router.push("/savings-create")} />
               ) : null}
 
               <ActivityList

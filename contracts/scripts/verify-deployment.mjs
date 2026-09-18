@@ -1,11 +1,13 @@
 import { Contract, JsonRpcProvider, getAddress } from "ethers";
 
+const savings = process.argv.includes("--savings");
+const addressVar = savings ? "SAVINGS_LOCK_FACTORY_ADDRESS" : "VAULT_FACTORY_ADDRESS";
 const rpcUrl = process.env.BASE_SEPOLIA_RPC_URL;
-const factoryAddress = process.env.VAULT_FACTORY_ADDRESS;
+const factoryAddress = process.env[addressVar];
 const expectedToken = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
 
 if (!rpcUrl || !factoryAddress) {
-  throw new Error("Set BASE_SEPOLIA_RPC_URL and VAULT_FACTORY_ADDRESS before verification");
+  throw new Error(`Set BASE_SEPOLIA_RPC_URL and ${addressVar} before verification`);
 }
 
 const provider = new JsonRpcProvider(rpcUrl);
@@ -17,7 +19,7 @@ if (network.chainId !== 84532n) {
 const normalizedFactory = getAddress(factoryAddress);
 const code = await provider.getCode(normalizedFactory);
 if (!code || code === "0x") {
-  throw new Error("No contract bytecode found at VAULT_FACTORY_ADDRESS");
+  throw new Error(`No contract bytecode found at ${addressVar}`);
 }
 
 const factory = new Contract(
@@ -39,7 +41,7 @@ if (getAddress(token) !== getAddress(expectedToken)) {
 }
 
 if (cap !== 10_000n * 1_000_000n) {
-  throw new Error(`Unexpected Vault deposit cap: ${cap}`);
+  throw new Error(`Unexpected deposit cap: ${cap}`);
 }
 
 console.log(JSON.stringify({
