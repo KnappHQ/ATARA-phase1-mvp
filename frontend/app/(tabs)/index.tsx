@@ -2,7 +2,6 @@ import { useRouter } from "expo-router";
 import React, { useState, useEffect, useMemo } from "react";
 import { ScrollView, View } from "react-native";
 import { ShareModal } from "../../components/homeScreen/ShareModal";
-import { WeeklyInsights } from "../../components/homeScreen/WeeklyInsights";
 import { QuickSendBar } from "../../components/homeScreen/QuickSendBar";
 import { BalanceRevealSection } from "../../components/homeScreen/BalanceRevealSection";
 import { ActionButtons } from "../../components/homeScreen/ActionButtons";
@@ -69,10 +68,6 @@ export default function HomeTab() {
               {SAVINGS_ENABLED ? (
                 <SavingsEntryCard onPress={() => router.push("/savings-create")} />
               ) : null}
-
-              <View className="mb-6">
-                <WeeklyInsights />
-              </View>
 
               <ActivityList
                 transactions={recentActivity}
