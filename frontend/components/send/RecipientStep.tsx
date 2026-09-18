@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { Keyboard, ScrollView } from "react-native";
 import { Contact, useContactStore } from "@/stores/useContactStore";
-import { AtaraDropButton } from "./AtaraDropButton";
 import { QuickSendSection } from "./QuickSendSection";
 import { ContactsList } from "./ContactsList";
 
@@ -16,10 +15,6 @@ export const RecipientStep = ({ onSelectRecipient }: RecipientStepProps) => {
   const handleSelectContact = (contact: Contact) => {
     onSelectRecipient(contact);
     Keyboard.dismiss();
-  };
-
-  const handleAtaraDrop = () => {
-    console.log("ATARA Drop button pressed");
   };
 
   const handleQuickContactSelect = (quickContact: {
@@ -47,8 +42,6 @@ export const RecipientStep = ({ onSelectRecipient }: RecipientStepProps) => {
       showsVerticalScrollIndicator={false}
       contentContainerStyle={{ paddingHorizontal: 24, paddingVertical: 24 }}
     >
-      <AtaraDropButton onPress={handleAtaraDrop} />
-
       <QuickSendSection
         contacts={quickContacts}
         onSelectContact={handleQuickContactSelect}
