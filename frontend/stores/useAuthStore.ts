@@ -5,6 +5,26 @@ import { useWalletStore } from "./useWalletStore";
 import { UserService } from "@/services/user.service";
 import * as Sentry from "@sentry/react-native";
 
+let authMutationRevision = 0;
+let authStorageQueue: Promise<unknown> = Promise.resolve();
+
+const queueAuthStorageMutation = async (
+  task: () => Promise<void>,
+): Promise<void> => {
+  const operation = authStorageQueue.then(task, task);
+  authStorageQueue = operation.catch(() => undefined);
+  return operation;
+};
+
+const assertCurrentAuthMutation = (
+  revision: number,
+  signal?: AbortSignal,
+) => {
+  if (signal?.aborted || revision !== authMutationRevision) {
+    throw new Error("Authentication attempt cancelled.");
+  }
+};
+
 const isJwtExpired = (token: string): boolean => {
   try {
     const payload = jwtDecode<{ exp?: number }>(token);
@@ -35,7 +55,11 @@ interface AuthState {
   isLoading: boolean;
   justLoggedOut: boolean;
 
-  setAuth: (user: UserProfile, token: string) => Promise<void>;
+  setAuth: (
+    user: UserProfile,
+    token: string,
+    signal?: AbortSignal,
+  ) => Promise<void>;
   logout: () => Promise<void>;
   loadSession: () => Promise<void>;
   updateProfile: (data: { displayName?: string }) => Promise<void>;
@@ -50,58 +74,68 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
   justLoggedOut: false,
 
-  setAuth: async (user, token) => {
-    await SecureStore.setItemAsync("auth_token", token);
-    await SecureStore.setItemAsync("user_profile", JSON.stringify(user));
+  setAuth: async (user, token, signal) => {
+    const revision = ++authMutationRevision;
+    await queueAuthStorageMutation(async () => {
+      assertCurrentAuthMutation(revision, signal);
+      await SecureStore.setItemAsync("auth_token", token);
+      assertCurrentAuthMutation(revision, signal);
+      await SecureStore.setItemAsync("user_profile", JSON.stringify(user));
+      assertCurrentAuthMutation(revision, signal);
 
-    // Successful login clears any previous explicit logout block
-    try {
-      await SecureStore.deleteItemAsync("just_logged_out");
-    } catch {}
+      // Successful login clears any previous explicit logout block.
+      try {
+        await SecureStore.deleteItemAsync("just_logged_out");
+      } catch {}
+      assertCurrentAuthMutation(revision, signal);
+      set({ user, token, isAuthenticated: true, justLoggedOut: false });
 
-    set({ user, token, isAuthenticated: true, justLoggedOut: false });
+      try {
+        Sentry.setUser({
+          id: user.id,
+          email: user.email || undefined,
+          username: user.handle || undefined,
+        });
+      } catch (e) {
+        // Non-fatal: ensure Sentry calls don't break auth flow
+        console.error("Sentry.setUser failed:", e);
+      }
 
-    try {
-      Sentry.setUser({
-        id: user.id,
-        email: user.email || undefined,
-        username: user.handle || undefined,
-      });
-    } catch (e) {
-      // Non-fatal: ensure Sentry calls don't break auth flow
-      console.error("Sentry.setUser failed:", e);
-    }
-
-    // Initialize wallet address after login
-    if (user.smartAccountAddress) {
-      useWalletStore.getState().setWalletAddress(user.smartAccountAddress);
-    }
+      if (user.smartAccountAddress) {
+        useWalletStore.getState().setWalletAddress(user.smartAccountAddress);
+      }
+    });
   },
 
   logout: async () => {
+    const revision = ++authMutationRevision;
     // Clear the visible account before slow secure-storage operations finish.
     useWalletStore.getState().reset();
     set({ user: null, token: null, isAuthenticated: false, justLoggedOut: true });
-    await SecureStore.deleteItemAsync("auth_token");
-    await SecureStore.deleteItemAsync("user_profile");
-    // Persist a short-term flag to avoid immediate auto-login (survives app restart)
-    try {
-      await SecureStore.setItemAsync("just_logged_out", Date.now().toString());
-    } catch (e) {
-      console.error("Failed to persist just_logged_out flag", e);
-    }
-
     try {
       Sentry.setUser(null);
     } catch (e) {
       console.error("Sentry.clearUser failed:", e);
     }
-    set({
-      user: null,
-      token: null,
-      isAuthenticated: false,
-      justLoggedOut: true,
+    await queueAuthStorageMutation(async () => {
+      await SecureStore.deleteItemAsync("auth_token");
+      await SecureStore.deleteItemAsync("user_profile");
+      // Persist a short-term flag to avoid immediate auto-login (survives app restart)
+      try {
+        await SecureStore.setItemAsync("just_logged_out", Date.now().toString());
+      } catch (e) {
+        console.error("Failed to persist just_logged_out flag", e);
+      }
     });
+
+    if (revision === authMutationRevision) {
+      set({
+        user: null,
+        token: null,
+        isAuthenticated: false,
+        justLoggedOut: true,
+      });
+    }
   },
 
   loadSession: async () => {

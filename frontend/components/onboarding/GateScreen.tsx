@@ -1,5 +1,6 @@
 import {
   ActivityIndicator,
+  ScrollView,
   Text,
   TouchableOpacity,
   View,
@@ -13,6 +14,7 @@ import { COLORS } from "@/utils/constants";
 
 interface GateScreenProps {
   isCheckingBackend?: boolean;
+  isPrivyReady?: boolean;
   isStartingOAuth?: boolean;
   oauthError?: string | null;
   isExternalWalletEnabled?: boolean;
@@ -23,6 +25,7 @@ interface GateScreenProps {
 
 export const GateScreen = ({
   isCheckingBackend = false,
+  isPrivyReady = false,
   isStartingOAuth = false,
   oauthError = null,
   isExternalWalletEnabled = false,
@@ -34,7 +37,18 @@ export const GateScreen = ({
   const passkeyEnabled = !!process.env.EXPO_PUBLIC_PASSKEY_RP_ID;
 
   return (
-    <SafeAreaView className="flex-1 items-center justify-center px-7">
+    <SafeAreaView className="flex-1 bg-black">
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{
+          flexGrow: 1,
+          alignItems: "center",
+          justifyContent: "center",
+          paddingHorizontal: 28,
+          paddingVertical: 24,
+        }}
+      >
       <MotiView
         from={{ opacity: 0, translateY: 10 }}
         animate={{ opacity: 1, translateY: 0 }}
@@ -75,9 +89,9 @@ export const GateScreen = ({
           <TouchableOpacity
             onPress={() => onStartPasskey("signup")}
             activeOpacity={0.8}
-            disabled={showLoading || !passkeyEnabled}
+            disabled={showLoading || !passkeyEnabled || !isPrivyReady}
             className={`w-full py-4 px-5 flex-row items-center justify-center gap-3 rounded-2xl ${
-              showLoading || !passkeyEnabled ? "opacity-45" : ""
+              showLoading || !passkeyEnabled || !isPrivyReady ? "opacity-45" : ""
             }`}
             style={{ backgroundColor: COLORS.white }}
           >
@@ -96,9 +110,9 @@ export const GateScreen = ({
             <TouchableOpacity
               onPress={() => onStartPasskey("login")}
               activeOpacity={0.8}
-              disabled={showLoading}
+              disabled={showLoading || !isPrivyReady}
               className={`w-full py-3.5 px-5 mt-3 border border-white/20 rounded-2xl flex-row items-center justify-center gap-3 ${
-                showLoading ? "opacity-50" : ""
+                showLoading || !isPrivyReady ? "opacity-50" : ""
               }`}
             >
               <Fingerprint size={18} color={COLORS.white} />
@@ -152,9 +166,9 @@ export const GateScreen = ({
           <TouchableOpacity
             onPress={() => onStartOAuth("google")}
             activeOpacity={0.8}
-            disabled={showLoading}
+            disabled={showLoading || !isPrivyReady}
             className={`flex-1 py-3.5 px-3 border border-white/15 rounded-2xl flex-row items-center justify-center gap-2 ${
-              showLoading ? "opacity-50" : ""
+              showLoading || !isPrivyReady ? "opacity-50" : ""
             }`}
           >
             <Text className="text-sm text-white">Google</Text>
@@ -163,9 +177,9 @@ export const GateScreen = ({
           <TouchableOpacity
             onPress={() => onStartOAuth("apple")}
             activeOpacity={0.8}
-            disabled={showLoading}
+            disabled={showLoading || !isPrivyReady}
             className={`flex-1 py-3.5 px-3 border border-white/15 rounded-2xl flex-row items-center justify-center gap-2 ${
-              showLoading ? "opacity-50" : ""
+              showLoading || !isPrivyReady ? "opacity-50" : ""
             }`}
           >
             <Text className="text-sm text-white">Apple</Text>
@@ -192,12 +206,22 @@ export const GateScreen = ({
           </MotiView>
         )}
 
+        {!isPrivyReady && !showLoading && (
+          <View className="items-center mt-4">
+            <ActivityIndicator size="small" color={COLORS.white} />
+            <Text className="text-white/60 text-xs mt-2">
+              Preparing secure sign-in...
+            </Text>
+          </View>
+        )}
+
         {oauthError && (
           <Text className="text-red-400 text-xs text-center mt-3">
             {oauthError}
           </Text>
         )}
       </MotiView>
+      </ScrollView>
     </SafeAreaView>
   );
 };

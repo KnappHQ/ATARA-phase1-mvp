@@ -46,7 +46,10 @@ type PendingConnect = {
   promise: Promise<void>;
   resolve: () => void;
   reject: (error: Error) => void;
+  timeoutId: ReturnType<typeof setTimeout>;
 };
+
+const WALLET_RUNTIME_TIMEOUT_MS = 15_000;
 
 type WalletRuntimeBoundaryProps = {
   children: ReactNode;
@@ -94,6 +97,7 @@ export const ExternalWalletProvider = ({ children }: { children: ReactNode }) =>
       const runtimeError = asError(error);
       const pending = pendingConnectRef.current;
       pendingConnectRef.current = null;
+      if (pending) clearTimeout(pending.timeoutId);
       pending?.reject(runtimeError);
 
       runtimeComponentRef.current = null;
@@ -142,6 +146,7 @@ export const ExternalWalletProvider = ({ children }: { children: ReactNode }) =>
       if (!pending) return;
 
       pendingConnectRef.current = null;
+      clearTimeout(pending.timeoutId);
       void Promise.resolve()
         .then(() => value.connect())
         .then(pending.resolve)
@@ -172,7 +177,20 @@ export const ExternalWalletProvider = ({ children }: { children: ReactNode }) =>
       resolve = onResolve;
       reject = onReject;
     });
-    const pending = { promise, resolve, reject };
+    const pending: PendingConnect = {
+      promise,
+      resolve,
+      reject,
+      timeoutId: setTimeout(() => {
+        if (pendingConnectRef.current !== pending) return;
+        pendingConnectRef.current = null;
+        reject(
+          new Error(
+            "La connexion wallet met trop de temps à démarrer. Réessaie.",
+          ),
+        );
+      }, WALLET_RUNTIME_TIMEOUT_MS),
+    };
     pendingConnectRef.current = pending;
 
     try {
@@ -180,6 +198,7 @@ export const ExternalWalletProvider = ({ children }: { children: ReactNode }) =>
     } catch (error) {
       if (pendingConnectRef.current === pending) {
         pendingConnectRef.current = null;
+        clearTimeout(pending.timeoutId);
         pending.reject(asError(error));
       }
     }
@@ -224,6 +243,7 @@ export const ExternalWalletProvider = ({ children }: { children: ReactNode }) =>
     () => () => {
       const pending = pendingConnectRef.current;
       pendingConnectRef.current = null;
+      if (pending) clearTimeout(pending.timeoutId);
       pending?.reject(new Error("La connexion wallet a été interrompue."));
     },
     [],
