@@ -10,22 +10,6 @@ import { useAddressBookStore } from "@/stores/useAddressBookStore";
 import { useWalletStore } from "@/stores/useWalletStore";
 import * as Sentry from "@sentry/react-native";
 
-interface WeeklyDayData {
-  day: string;
-  dateShort: string;
-  totalSentUSD: number;
-  totalReceivedUSD: number;
-  transactionCount: number;
-}
-
-export interface WeeklyInsights {
-  days: WeeklyDayData[];
-  totalSentUSD: number;
-  totalReceivedUSD: number;
-  netUSD: number;
-  period: string;
-}
-
 export interface DisplayTransaction {
   id: string;
   txHash: string;
@@ -195,95 +179,10 @@ const transformTransaction = (tx: HistoryTransaction): DisplayTransaction => {
   };
 };
 
-const computeWeeklyInsights = (
-  transactions: DisplayTransaction[],
-): WeeklyInsights => {
-  const { assets } = useWalletStore.getState();
-
-  const toUSD = (amount: string, symbol: string): number => {
-    const raw = Math.abs(parseFloat(amount));
-    if (isNaN(raw)) return 0;
-    const asset = assets.find(
-      (a) => a.symbol.toUpperCase() === symbol.toUpperCase(),
-    );
-    return raw * (asset?.usdPrice ?? 0);
-  };
-
-  // Build 7-day window: today going back 6 days (oldest first)
-  const days: WeeklyDayData[] = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() - (6 - i));
-    return {
-      day: d.toLocaleDateString("en-US", { weekday: "short" }),
-      dateShort: d.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-      }),
-      totalSentUSD: 0,
-      totalReceivedUSD: 0,
-      transactionCount: 0,
-      _date: d,
-    } as WeeklyDayData & { _date: Date };
-  });
-
-  const windowStart = (days[0] as any)._date as Date;
-  const windowEnd = new Date();
-
-  transactions.forEach((tx) => {
-    const txDate = new Date(tx.timestamp);
-    if (txDate < windowStart || txDate > windowEnd) return;
-
-    // Find matching day bucket
-    const dayIdx = days.findIndex((d) => {
-      const bucketDate = (d as any)._date as Date;
-      const next = new Date(bucketDate);
-      next.setDate(next.getDate() + 1);
-      return txDate >= bucketDate && txDate < next;
-    });
-    if (dayIdx === -1) return;
-
-    const usd = toUSD(tx.amount, tx.assetSymbol);
-    if (tx.type === "receive") {
-      days[dayIdx].totalReceivedUSD += usd;
-    } else {
-      days[dayIdx].totalSentUSD += usd;
-    }
-    days[dayIdx].transactionCount += 1;
-  });
-
-  // Strip internal _date before returning
-  const cleanDays: WeeklyDayData[] = days.map(
-    ({ day, dateShort, totalSentUSD, totalReceivedUSD, transactionCount }) => ({
-      day,
-      dateShort,
-      totalSentUSD: parseFloat(totalSentUSD.toFixed(2)),
-      totalReceivedUSD: parseFloat(totalReceivedUSD.toFixed(2)),
-      transactionCount,
-    }),
-  );
-
-  const totalSentUSD = parseFloat(
-    cleanDays.reduce((s, d) => s + d.totalSentUSD, 0).toFixed(2),
-  );
-  const totalReceivedUSD = parseFloat(
-    cleanDays.reduce((s, d) => s + d.totalReceivedUSD, 0).toFixed(2),
-  );
-
-  return {
-    days: cleanDays,
-    totalSentUSD,
-    totalReceivedUSD,
-    netUSD: parseFloat((totalReceivedUSD - totalSentUSD).toFixed(2)),
-    period: `${cleanDays[0].dateShort} – ${cleanDays[6].dateShort}`,
-  };
-};
-
 interface HistoryState {
   rawHistory: HistoryTransaction[];
   displayHistory: DisplayTransaction[];
   contactThreads: ContactThread[];
-  weeklyInsights: WeeklyInsights | null;
   isLoading: boolean;
   error: string | null;
 
@@ -300,7 +199,6 @@ export const useTransactionHistoryStore = create<HistoryState>((set, get) => ({
   rawHistory: [],
   displayHistory: [],
   contactThreads: [],
-  weeklyInsights: null,
   isLoading: false,
   error: null,
 
@@ -316,8 +214,7 @@ export const useTransactionHistoryStore = create<HistoryState>((set, get) => ({
       if (revision !== accountRevision()) return;
       const displayHistory = rawHistory.map(transformTransaction);
       const contactThreads = groupTransactionsByContact(displayHistory);
-      const weeklyInsights = computeWeeklyInsights(displayHistory);
-      set({ rawHistory, displayHistory, contactThreads, weeklyInsights });
+      set({ rawHistory, displayHistory, contactThreads });
     } catch (error: any) {
       if (revision !== accountRevision()) return;
       console.error("Failed to fetch transaction history:", error);
@@ -333,8 +230,7 @@ export const useTransactionHistoryStore = create<HistoryState>((set, get) => ({
     if (!rawHistory.length) return;
     const displayHistory = rawHistory.map(transformTransaction);
     const contactThreads = groupTransactionsByContact(displayHistory);
-    const weeklyInsights = computeWeeklyInsights(displayHistory);
-    set({ displayHistory, contactThreads, weeklyInsights });
+    set({ displayHistory, contactThreads });
   },
 
   updateLocalTransaction: (id, changes) => {
@@ -344,12 +240,10 @@ export const useTransactionHistoryStore = create<HistoryState>((set, get) => ({
     );
     const displayHistory = updated.map(transformTransaction);
     const contactThreads = groupTransactionsByContact(displayHistory);
-    const weeklyInsights = computeWeeklyInsights(displayHistory);
     set({
       rawHistory: updated,
       displayHistory,
       contactThreads,
-      weeklyInsights,
     });
   },
 
@@ -359,6 +253,6 @@ export const useTransactionHistoryStore = create<HistoryState>((set, get) => ({
 }));
 
 onAccountReset(() => useTransactionHistoryStore.setState({
-  rawHistory: [], displayHistory: [], contactThreads: [], weeklyInsights: null,
+  rawHistory: [], displayHistory: [], contactThreads: [],
   isLoading: false, error: null,
 }));
