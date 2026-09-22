@@ -21,6 +21,7 @@ interface GateScreenProps {
   onStartPasskey: (mode: "login" | "signup") => void;
   onStartExternalWallet: () => void;
   onStartOAuth: (provider: "google" | "apple") => void;
+  onResetSession: () => void;
 }
 
 export const GateScreen = ({
@@ -32,6 +33,7 @@ export const GateScreen = ({
   onStartOAuth,
   onStartPasskey,
   onStartExternalWallet,
+  onResetSession,
 }: GateScreenProps) => {
   const showLoading = isStartingOAuth || isCheckingBackend;
   const passkeyEnabled = !!process.env.EXPO_PUBLIC_PASSKEY_RP_ID;
@@ -219,6 +221,12 @@ export const GateScreen = ({
           <Text className="text-red-400 text-xs text-center mt-3">
             {oauthError}
           </Text>
+        )}
+        {(oauthError || isCheckingBackend || isStartingOAuth) && (
+          <TouchableOpacity onPress={onResetSession} accessibilityRole="button"
+            className="min-h-12 items-center justify-center mt-3 p-3 rounded-2xl border border-white/20">
+            <Text className="text-white text-sm">Annuler et fermer la session</Text>
+          </TouchableOpacity>
         )}
       </MotiView>
       </ScrollView>

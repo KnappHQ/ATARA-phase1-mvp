@@ -33,6 +33,7 @@ export default function Onboarding() {
           onStartOAuth={startOAuth}
           onStartPasskey={startPasskey}
           onStartExternalWallet={startExternalWallet}
+          onResetSession={logout}
         />
       )}
 

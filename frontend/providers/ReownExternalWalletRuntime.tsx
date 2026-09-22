@@ -9,10 +9,14 @@ import {
   type Storage,
   useAccount,
   useAppKit,
+  useAppKitState,
   useProvider,
 } from "@reown/appkit-react-native";
 import { EthersAdapter } from "@reown/appkit-ethers-react-native";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { waitForExternalConnection } from "@/utils/externalWalletConnection";
+import { withTimeout } from "@/utils/asyncOperation";
 
 import type { ExternalWalletContextValue } from "@/providers/ExternalWalletProvider";
 import type { EthereumSignerWallet } from "@/services/smartAccount.service";
@@ -132,34 +136,54 @@ const ConfiguredRuntime = ({
 }) => {
   const { address, isConnected, chainId } = useAccount();
   const { provider, providerType } = useProvider();
-  const { open, disconnect, switchNetwork } = useAppKit();
+  const { open, close, disconnect, switchNetwork } = useAppKit();
+  const { isOpen } = useAppKitState();
+  const connectionRef = useRef({ isOpen, isConnected, hasProvider: !!provider });
+  connectionRef.current = { isOpen, isConnected, hasProvider: !!provider };
+  const attemptRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => attemptRef.current?.abort(), []);
 
   const connect = useCallback(async () => {
-    await open({ view: "Connect" });
-  }, [open]);
+    if (attemptRef.current) throw new Error("Une connexion wallet est déjà en cours.");
+    const attempt = new AbortController();
+    attemptRef.current = attempt;
+    try {
+      open({ view: "Connect" });
+      await waitForExternalConnection(() => connectionRef.current, attempt.signal);
+      await close();
+    } catch (error) {
+      await withTimeout(close(), 3_000).catch(() => undefined);
+      throw error;
+    } finally {
+      if (attemptRef.current === attempt) attemptRef.current = null;
+    }
+  }, [open, close]);
 
   const disconnectWallet = useCallback(async () => {
+    attemptRef.current?.abort();
     try {
+      await close();
       await disconnect("eip155");
     } finally {
       await forgetExternalWalletSession();
     }
-  }, [disconnect]);
+  }, [disconnect, close]);
 
   const ensureSupportedNetwork = useCallback(async () => {
-    const providerChainId = provider
-      ? Number(await provider.request({ method: "eth_chainId" }))
-      : Number.NaN;
-    const currentChainId = chainId ? Number(chainId) : providerChainId;
+    if (!provider) throw new Error("Le fournisseur du wallet n'est pas encore prêt.");
+    const currentChainId = Number(await withTimeout(provider.request({ method: "eth_chainId" })));
 
     if (!Number.isFinite(currentChainId)) {
       throw new Error("Le réseau du wallet n'est pas encore disponible.");
     }
 
     if (currentChainId !== CHAIN_ID) {
-      await switchNetwork(baseNetwork);
+      await withTimeout(switchNetwork(baseNetwork), 60_000);
+      const confirmedChain = Number(await withTimeout(provider.request({ method: "eth_chainId" })));
+      if (confirmedChain !== CHAIN_ID) throw new Error("Le wallet n’a pas confirmé le réseau Base attendu.");
     }
-  }, [chainId, provider, switchNetwork]);
+  }, [provider, switchNetwork]);
 
   const wallet = useMemo<EthereumSignerWallet | undefined>(() => {
     if (!address || !provider || providerType !== "eip155") return undefined;
@@ -205,8 +229,12 @@ const ConfiguredRuntime = ({
     }
   }, [isConnected]);
 
-  return <AppKit />;
+  return <AppKit modalContentWrapper={WalletModalContent} />;
 };
+
+const WalletModalContent = ({ children }: { children: React.ReactNode }) => (
+  <GestureHandlerRootView style={{ flex: 1 }}>{children}</GestureHandlerRootView>
+);
 
 const RuntimeUnavailable = ({
   onError,

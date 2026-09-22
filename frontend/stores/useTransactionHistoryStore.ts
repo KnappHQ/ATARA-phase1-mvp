@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { accountRevision, onAccountReset } from "@/utils/accountScope";
 import { HistoryService, HistoryTransaction } from "@/services/history.service";
 import {
   formatHistoryAmount,
@@ -304,6 +305,7 @@ export const useTransactionHistoryStore = create<HistoryState>((set, get) => ({
   error: null,
 
   fetchHistory: async () => {
+    const revision = accountRevision();
     const { isLoading } = get();
     if (isLoading) return;
 
@@ -311,16 +313,18 @@ export const useTransactionHistoryStore = create<HistoryState>((set, get) => ({
 
     try {
       const rawHistory = await HistoryService.getHistory();
+      if (revision !== accountRevision()) return;
       const displayHistory = rawHistory.map(transformTransaction);
       const contactThreads = groupTransactionsByContact(displayHistory);
       const weeklyInsights = computeWeeklyInsights(displayHistory);
       set({ rawHistory, displayHistory, contactThreads, weeklyInsights });
     } catch (error: any) {
+      if (revision !== accountRevision()) return;
       console.error("Failed to fetch transaction history:", error);
       Sentry.captureException(error);
       set({ error: error.message || "Failed to load history" });
     } finally {
-      set({ isLoading: false });
+      if (revision === accountRevision()) set({ isLoading: false });
     }
   },
 
@@ -352,4 +356,9 @@ export const useTransactionHistoryStore = create<HistoryState>((set, get) => ({
   clearError: () => {
     set({ error: null });
   },
+}));
+
+onAccountReset(() => useTransactionHistoryStore.setState({
+  rawHistory: [], displayHistory: [], contactThreads: [], weeklyInsights: null,
+  isLoading: false, error: null,
 }));

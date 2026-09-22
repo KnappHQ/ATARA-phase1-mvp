@@ -135,6 +135,14 @@ test("the public domain-association files expose only validated app identities",
       webcredentials: { apps: ["ABCDE12345.com.atara.app"] },
     });
 
+    // OS caches share IPs. Association fetches must not consume the user API
+    // quota or start returning 429 after repeated Apple/Android requests.
+    for (let i = 0; i < 105; i++) {
+      const association = await request(app).get("/.well-known/apple-app-site-association");
+      assert.equal(association.status, 200);
+      assert.equal(association.headers.ratelimit, undefined);
+    }
+
     const android = await request(app).get("/.well-known/assetlinks.json");
     assert.equal(android.status, 200);
     assert.match(android.headers["content-type"], /^application\/json/);

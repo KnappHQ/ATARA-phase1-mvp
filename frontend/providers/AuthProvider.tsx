@@ -19,11 +19,13 @@ import {
   useSignupWithPasskey,
 } from "@privy-io/expo/passkey";
 import * as Haptics from "expo-haptics";
+import { stringToHex } from "viem";
 
 import { retryPendingSettlements } from "@/services/settlementRecovery.service";
 import { registerUnauthorizedHandler } from "@/services/api";
 import { AuthService } from "@/services/auth.service";
 import { assertActive, waitForWallet } from "@/utils/walletReadiness";
+import { withTimeout } from "@/utils/asyncOperation";
 import {
   createAlchemySmartAccountService,
   type EthereumSignerWallet,
@@ -76,11 +78,11 @@ const signPersonalMessage = async (
   wallet: EthereumSignerWallet,
   message: string,
 ): Promise<string> => {
-  const provider = await wallet.getProvider();
-  const signature = await provider.request({
+  const provider = await withTimeout(wallet.getProvider());
+  const signature = await withTimeout(provider.request({
     method: "personal_sign",
-    params: [message, wallet.address],
-  });
+    params: [stringToHex(message), wallet.address],
+  }), 60_000, "La signature n’a pas été confirmée dans le wallet. Réessaie.");
 
   return typeof signature === "string" ? signature : "";
 };
@@ -113,6 +115,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthTransitioning, setIsAuthTransitioning] = useState(false);
   const [activeAuthMethod, setActiveAuthMethod] = useState<AuthMethod>("privy");
   const ignoredAutoLoginUserIdRef = useRef<string | null>(null);
+  const entryBusyRef = useRef(false);
+  const entryRevisionRef = useRef(0);
+  const providerCleanupRef = useRef<Promise<void> | null>(null);
   const autoLoginKeyRef = useRef<string | null>(null);
   const autoLoginAbortRef = useRef<AbortController | null>(null);
   const transitionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -132,7 +137,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const isFullyAuthenticated = isAuthenticated;
 
   useEffect(() => {
-    if (externalWallet.isConnected && !user) {
+    if (externalWallet.isConnected && !user && !entryBusyRef.current) {
       setActiveAuthMethod("external_wallet");
     }
   }, [externalWallet.isConnected, user]);
@@ -158,7 +163,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [],
   );
 
+  const clearProviderSessions = useCallback(async () => {
+    if (!providerCleanupRef.current) {
+      const cleanup = Promise.allSettled([
+        Promise.resolve().then(() => privyLogout()),
+        Promise.resolve().then(() => externalWallet.disconnect()),
+      ]).then((results) => {
+        if (results.some((result) => result.status === "rejected")) {
+          throw new Error("La session du fournisseur n'a pas pu être fermée. Réessaie avant de changer de compte.");
+        }
+      });
+      providerCleanupRef.current = cleanup;
+      void cleanup.finally(() => {
+        if (providerCleanupRef.current === cleanup) providerCleanupRef.current = null;
+      }).catch(() => undefined);
+    }
+    await withTimeout(providerCleanupRef.current, 12_000,
+      "Déconnexion du fournisseur en attente. Réessaie avant de changer de compte.");
+  }, [externalWallet.disconnect, privyLogout]);
+
   const logout = useCallback(async () => {
+    entryRevisionRef.current += 1;
     registrationRef.current?.abort();
     registrationRef.current = null;
     autoLoginAbortRef.current?.abort();
@@ -171,33 +196,49 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // Revoke the local ATARA session first. A slow or unavailable provider must
     // never leave private screens visible after an explicit logout.
     await useAuthStore.getState().logout();
-    const [privyResult] = await Promise.allSettled([
-      privyLogout(),
-      externalWallet.disconnect(),
-    ]);
-    if (privyResult.status === "rejected") {
-      console.warn("Privy logout failed:", privyResult.reason);
+    setIsStartingOAuth(true);
+    try {
+      await clearProviderSessions();
+      setOauthError(null);
+    } catch (error) {
+      setOauthError(error instanceof Error ? error.message : "Déconnexion incomplète. Réessaie.");
+    } finally {
+      setIsStartingOAuth(false);
     }
     setOnboardingStep("gate");
     autoLoginKeyRef.current = null;
-  }, [externalWallet, privyLogout, user?.id]);
+  }, [clearProviderSessions, user?.id]);
+
+  const prepareSignIn = useCallback(async (method: AuthMethod) => {
+    const revision = entryRevisionRef.current;
+    // A gate action means a fresh login, never silently linking a new identity
+    // to the stale Privy user still left behind by a revoked ATARA session.
+    autoLoginAbortRef.current?.abort();
+    autoLoginKeyRef.current = null;
+    ignoredAutoLoginUserIdRef.current = user?.id ?? null;
+    await clearProviderSessions();
+    if (entryRevisionRef.current !== revision) throw new Error("Connexion annulée.");
+    setActiveAuthMethod(method);
+    await useAuthStore.getState().clearJustLoggedOut();
+    if (entryRevisionRef.current !== revision) {
+      await useAuthStore.getState().logout();
+      throw new Error("Connexion annulée.");
+    }
+    ignoredAutoLoginUserIdRef.current = null;
+  }, [clearProviderSessions, user?.id]);
 
   const startOAuth = useCallback(
     async (provider: OAuthProvider) => {
+      if (entryBusyRef.current) return;
       if (!isPrivyReady) {
         setOauthError("Le service de connexion démarre encore. Réessaie dans un instant.");
         return;
       }
+      entryBusyRef.current = true;
       setIsStartingOAuth(true);
       setOauthError(null);
-      setActiveAuthMethod("privy");
-      ignoredAutoLoginUserIdRef.current = null;
-
-      if (useAuthStore.getState().justLoggedOut) {
-        await useAuthStore.getState().clearJustLoggedOut();
-      }
-
       try {
+        await prepareSignIn("privy");
         await loginWithOAuth({
           provider,
           redirectUri: "/oauth-callback",
@@ -208,19 +249,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           formatAuthFailure(describeAuthFailure(error, { method: "oauth" })),
         );
       } finally {
+        entryBusyRef.current = false;
         setIsStartingOAuth(false);
       }
     },
-    [isPrivyReady, loginWithOAuth],
+    [isPrivyReady, loginWithOAuth, prepareSignIn],
   );
 
   const startPasskey = useCallback(async (mode: "login" | "signup") => {
+    if (entryBusyRef.current) return;
     const relyingParty = process.env.EXPO_PUBLIC_PASSKEY_RP_ID;
     if (!relyingParty) { setOauthError("La connexion par passkey attend la configuration du domaine."); return; }
     if (!isPrivyReady) { setOauthError("Le service de passkey démarre encore. Réessaie dans un instant."); return; }
-    setIsStartingOAuth(true); setOauthError(null); setActiveAuthMethod("privy"); ignoredAutoLoginUserIdRef.current = null;
-    await useAuthStore.getState().clearJustLoggedOut();
+    entryBusyRef.current = true;
+    setIsStartingOAuth(true); setOauthError(null);
     try {
+      await prepareSignIn("privy");
       const input = { relyingParty: `https://${relyingParty}` };
       if (mode === "signup") await signupWithPasskey(input);
       else await loginWithPasskey(input);
@@ -233,34 +277,30 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       // Privy's wording rarely says whether the missing domain association is
       // the real reason. Ask the association file directly rather than send
       // someone into the Privy dashboard for a server-side problem.
-      const association =
-        failure.layer === "api"
-          ? undefined
-          : await probeDomainAssociation(relyingParty);
+      const association = failure.layer === "api"
+        ? await probeDomainAssociation(relyingParty) : undefined;
       setOauthError(formatAuthFailure(association ?? failure));
     }
-    finally { setIsStartingOAuth(false); }
-  }, [isPrivyReady, loginWithPasskey, signupWithPasskey]);
+    finally { entryBusyRef.current = false; setIsStartingOAuth(false); }
+  }, [isPrivyReady, loginWithPasskey, signupWithPasskey, prepareSignIn]);
 
   const startExternalWallet = useCallback(async () => {
+    if (entryBusyRef.current) return;
+    entryBusyRef.current = true;
     setIsStartingOAuth(true);
     setOauthError(null);
-    setActiveAuthMethod("external_wallet");
-    ignoredAutoLoginUserIdRef.current = null;
-    await useAuthStore.getState().clearJustLoggedOut();
     try {
-      if (externalWallet.isConnected) {
-        await externalWallet.disconnect();
-      }
+      await prepareSignIn("external_wallet");
       await externalWallet.connect();
     } catch (error) {
       setOauthError(
         formatAuthFailure(describeAuthFailure(error, { method: "wallet" })),
       );
     } finally {
+      entryBusyRef.current = false;
       setIsStartingOAuth(false);
     }
-  }, [externalWallet]);
+  }, [externalWallet, prepareSignIn]);
 
   const registerWithHandle = useCallback(
     async ({ handle }: RegisterWithHandleParams) => {
@@ -412,6 +452,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   return (
     <AuthContext.Provider value={value}>
       <AuthenticationManager
+        isStartingSignIn={isStartingOAuth}
+        activeAuthMethod={activeAuthMethod}
         isRegistering={isRegistering}
         embeddedWallets={embeddedWallets}
         externalWallet={externalWallet.wallet}
@@ -433,6 +475,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 };
 
 type AuthenticationManagerProps = {
+  isStartingSignIn: boolean;
+  activeAuthMethod: AuthMethod;
   isRegistering: boolean;
   embeddedWallets: EthereumSignerWallet[];
   externalWallet?: EthereumSignerWallet;
@@ -450,6 +494,8 @@ type AuthenticationManagerProps = {
 };
 
 const AuthenticationManager = ({
+  isStartingSignIn,
+  activeAuthMethod,
   isRegistering,
   embeddedWallets,
   externalWallet,
@@ -492,7 +538,7 @@ const AuthenticationManager = ({
 
   useEffect(() => {
     if (
-      isRegistering || !isPrivyReady ||
+      isStartingSignIn || activeAuthMethod !== "privy" || isRegistering || !isPrivyReady ||
       !hasLoadedSession ||
       !user ||
       externalWalletConnected
@@ -500,7 +546,6 @@ const AuthenticationManager = ({
 
     if (justLoggedOut) {
       ignoredAutoLoginUserIdRef.current = user.id;
-      useAuthStore.getState().clearJustLoggedOut();
       return;
     }
 
@@ -586,6 +631,8 @@ const AuthenticationManager = ({
       }
     };
   }, [
+    isStartingSignIn,
+    activeAuthMethod,
     embeddedWallets,
     isRegistering,
     externalWalletConnected,
@@ -605,7 +652,7 @@ const AuthenticationManager = ({
 
   useEffect(() => {
     if (
-      isRegistering || !hasLoadedSession ||
+      isStartingSignIn || activeAuthMethod !== "external_wallet" || isRegistering || !hasLoadedSession ||
       isAuthenticated ||
       !externalWalletConnected ||
       !externalWallet
@@ -674,6 +721,8 @@ const AuthenticationManager = ({
       }
     };
   }, [
+    isStartingSignIn,
+    activeAuthMethod,
     autoLoginAbortRef,
     autoLoginKeyRef,
     isRegistering,

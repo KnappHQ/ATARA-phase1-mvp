@@ -80,14 +80,15 @@ export const LogoutModal = ({
             </View>
 
             <Text className="text-white text-lg font-semibold mb-2">
-              Sign Out
+              Fermer cette session ?
             </Text>
             <Text
               className="text-sm text-center mb-6 leading-5"
               style={{ color: `${COLORS.white}50` }}
             >
-              Are you sure you want to sign out? Sign back in with your
-              passkey, connected wallet, or an optional recovery provider.
+              Ton compte et tes fonds ne sont pas supprimés. Assure-toi de pouvoir
+              te reconnecter avec ta méthode actuelle. Tu pourras ensuite utiliser
+              un autre compte depuis l’écran de connexion.
             </Text>
 
             <Pressable
@@ -103,7 +104,7 @@ export const LogoutModal = ({
                 <ActivityIndicator size="small" color={COLORS.white} />
               ) : (
                 <Text className="text-white font-semibold text-sm">
-                  Sign Out
+                  Se déconnecter
                 </Text>
               )}
             </Pressable>
@@ -121,7 +122,7 @@ export const LogoutModal = ({
                 className="font-semibold text-sm"
                 style={{ color: `${COLORS.white}70` }}
               >
-                Cancel
+                Annuler
               </Text>
             </Pressable>
           </MotiView>

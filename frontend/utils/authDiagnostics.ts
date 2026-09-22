@@ -55,11 +55,8 @@ const PRIVY_RELYING_PARTY = /relying ?party|rp ?id/i;
 /**
  * iOS's own wording when it could not verify the associated domain:
  * "Unable to verify webcredentials association of <TEAM>.<bundle> with domain
- * <host>". The app is configured correctly at that point - the operating system
- * fetched the association file and did not get what it needed. That is a server
- * problem, never a Privy setting, so it must not be answered with "check your
- * Privy dashboard". `associated domain` leaves the Privy pattern above for the
- * same reason: the two failures share that vocabulary and nothing else.
+ * <host>". This can involve the server, Apple's cache or the signed app's
+ * entitlements. The message alone cannot distinguish between them.
  */
 const DOMAIN_ASSOCIATION =
   /webcredentials|associated ?domain|association of .* with domain/i;
@@ -69,7 +66,7 @@ const DOMAIN_ASSOCIATION =
  * project" here would send them hunting a problem that does not exist.
  */
 const CANCELLED =
-  /user (rejected|cancell?ed|denied)|cancell?ed by|request rejected|abort/i;
+  /user (rejected|cancell?ed|denied)|cancell?ed by|request rejected|abort|annulée/i;
 
 export const describeAuthFailure = (
   error: unknown,
@@ -104,12 +101,20 @@ export const describeAuthFailure = (
       message:
         "Le système n'a pas pu vérifier l'association de domaine des passkeys.",
       action:
-        "api.atara.finance doit servir /.well-known/apple-app-site-association en 200, sans redirection. Il répond 503 tant que APPLE_TEAM_ID est absente du serveur.",
+        "Mets ATARA à jour puis réessaie. Si le problème persiste, l'association Apple du build doit être vérifiée. Ton compte existant n'est pas supprimé.",
       raw,
     };
   }
 
   if (context.method === "passkey") {
+    if (/already logged in/i.test(raw)) {
+      return {
+        layer: "privy",
+        message: "Une session est encore ouverte.",
+        action: "Déconnecte-toi avant de créer un autre compte. Pour protéger le compte actuel, utilise Ajouter une passkey dans Sécurité.",
+        raw,
+      };
+    }
     if (PRIVY_RELYING_PARTY.test(raw)) {
       return {
         layer: "privy",
@@ -143,9 +148,9 @@ export const describeAuthFailure = (
   if (context.method === "wallet") {
     return {
       layer: "wallet",
-      message: "La connexion au wallet n'a pas abouti.",
+      message: raw || "La connexion au wallet n'a pas abouti.",
       action:
-        "Vérifiez que com.atara.app est autorisé dans le projet Reown, sur iOS comme sur Android.",
+        "Vérifie ta connexion et ouvre ton application wallet pour confirmer la demande. Tu peux annuler et réessayer.",
       raw,
     };
   }
@@ -181,13 +186,14 @@ const DOMAIN_ASSOCIATION_TIMEOUT_MS = 4000;
 export const probeDomainAssociation = async (
   relyingParty: string,
   timeoutMs: number = DOMAIN_ASSOCIATION_TIMEOUT_MS,
+  expectedAppId = "8UTUKDR95M.com.atara.app",
 ): Promise<AuthFailure | undefined> => {
   const url = `https://${relyingParty}/.well-known/apple-app-site-association`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, { signal: controller.signal, redirect: "error" });
     const body = (await response.json().catch(() => null)) as {
       error?: unknown;
       webcredentials?: { apps?: unknown };
@@ -195,13 +201,13 @@ export const probeDomainAssociation = async (
 
     if (response.ok) {
       const apps = body?.webcredentials?.apps;
-      if (Array.isArray(apps) && apps.length > 0) return undefined;
+      if (Array.isArray(apps) && apps.includes(expectedAppId)) return undefined;
 
       return {
         layer: "api",
-        message: `${relyingParty} publie une association de domaine vide.`,
+        message: `${relyingParty} ne publie pas l'association de cette application.`,
         action:
-          "Le fichier doit contenir webcredentials.apps avec <APPLE_TEAM_ID>.com.atara.app.",
+          `Le fichier doit contenir webcredentials.apps avec ${expectedAppId}.`,
         raw: JSON.stringify(body),
       };
     }

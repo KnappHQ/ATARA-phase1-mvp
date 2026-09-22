@@ -12,6 +12,7 @@ import {
   Trash2,
   KeyRound,
   Network,
+  Users,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { COLORS } from "@/utils/constants";
@@ -166,6 +167,8 @@ export default function ProfileTab() {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setLogoutOpen(true);
             }}
+            accessibilityLabel="Se déconnecter"
+            hitSlop={8}
             className="w-10 h-10 rounded-full items-center justify-center border border-white/10"
             style={{ backgroundColor: `${COLORS.white}08` }}
           >
@@ -182,6 +185,22 @@ export default function ProfileTab() {
             smartAccountAddress={user?.smartAccountAddress}
             isVerified={!!user?.smartAccountAddress}
             onEditDisplayName={openEditName}
+          />
+
+          <SectionHeader title="Compte et connexion" />
+          <SettingRow
+            icon={LogOut}
+            label="Se déconnecter"
+            subtitle="Fermer la session sans supprimer ton compte ni ton wallet"
+            onPress={() => setLogoutOpen(true)}
+            right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
+          />
+          <SettingRow
+            icon={Users}
+            label="Utiliser un autre compte"
+            subtitle="Déconnecte le compte actuel, puis choisis une autre connexion"
+            onPress={() => setLogoutOpen(true)}
+            right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
           />
 
           <SectionHeader title="Beta Program" delay={360} />

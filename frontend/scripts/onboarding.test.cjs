@@ -38,12 +38,12 @@ test('return cancels wallet readiness even if the wallet arrives afterward', asy
   await assert.rejects(waiting, /cancelled/);
 });
 
-function harness() {
+function harness(options = {}) {
   let cursor = 0;
   const slots = [];
   const events = [];
   let sdkWallets = [];
-  const user = { id: 'test-user', linked_accounts: [] };
+  let user = { id: 'test-user', linked_accounts: [] };
   const updatedUser = { ...user, address: wallet.address };
   let releaseCreate;
   const createResult = new Promise(resolve => { releaseCreate = () => resolve({ user: updatedUser }); });
@@ -74,19 +74,28 @@ function harness() {
   const { AuthProvider } = load('providers/AuthProvider.tsx', {
     react, 'react/jsx-runtime': { jsx, jsxs: jsx },
     '@privy-io/expo': {
-      usePrivy: () => ({ user, isReady: true, logout: async () => {} }),
+      usePrivy: () => ({ user, isReady: true, logout: async () => {
+        events.push('privy-logout');
+        if (options.logoutError) throw new Error('provider unavailable');
+        user = null;
+      } }),
       useEmbeddedEthereumWallet: () => ({ wallets: sdkWallets, create: async () => { events.push('create'); return createResult; } }),
       useLoginWithOAuth: () => ({ login: async () => {}, state: { status: 'idle' } }),
     },
-    '@privy-io/expo/passkey': { useLoginWithPasskey: () => ({}), useSignupWithPasskey: () => ({}) },
+    '@privy-io/expo/passkey': {
+      useLoginWithPasskey: () => ({ loginWithPasskey: async () => { assert.equal(user, null); events.push('passkey-login'); } }),
+      useSignupWithPasskey: () => ({ signupWithPasskey: async () => { assert.equal(user, null); events.push('passkey-signup'); } }),
+    },
     'expo-haptics': { impactAsync: async () => {}, ImpactFeedbackStyle: {} },
     '@/services/settlementRecovery.service': {}, '@/services/api': {},
     '@/services/auth.service': { AuthService }, '@/utils/walletReadiness': readiness,
+    '@/utils/asyncOperation': load('utils/asyncOperation.ts'),
+    viem: { stringToHex: value => '0x' + Buffer.from(value).toString('hex') },
     '@/services/smartAccount.service': { createAlchemySmartAccountService: async ({ wallet: signer }) => {
       assert.equal(signer, wallet); events.push('alchemy'); return { getSmartAccountAddress: () => '0xSmart' };
     } },
-    '@/providers/ExternalWalletProvider': { useExternalWallet: () => ({ enabled: true, disconnect: async () => {} }) },
-    '@/utils/authDiagnostics': {}, '@/stores/useAlertStore': {}, '@/stores/useAuthStore': { useAuthStore },
+    '@/providers/ExternalWalletProvider': { useExternalWallet: () => ({ enabled: true, disconnect: async () => { events.push('wallet-disconnect'); }, connect: async () => { events.push('wallet-connect'); } }) },
+    '@/utils/authDiagnostics': load('utils/authDiagnostics.ts'), '@/stores/useAlertStore': {}, '@/stores/useAuthStore': { useAuthStore },
     '@/utils/privy': { getPrimaryEmbeddedEthereumWalletAddress: u => u?.address, getPrimaryEmailAddress: () => null, getPrimaryOAuthProvider: () => null },
   });
   const render = () => { cursor = 0; return AuthProvider({ children: null }).props.value; };
@@ -105,13 +114,39 @@ test('passkey registration resumes after create() publishes its wallet; double t
   assert.deepEqual(h.events, ['create', 'alchemy', 'challenge', 'register']);
 });
 
+test('fresh passkey signup closes the old provider session first and coalesces double taps', async () => {
+  const previous = process.env.EXPO_PUBLIC_PASSKEY_RP_ID;
+  process.env.EXPO_PUBLIC_PASSKEY_RP_ID = 'api.atara.finance';
+  try {
+    const h = harness(); const auth = h.render();
+    await Promise.all([auth.startPasskey('signup'), auth.startPasskey('signup')]);
+    assert.deepEqual(h.events, ['privy-logout', 'wallet-disconnect', 'passkey-signup']);
+  } finally {
+    if (previous === undefined) delete process.env.EXPO_PUBLIC_PASSKEY_RP_ID;
+    else process.env.EXPO_PUBLIC_PASSKEY_RP_ID = previous;
+  }
+});
+
+test('failed provider logout blocks switching rather than linking to the previous account', async () => {
+  const h = harness({ logoutError: true });
+  await h.render().startExternalWallet();
+  assert.equal(h.events.includes('wallet-connect'), false);
+  assert.ok(h.render().oauthError);
+});
+
+test('external wallet sign-in clears the existing Privy session before opening Reown', async () => {
+  const h = harness();
+  await h.render().startExternalWallet();
+  assert.deepEqual(h.events, ['privy-logout', 'wallet-disconnect', 'wallet-connect']);
+});
+
 test('Back during creation prevents Alchemy, challenge and registration after late completion', async () => {
   const h = harness(); const auth = h.render();
   const pending = auth.registerWithHandle({ handle: 'tester' });
   await auth.logout();
   h.releaseCreate(); h.publishWallet();
   await assert.rejects(pending, /cancelled/);
-  assert.deepEqual(h.events, ['create', 'logout']);
+  assert.deepEqual(h.events, ['create', 'logout', 'privy-logout', 'wallet-disconnect']);
   assert.equal(h.render().onboardingStep, 'gate');
 });
 
@@ -271,7 +306,7 @@ test('external wallet loading keeps the app root mounted and contains runtime fa
   assert.match(providerSource, /<WalletRuntimeBoundary/);
   assert.match(providerSource, /shouldRestoreExternalWalletSession/);
   assert.doesNotMatch(runtimeSource, /autoConnect/);
-  assert.doesNotMatch(runtimeSource, /\{children\}/);
+  assert.match(runtimeSource, /modalContentWrapper=\{WalletModalContent\}/);
   assert.match(runtimeSource, /onValue\(value\)/);
 });
 
@@ -333,6 +368,7 @@ test('a valid SecureStore backend session survives a normal app relaunch', async
       },
     },
     '@/services/user.service': { UserService: {} },
+    '@/utils/accountScope': load('utils/accountScope.ts'),
     '@sentry/react-native': {
       setUser: () => {},
       captureException: () => {},
@@ -380,6 +416,7 @@ test('logout wins over a login whose SecureStore write completes late', async ()
       useWalletStore: { getState: () => ({ setWalletAddress: () => {}, reset: () => {} }) },
     },
     '@/services/user.service': { UserService: {} },
+    '@/utils/accountScope': load('utils/accountScope.ts'),
     '@sentry/react-native': { setUser: () => {}, captureException: () => {} },
   });
 

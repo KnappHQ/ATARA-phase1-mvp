@@ -207,6 +207,12 @@ export const ExternalWalletProvider = ({ children }: { children: ReactNode }) =>
   }, [loadRuntime]);
 
   const disconnect = useCallback(async () => {
+    const pending = pendingConnectRef.current;
+    pendingConnectRef.current = null;
+    if (pending) {
+      clearTimeout(pending.timeoutId);
+      pending.reject(new Error("Connexion wallet annulée."));
+    }
     const current = runtimeValueRef.current;
     try {
       if (current) await current.disconnect();
