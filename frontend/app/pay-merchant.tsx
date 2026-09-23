@@ -181,7 +181,7 @@ export default function PayMerchantScreen() {
           </View>
 
           <Text className="text-white/55 text-sm leading-5 mt-6">
-            Importe une demande QR fournie par le magasin ou colle son adresse. Choisis ensuite la crypto à débiter.
+            Si un commerçant t’envoie une demande de paiement, copie-la puis colle-la ici. Tu peux aussi saisir son adresse manuellement. Vérifie toujours le montant et le réseau avant de payer.
           </Text>
 
           <Text
@@ -239,7 +239,7 @@ export default function PayMerchantScreen() {
 
           <Pressable onPress={pastePaymentRequest} className="flex-row items-center justify-center rounded-2xl border border-blue-300/25 bg-blue-300/10 px-4 py-3 mt-4">
             <ClipboardPaste size={17} color="#93c5fd" />
-            <Text className="ml-2 text-blue-200 font-semibold text-sm">Importer une demande QR copiée</Text>
+            <Text className="ml-2 text-blue-200 font-semibold text-sm">Coller une demande de paiement</Text>
           </Pressable>
 
           <View className="flex-row items-center rounded-2xl border border-white/15 bg-black/40 px-4 mt-5">
