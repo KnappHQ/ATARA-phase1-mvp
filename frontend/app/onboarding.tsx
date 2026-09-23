@@ -12,10 +12,8 @@ export default function Onboarding() {
     isCheckingBackend,
     isStartingOAuth,
     oauthError,
-    isExternalWalletEnabled,
     startOAuth,
     startPasskey,
-    startExternalWallet,
     registerWithHandle,
     checkHandle,
     logout,
@@ -29,10 +27,8 @@ export default function Onboarding() {
           isPrivyReady={isPrivyReady}
           isStartingOAuth={isStartingOAuth}
           oauthError={oauthError}
-          isExternalWalletEnabled={isExternalWalletEnabled}
           onStartOAuth={startOAuth}
           onStartPasskey={startPasskey}
-          onStartExternalWallet={startExternalWallet}
           onResetSession={logout}
         />
       )}

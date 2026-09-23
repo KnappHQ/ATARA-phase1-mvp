@@ -7,7 +7,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MotiView } from "moti";
-import { Fingerprint, ShieldCheck, WalletCards } from "lucide-react-native";
+import { Fingerprint, ShieldCheck } from "lucide-react-native";
 
 import { CrownIcon } from "./CrownIcon";
 import { COLORS } from "@/utils/constants";
@@ -17,9 +17,7 @@ interface GateScreenProps {
   isPrivyReady?: boolean;
   isStartingOAuth?: boolean;
   oauthError?: string | null;
-  isExternalWalletEnabled?: boolean;
   onStartPasskey: (mode: "login" | "signup") => void;
-  onStartExternalWallet: () => void;
   onStartOAuth: (provider: "google" | "apple") => void;
   onResetSession: () => void;
 }
@@ -29,10 +27,8 @@ export const GateScreen = ({
   isPrivyReady = false,
   isStartingOAuth = false,
   oauthError = null,
-  isExternalWalletEnabled = false,
   onStartOAuth,
   onStartPasskey,
-  onStartExternalWallet,
   onResetSession,
 }: GateScreenProps) => {
   const showLoading = isStartingOAuth || isCheckingBackend;
@@ -84,8 +80,8 @@ export const GateScreen = ({
             Your keys. Your route.
           </Text>
           <Text className="text-white/55 text-sm leading-5 mb-5">
-            Passkey and wallet access do not require a Google or Apple account.
-            Social sign-in stays optional.
+            A passkey does not require a Google or Apple sign-in. Social sign-in
+            stays optional.
           </Text>
 
           <TouchableOpacity
@@ -124,34 +120,9 @@ export const GateScreen = ({
             </TouchableOpacity>
           )}
 
-          <TouchableOpacity
-            onPress={onStartExternalWallet}
-            activeOpacity={0.8}
-            disabled={showLoading || !isExternalWalletEnabled}
-            className={`w-full py-4 px-5 mt-3 border border-white/25 rounded-2xl flex-row items-center justify-center gap-3 ${
-              showLoading || !isExternalWalletEnabled ? "opacity-45" : ""
-            }`}
-          >
-            <WalletCards size={19} color={COLORS.white} />
-            <View>
-              <Text className="text-sm text-white font-semibold text-center">
-                Use my existing wallet
-              </Text>
-              <Text className="text-[11px] text-white/45 text-center mt-0.5">
-                Prove ownership with a one-time signature
-              </Text>
-            </View>
-          </TouchableOpacity>
-
           {!passkeyEnabled && (
             <Text className="text-amber-300/80 text-[11px] text-center mt-3">
               Passkeys are waiting for the secure-domain configuration.
-            </Text>
-          )}
-          {!isExternalWalletEnabled && (
-            <Text className="text-white/35 text-[11px] text-center mt-3">
-              Wallet-only access is ready in the app but still needs the Reown
-              project identifier to be activated.
             </Text>
           )}
         </View>
@@ -189,8 +160,9 @@ export const GateScreen = ({
         </View>
 
         <Text className="text-white/35 text-[11px] leading-4 text-center mt-4 px-2">
-          ATARA never asks for your seed phrase. Wallet-only login signs a
-          temporary challenge; the ATARA API cannot sign a transfer for you.
+          ATARA never asks for your seed phrase. A passkey and an external
+          wallet are different credentials; external-wallet login is unavailable
+          in this beta.
         </Text>
 
         {showLoading && (

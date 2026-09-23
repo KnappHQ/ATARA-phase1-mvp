@@ -76,6 +76,10 @@ class WalletRuntimeBoundary extends Component<
 }
 
 const projectId = process.env.EXPO_PUBLIC_REOWN_PROJECT_ID?.trim() || "";
+// The native Reown flow is not yet stable on TestFlight. Keep its runtime and
+// stored sessions dormant until it has passed device testing and is opted in.
+const externalWalletEnabled =
+  process.env.EXPO_PUBLIC_ENABLE_EXTERNAL_WALLET === "true" && !!projectId;
 
 const asError = (error: unknown) =>
   error instanceof Error
@@ -156,6 +160,9 @@ export const ExternalWalletProvider = ({ children }: { children: ReactNode }) =>
   );
 
   const connect = useCallback(async () => {
+    if (!externalWalletEnabled) {
+      throw new Error("La connexion par wallet externe est désactivée dans cette bêta.");
+    }
     if (!projectId) {
       throw new Error("La connexion par wallet attend la configuration Reown.");
     }
@@ -230,6 +237,7 @@ export const ExternalWalletProvider = ({ children }: { children: ReactNode }) =>
   }, []);
 
   useEffect(() => {
+    if (!externalWalletEnabled) return;
     let active = true;
 
     void shouldRestoreExternalWalletSession()
@@ -257,7 +265,7 @@ export const ExternalWalletProvider = ({ children }: { children: ReactNode }) =>
 
   const value = useMemo<ExternalWalletContextValue>(
     () => ({
-      enabled: Boolean(projectId),
+      enabled: externalWalletEnabled,
       isConnected: runtimeValue?.isConnected ?? false,
       address: runtimeValue?.address,
       chainId: runtimeValue?.chainId,

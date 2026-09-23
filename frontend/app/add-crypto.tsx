@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import * as WebBrowser from "expo-web-browser";
+import * as Clipboard from "expo-clipboard";
 import {
   ActivityIndicator,
   Pressable,
@@ -13,6 +14,7 @@ import {
 } from "react-native";
 import {
   ArrowLeft,
+  Copy,
   ExternalLink,
   ShieldCheck,
   WalletCards,
@@ -33,6 +35,7 @@ export default function AddCryptoScreen() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const walletAddress = useWalletStore((state) => state.smartAccountAddress);
+  const isTestnet = APP_NETWORK === "base-sepolia";
 
   const openMoonPay = async () => {
     if (!DEMO_MODE && APP_NETWORK !== "base-sepolia") {
@@ -103,6 +106,37 @@ export default function AddCryptoScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ padding: 24, paddingBottom: 48 }}
       >
+        <View className="rounded-3xl border border-blue-300/25 bg-blue-300/10 p-5 mb-5">
+          <Text className="text-blue-100 text-base font-semibold">
+            {isTestnet ? "Recevoir des jetons de test" : "Recevoir des crypto sur Base"}
+          </Text>
+          <Text className="text-blue-100/80 text-sm leading-5 mt-2">
+            {isTestnet
+              ? "Cette bêta utilise Base Sepolia. Demande des USDC de test à un autre portefeuille Base Sepolia : ils n’ont aucune valeur. Ne transfère jamais d’argent ni de crypto réelle ici."
+              : "Vérifie toujours le réseau et l’adresse avec l’expéditeur avant un transfert. Les achats par carte ne sont pas disponibles ici."}
+          </Text>
+          {walletAddress ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Copier mon adresse de réception"
+              onPress={async () => {
+                await Clipboard.setStringAsync(walletAddress);
+                setMessage("Adresse copiée. Vérifie le réseau avant tout envoi.");
+              }}
+              className="mt-4 rounded-xl border border-white/20 p-4 flex-row items-center"
+            >
+              <Text selectable numberOfLines={2} className="flex-1 text-white text-xs font-mono">
+                {walletAddress}
+              </Text>
+              <Copy size={18} color={COLORS.white} />
+            </Pressable>
+          ) : (
+            <Text className="text-amber-200 mt-3 text-sm">
+              Adresse indisponible : attends la création du wallet avant de recevoir.
+            </Text>
+          )}
+          <Text className="text-blue-100/70 text-xs mt-3">Réseau : {NETWORK_NAME}</Text>
+        </View>
         <View className="rounded-3xl border border-white/10 bg-white/[0.06] p-5">
           {DEMO_MODE ? (
             <View className="mb-5 rounded-2xl border border-blue-300/25 bg-blue-300/10 p-4">

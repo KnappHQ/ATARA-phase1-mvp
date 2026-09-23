@@ -161,6 +161,38 @@ test('cancelled registration response never commits a local session', async () =
   assert.equal(saved, false);
 });
 
+test('new account name is saved through the current profile API after signup', async () => {
+  const events = [];
+  const { AuthService } = load('services/auth.service.ts', {
+    '../utils/walletReadiness': readiness,
+    '../stores/useAuthStore': { useAuthStore: { getState: () => ({
+      setAuth: async () => events.push('registered'),
+      updateProfile: async ({ displayName }) => events.push(`named:${displayName}`),
+    }) } },
+    './api': { api: { post: async () => ({ data: { user: { id: 'new' }, token: 'token' } }) } },
+  });
+  await AuthService.register({ handle: 'test', displayName: 'Personnel' });
+  assert.deepEqual(events, ['registered', 'named:Personnel']);
+});
+
+test('profile name failure does not turn a successful signup into a second signup', async () => {
+  const { AuthService } = load('services/auth.service.ts', {
+    '../utils/walletReadiness': readiness,
+    '../stores/useAuthStore': { useAuthStore: { getState: () => ({
+      setAuth: async () => {},
+      updateProfile: async () => { throw new Error('profile temporarily unavailable'); },
+    }) } },
+    './api': { api: { post: async () => ({ data: { user: { id: 'new' }, token: 'token' } }) } },
+  });
+  const previousWarn = console.warn;
+  console.warn = () => {};
+  try {
+    assert.deepEqual(await AuthService.register({ displayName: 'Personnel' }), { id: 'new' });
+  } finally {
+    console.warn = previousWarn;
+  }
+});
+
 test('cancelled automatic login never commits a late backend session', async () => {
   const controller = new AbortController();
   let saved = false;
@@ -212,6 +244,23 @@ test('the sign-in gate scrolls on small phones and blocks Privy actions until re
   assert.match(source, /contentContainerStyle=\{\{/);
   assert.match(source, /!isPrivyReady/);
   assert.match(source, /Preparing secure sign-in/);
+});
+
+test('unstable external wallet login is absent from the beta gate and runtime is opt-in', () => {
+  const gate = fs.readFileSync(path.join(__dirname, '../components/onboarding/GateScreen.tsx'), 'utf8');
+  const provider = fs.readFileSync(path.join(__dirname, '../providers/ExternalWalletProvider.tsx'), 'utf8');
+  assert.doesNotMatch(gate, /Use my existing wallet/);
+  assert.doesNotMatch(gate, /onStartExternalWallet/);
+  assert.match(provider, /EXPO_PUBLIC_ENABLE_EXTERNAL_WALLET === "true"/);
+  assert.match(provider, /if \(!externalWalletEnabled\) return;/);
+});
+
+test('funding screen distinguishes testnet reception from MoonPay simulation', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../app/add-crypto.tsx'), 'utf8');
+  assert.match(source, /Base Sepolia/);
+  assert.match(source, /Clipboard\.setStringAsync\(walletAddress\)/);
+  assert.match(source, /Ne transfère jamais d’argent ni de crypto réelle ici/);
+  assert.match(source, /session\.mode !== "sandbox"/);
 });
 
 test('concurrent sends on the same wallet are rejected before any network call', async () => {

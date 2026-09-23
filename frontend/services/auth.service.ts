@@ -4,6 +4,7 @@ import { assertActive } from "../utils/walletReadiness";
 
 interface RegisterParams {
   handle: string;
+  displayName?: string;
   smartAccountAddress?: string;
   signerAddress: string;
   email?: string;
@@ -41,6 +42,22 @@ export const AuthService = {
 
     const { user, token } = response.data;
     await useAuthStore.getState().setAuth(user, token, signal);
+
+    // The store-beta backend is deployed independently from this iOS build.
+    // Persist the optional name through the existing authenticated profile API
+    // so registration works even when /auth/register ignores displayName.
+    if (params.displayName) {
+      assertActive(signal);
+      try {
+        await useAuthStore.getState().updateProfile({ displayName: params.displayName });
+      } catch (error) {
+        assertActive(signal);
+        // The account already exists. A profile failure must not send the user
+        // back to signup and tempt them to create a duplicate wallet.
+        console.warn("Account name could not be saved; edit it in Profile.", error);
+      }
+      assertActive(signal);
+    }
 
     return user;
   },

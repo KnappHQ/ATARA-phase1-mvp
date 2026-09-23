@@ -188,6 +188,10 @@ export default function ProfileTab() {
           />
 
           <SectionHeader title="Compte et connexion" />
+          <Text className="text-white/50 text-xs leading-5 mb-4">
+            Nomme chaque compte ci-dessus et vérifie son @identifiant avant de te
+            déconnecter. Le choix des passkeys iOS n’affiche pas encore ces noms.
+          </Text>
           <SettingRow
             icon={LogOut}
             label="Se déconnecter"

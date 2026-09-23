@@ -28,7 +28,7 @@ interface IdentityScreenProps {
   handle: string;
   setHandle: (h: string) => void;
   onCheckHandle: (handle: string) => Promise<boolean>;
-  onSubmit: (params: { handle: string }) => Promise<void>;
+  onSubmit: (params: { handle: string; displayName?: string }) => Promise<void>;
   onBack: () => Promise<void>;
 }
 
@@ -62,6 +62,7 @@ export const IdentityScreen = ({
   const [termsOpen, setTermsOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [isGoingBack, setIsGoingBack] = useState(false);
+  const [accountName, setAccountName] = useState("");
   const busyRef = useRef(false);
 
   useEffect(() => {
@@ -92,7 +93,7 @@ export const IdentityScreen = ({
     setError(null);
 
     try {
-      await onSubmit({ handle });
+      await onSubmit({ handle, displayName: accountName.trim() || undefined });
     } catch (err: any) {
       setError(formatRegistrationError(err));
     } finally {
@@ -199,6 +200,23 @@ export const IdentityScreen = ({
         {error && (
           <Text className="text-red-400 text-xs mt-2 px-1">{error}</Text>
         )}
+
+        <Text className="text-white/60 text-xs mt-5 mb-2">
+          Nom de ce compte (facultatif, visible dans ton profil)
+        </Text>
+        <TextInput
+          value={accountName}
+          onChangeText={setAccountName}
+          placeholder="Par exemple : Compte personnel"
+          placeholderTextColor={COLORS.placeholder}
+          maxLength={40}
+          editable={!isRegistering && !isGoingBack}
+          className="border border-white/30 px-4 py-4 text-white text-base"
+        />
+        <Text className="text-white/40 text-[11px] leading-4 mt-2">
+          Tu peux le modifier plus tard. iOS peut afficher seulement « ATARA »
+          dans sa liste de clés d’accès.
+        </Text>
 
         <View className="mt-5 flex-row items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
           <Pressable

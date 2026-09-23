@@ -50,6 +50,7 @@ type AuthMethod = "privy" | "external_wallet";
 
 type RegisterWithHandleParams = {
   handle: string;
+  displayName?: string;
 };
 
 type AuthContextValue = {
@@ -303,7 +304,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [externalWallet, prepareSignIn]);
 
   const registerWithHandle = useCallback(
-    async ({ handle }: RegisterWithHandleParams) => {
+    async ({ handle, displayName }: RegisterWithHandleParams) => {
       if (registrationRef.current) return;
       const controller = new AbortController();
       registrationRef.current = controller;
@@ -373,6 +374,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         await AuthService.register({
           handle,
+          displayName,
           smartAccountAddress,
           signerAddress,
           email: getPrimaryEmailAddress(user) || undefined,
