@@ -18,7 +18,6 @@ export interface SendTransactionRequest {
   decimals?: number;
   usdValue?: string;
   note?: string;
-  forceGasPayment?: boolean;
   /** Called after the transaction is synced to the backend DB. Safe to call backend endpoints that depend on the transaction record existing. */
   settlement?: SettlementReference;
   onSynced?: (transactionId: string) => Promise<void> | void;
@@ -98,21 +97,13 @@ export class TransactionService {
       // 1. Sends the UserOperation (gas-sponsored via policy)
       // 2. Waits for it to be bundled into a real transaction
       // 3. Returns the actual mined transaction hash
-      const result = request.forceGasPayment
-        ? await this.smartAccountService.sendTransactionWithGas({
-            recipientAddress: request.recipientAddress,
-            amount: request.amount,
-            tokenSymbol: request.tokenSymbol,
-            tokenAddress: request.tokenAddress,
-            decimals: request.decimals,
-          })
-        : await this.smartAccountService.sendTransaction({
-            recipientAddress: request.recipientAddress,
-            amount: request.amount,
-            tokenSymbol: request.tokenSymbol,
-            tokenAddress: request.tokenAddress,
-            decimals: request.decimals,
-          });
+      const result = await this.smartAccountService.sendTransaction({
+        recipientAddress: request.recipientAddress,
+        amount: request.amount,
+        tokenSymbol: request.tokenSymbol,
+        tokenAddress: request.tokenAddress,
+        decimals: request.decimals,
+      });
 
       if (!result.success || !result.hash) {
         throw new Error("Transaction failed to execute");
