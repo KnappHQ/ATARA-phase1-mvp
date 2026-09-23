@@ -24,9 +24,13 @@ import { DEMO_MODE } from "@/utils/demoMode";
 import { OnrampService } from "@/services/onramp.service";
 import { useWalletStore } from "@/stores/useWalletStore";
 
-const formatError = (error: any) =>
-  error?.response?.data?.message ||
-  "Le service d’achat n’est pas encore configuré pour cette bêta.";
+const formatError = (error: any) => {
+  const message = error?.response?.data?.message;
+  if (message === "The on-ramp is not configured yet") {
+    return "MoonPay n’est pas encore configuré. Pour tester ATARA, reçois plutôt des USDC de test avec le faucet Circle ci-dessus.";
+  }
+  return message || "Le service d’achat n’est pas encore configuré pour cette bêta.";
+};
 
 export default function AddCryptoScreen() {
   const router = useRouter();
@@ -36,6 +40,21 @@ export default function AddCryptoScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const walletAddress = useWalletStore((state) => state.smartAccountAddress);
   const isTestnet = APP_NETWORK === "base-sepolia";
+
+  const openTestFaucet = async () => {
+    if (!isTestnet || !walletAddress) return;
+    try {
+      await Clipboard.setStringAsync(walletAddress);
+      setError(null);
+      setMessage("Adresse copiée. Sur Circle, sélectionne USDC et Base Sepolia, puis colle ton adresse. Ces jetons n’ont aucune valeur réelle.");
+      await WebBrowser.openBrowserAsync("https://faucet.circle.com/", {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+        toolbarColor: COLORS.black,
+      });
+    } catch {
+      setError("Impossible d’ouvrir Circle. Va sur faucet.circle.com et colle ton adresse Base Sepolia.");
+    }
+  };
 
   const openMoonPay = async () => {
     if (!DEMO_MODE && APP_NETWORK !== "base-sepolia") {
@@ -135,6 +154,17 @@ export default function AddCryptoScreen() {
               Adresse indisponible : attends la création du wallet avant de recevoir.
             </Text>
           )}
+          {isTestnet && walletAddress ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Copier mon adresse et ouvrir le faucet Circle pour recevoir des USDC de test"
+              onPress={openTestFaucet}
+              className="mt-3 rounded-xl border border-blue-300/30 bg-blue-300/10 p-4 items-center"
+            >
+              <Text className="text-blue-100 font-semibold">Recevoir des USDC de test gratuits</Text>
+              <Text className="text-blue-100/70 text-xs mt-1">Copier l’adresse · ouvrir le faucet Circle</Text>
+            </Pressable>
+          ) : null}
           <Text className="text-blue-100/70 text-xs mt-3">Réseau : {NETWORK_NAME}</Text>
         </View>
         <View className="rounded-3xl border border-white/10 bg-white/[0.06] p-5">
