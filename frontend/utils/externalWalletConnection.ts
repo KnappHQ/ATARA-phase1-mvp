@@ -14,14 +14,14 @@ export async function waitForExternalConnection(
   const deadline = Date.now() + timeoutMs;
   let wasOpen = false;
   while (Date.now() < deadline) {
-    if (signal.aborted) throw new Error("Connexion wallet annulée.");
+    if (signal.aborted) throw new Error("Wallet connection canceled.");
     const state = read();
     if (state.isConnected && state.hasProvider) return;
     if (wasOpen && !state.isOpen && !state.isConnected) {
-      throw new Error("Connexion wallet annulée.");
+      throw new Error("Wallet connection canceled.");
     }
     wasOpen ||= state.isOpen;
     await new Promise(resolve => setTimeout(resolve, pollMs));
   }
-  throw new Error("Le wallet n’a pas répondu. Vérifie ton application wallet et réessaie.");
+  throw new Error("The wallet did not respond. Check your wallet app and try again.");
 }

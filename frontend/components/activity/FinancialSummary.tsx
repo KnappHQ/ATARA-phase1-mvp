@@ -32,7 +32,7 @@ export const FinancialSummary = ({
           className="text-sm uppercase tracking-widest font-mono"
           style={{ color: "rgba(255, 255, 255, 0.4)" }}
         >
-          Échanges avec {contactName}
+          Transfers with {contactName}
         </Text>
       </View>
 
@@ -43,7 +43,7 @@ export const FinancialSummary = ({
             className="text-sm uppercase tracking-wide"
             style={{ color: "rgba(255, 255, 255, 0.4)" }}
           >
-            Reçu
+            Received
           </Text>
           <Text className="font-mono text-sm" style={{ color: COLORS.accent }}>
             $
@@ -59,7 +59,7 @@ export const FinancialSummary = ({
             className="text-sm uppercase tracking-wide"
             style={{ color: "rgba(255, 255, 255, 0.4)" }}
           >
-            Envoyé
+            Sent
           </Text>
           <Text
             className="font-mono text-sm"
@@ -92,7 +92,7 @@ export const FinancialSummary = ({
               className="font-mono text-sm"
               style={{ color: "rgba(255, 255, 255, 0.6)" }}
             >
-              Estimations en USD. Ces transferts ne constituent pas des dettes.
+              USD estimates. These transfers are not debts.
             </Text>
           </View>
         </View>

@@ -178,7 +178,7 @@ export const BalanceRevealSection = ({
                   onSelect={setSelectedAssetIndex}
                 />
                 <Text className="text-xs text-white/35 mt-4">
-                  Total du portefeuille : ${totalUSDValue.toFixed(2)}
+                  Total wallet value: ${totalUSDValue.toFixed(2)}
                 </Text>
               </View>
             ) : (

@@ -31,7 +31,7 @@ export const ExternalWalletContext = createContext<ExternalWalletContextValue>({
   enabled: false,
   isConnected: false,
   connect: async () => {
-    throw new Error("La connexion par wallet n'est pas disponible.");
+    throw new Error("Wallet sign-in is unavailable.");
   },
   disconnect: async () => undefined,
   ensureSupportedNetwork: async () => undefined,
@@ -84,7 +84,7 @@ const externalWalletEnabled =
 const asError = (error: unknown) =>
   error instanceof Error
     ? error
-    : new Error("Le module de connexion wallet n'a pas pu démarrer.");
+    : new Error("The wallet connection module could not start.");
 
 export const ExternalWalletProvider = ({ children }: { children: ReactNode }) => {
   const [Runtime, setRuntime] =
@@ -161,10 +161,10 @@ export const ExternalWalletProvider = ({ children }: { children: ReactNode }) =>
 
   const connect = useCallback(async () => {
     if (!externalWalletEnabled) {
-      throw new Error("La connexion par wallet externe est désactivée dans cette bêta.");
+      throw new Error("External wallet sign-in is disabled in this beta.");
     }
     if (!projectId) {
-      throw new Error("La connexion par wallet attend la configuration Reown.");
+      throw new Error("Wallet sign-in requires Reown configuration.");
     }
 
     const current = runtimeValueRef.current;
@@ -193,7 +193,7 @@ export const ExternalWalletProvider = ({ children }: { children: ReactNode }) =>
         pendingConnectRef.current = null;
         reject(
           new Error(
-            "La connexion wallet met trop de temps à démarrer. Réessaie.",
+            "The wallet connection is taking too long. Try again.",
           ),
         );
       }, WALLET_RUNTIME_TIMEOUT_MS),
@@ -218,7 +218,7 @@ export const ExternalWalletProvider = ({ children }: { children: ReactNode }) =>
     pendingConnectRef.current = null;
     if (pending) {
       clearTimeout(pending.timeoutId);
-      pending.reject(new Error("Connexion wallet annulée."));
+      pending.reject(new Error("Wallet connection canceled."));
     }
     const current = runtimeValueRef.current;
     try {
@@ -231,7 +231,7 @@ export const ExternalWalletProvider = ({ children }: { children: ReactNode }) =>
   const ensureSupportedNetwork = useCallback(async () => {
     const current = runtimeValueRef.current;
     if (!current?.isConnected) {
-      throw new Error("Ton wallet externe n'est plus connecté.");
+      throw new Error("Your external wallet is no longer connected.");
     }
     await current.ensureSupportedNetwork();
   }, []);
@@ -258,7 +258,7 @@ export const ExternalWalletProvider = ({ children }: { children: ReactNode }) =>
       const pending = pendingConnectRef.current;
       pendingConnectRef.current = null;
       if (pending) clearTimeout(pending.timeoutId);
-      pending?.reject(new Error("La connexion wallet a été interrompue."));
+      pending?.reject(new Error("Wallet connection was interrupted."));
     },
     [],
   );

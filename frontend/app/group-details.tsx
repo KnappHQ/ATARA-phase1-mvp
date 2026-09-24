@@ -60,9 +60,9 @@ export default function GroupDetailsScreen() {
         )}
 
         <View className="mx-6 mb-6 rounded-2xl border border-white/10 p-4">
-          <Text className="text-white text-sm font-semibold">Dépenses partagées · {groupDetail?.assetSymbol ?? "USDC"}</Text>
-          <Pressable className="py-3" onPress={async () => { try { const result = await retryPendingSettlements(); if (id) await fetchGroupDetail(id); Alert.alert("Vérification des reçus", `${result.settled} règlement(s) rapproché(s). ${result.remaining} encore à vérifier. Ne repaie pas un transfert déjà envoyé.`); } catch (error) { Alert.alert("Vérification", error instanceof Error ? error.message : "Réessaie dans quelques instants."); } }}><Text style={{ color: COLORS.accent }}>Vérifier mes paiements en attente</Text></Pressable>
-          <Text className="text-white/50 text-xs leading-5 mt-2">Chaque membre accepte ou conteste sa part. Seules les parts acceptées apparaissent dans les montants à rembourser. Tu confirmes chaque paiement.</Text>
+          <Text className="text-white text-sm font-semibold">Shared expenses · {groupDetail?.assetSymbol ?? "USDC"}</Text>
+          <Pressable className="py-3" onPress={async () => { try { const result = await retryPendingSettlements(); if (id) await fetchGroupDetail(id); Alert.alert("Checking receipts", `${result.settled} payment(s) reconciled. ${result.remaining} still pending. Do not pay again for a transfer already sent.`); } catch (error) { Alert.alert("Verification", error instanceof Error ? error.message : "Try again shortly."); } }}><Text style={{ color: COLORS.accent }}>Check pending payments</Text></Pressable>
+          <Text className="text-white/50 text-xs leading-5 mt-2">Each member accepts or disputes their share. Only accepted shares count toward what you owe. You confirm every payment.</Text>
         </View>
 
         {isLoadingDetail ? (

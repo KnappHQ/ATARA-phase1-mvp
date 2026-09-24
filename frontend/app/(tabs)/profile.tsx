@@ -167,7 +167,7 @@ export default function ProfileTab() {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setLogoutOpen(true);
             }}
-            accessibilityLabel="Se déconnecter"
+            accessibilityLabel="Log out"
             hitSlop={8}
             className="w-10 h-10 rounded-full items-center justify-center border border-white/10"
             style={{ backgroundColor: `${COLORS.white}08` }}
@@ -187,22 +187,22 @@ export default function ProfileTab() {
             onEditDisplayName={openEditName}
           />
 
-          <SectionHeader title="Compte et connexion" />
+          <SectionHeader title="Account and sign-in" />
           <Text className="text-white/50 text-xs leading-5 mb-4">
-            Nomme chaque compte ci-dessus et vérifie son @identifiant avant de te
-            déconnecter. Le choix des passkeys iOS n’affiche pas encore ces noms.
+            Name each account above and check its @handle before you
+            log out. The iOS passkey picker does not show these names yet.
           </Text>
           <SettingRow
             icon={LogOut}
-            label="Se déconnecter"
-            subtitle="Fermer la session sans supprimer ton compte ni ton wallet"
+            label="Log out"
+            subtitle="End your session without deleting your account or wallet"
             onPress={() => setLogoutOpen(true)}
             right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
           />
           <SettingRow
             icon={Users}
-            label="Utiliser un autre compte"
-            subtitle="Déconnecte le compte actuel, puis choisis une autre connexion"
+            label="Use another account"
+            subtitle="Log out of this account, then choose another sign-in method"
             onPress={() => setLogoutOpen(true)}
             right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
           />

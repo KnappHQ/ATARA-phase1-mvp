@@ -27,9 +27,9 @@ import { useWalletStore } from "@/stores/useWalletStore";
 const formatError = (error: any) => {
   const message = error?.response?.data?.message;
   if (message === "The on-ramp is not configured yet") {
-    return "MoonPay n’est pas encore configuré. Pour tester ATARA, reçois plutôt des USDC de test avec le faucet Circle ci-dessus.";
+    return "MoonPay is not configured yet. To test ATARA, get test USDC from the Circle faucet above.";
   }
-  return message || "Le service d’achat n’est pas encore configuré pour cette bêta.";
+  return message || "Buying crypto is not configured for this beta yet.";
 };
 
 export default function AddCryptoScreen() {
@@ -46,39 +46,39 @@ export default function AddCryptoScreen() {
     try {
       await Clipboard.setStringAsync(walletAddress);
       setError(null);
-      setMessage("Adresse copiée. Sur Circle, sélectionne USDC et Base Sepolia, puis colle ton adresse. Ces jetons n’ont aucune valeur réelle.");
+      setMessage("Address copied. On Circle, select USDC and Base Sepolia, then paste your address. These tokens have no real value.");
       await WebBrowser.openBrowserAsync("https://faucet.circle.com/", {
         presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
         toolbarColor: COLORS.black,
       });
     } catch {
-      setError("Impossible d’ouvrir Circle. Va sur faucet.circle.com et colle ton adresse Base Sepolia.");
+      setError("Could not open Circle. Go to faucet.circle.com and paste your Base Sepolia address.");
     }
   };
 
   const openMoonPay = async () => {
     if (!DEMO_MODE && APP_NETWORK !== "base-sepolia") {
       setError(
-        "Les achats réels ne sont pas encore disponibles dans cette version bêta.",
+        "Real purchases are not available in this beta yet.",
       );
       return;
     }
     const numericAmount = Number(amount.replace(",", "."));
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-      setError("Indique un montant en euros supérieur à 0.");
+      setError("Enter an amount greater than 0 EUR.");
       return;
     }
 
     if (DEMO_MODE) {
       setError(null);
       setMessage(
-        `Simulation : ${numericAmount.toFixed(2)} € convertis en USDC. Aucun achat réel n’a été effectué.`,
+        `Simulation: ${numericAmount.toFixed(2)} EUR converted to USDC. No real purchase was made.`,
       );
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       return;
     }
     if (!walletAddress) {
-      setError("Ton portefeuille sécurisé n’est pas encore prêt.");
+      setError("Your secure wallet is not ready yet.");
       return;
     }
 
@@ -117,7 +117,7 @@ export default function AddCryptoScreen() {
           <ArrowLeft size={20} color={COLORS.white} />
         </Pressable>
         <Text className="ml-4 text-xl font-semibold text-white">
-          Ajouter des crypto
+          Add crypto
         </Text>
       </View>
 
@@ -127,20 +127,20 @@ export default function AddCryptoScreen() {
       >
         <View className="rounded-3xl border border-blue-300/25 bg-blue-300/10 p-5 mb-5">
           <Text className="text-blue-100 text-base font-semibold">
-            {isTestnet ? "Recevoir des jetons de test" : "Recevoir des crypto sur Base"}
+            {isTestnet ? "Receive test tokens" : "Receive crypto on Base"}
           </Text>
           <Text className="text-blue-100/80 text-sm leading-5 mt-2">
             {isTestnet
-              ? "Cette bêta utilise Base Sepolia. Demande des USDC de test à un autre portefeuille Base Sepolia : ils n’ont aucune valeur. Ne transfère jamais d’argent ni de crypto réelle ici."
-              : "Vérifie toujours le réseau et l’adresse avec l’expéditeur avant un transfert. Les achats par carte ne sont pas disponibles ici."}
+              ? "This beta uses Base Sepolia. Request test USDC from another Base Sepolia wallet. These tokens have no value. Never send real money or crypto here."
+              : "Always confirm the network and address with the sender before a transfer. Card purchases are unavailable here."}
           </Text>
           {walletAddress ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Copier mon adresse de réception"
+              accessibilityLabel="Copy my receiving address"
               onPress={async () => {
                 await Clipboard.setStringAsync(walletAddress);
-                setMessage("Adresse copiée. Vérifie le réseau avant tout envoi.");
+                setMessage("Address copied. Check the network before sending.");
               }}
               className="mt-4 rounded-xl border border-white/20 p-4 flex-row items-center"
             >
@@ -151,31 +151,31 @@ export default function AddCryptoScreen() {
             </Pressable>
           ) : (
             <Text className="text-amber-200 mt-3 text-sm">
-              Adresse indisponible : attends la création du wallet avant de recevoir.
+              Address unavailable: wait for your wallet to be created before receiving.
             </Text>
           )}
           {isTestnet && walletAddress ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Copier mon adresse et ouvrir le faucet Circle pour recevoir des USDC de test"
+              accessibilityLabel="Copy my address and open the Circle faucet to receive test USDC"
               onPress={openTestFaucet}
               className="mt-3 rounded-xl border border-blue-300/30 bg-blue-300/10 p-4 items-center"
             >
-              <Text className="text-blue-100 font-semibold">Recevoir des USDC de test gratuits</Text>
-              <Text className="text-blue-100/70 text-xs mt-1">Copier l’adresse · ouvrir le faucet Circle</Text>
+              <Text className="text-blue-100 font-semibold">Get free test USDC</Text>
+              <Text className="text-blue-100/70 text-xs mt-1">Copy address · open Circle faucet</Text>
             </Pressable>
           ) : null}
-          <Text className="text-blue-100/70 text-xs mt-3">Réseau : {NETWORK_NAME}</Text>
+          <Text className="text-blue-100/70 text-xs mt-3">Network: {NETWORK_NAME}</Text>
         </View>
         <View className="rounded-3xl border border-white/10 bg-white/[0.06] p-5">
           {DEMO_MODE ? (
             <View className="mb-5 rounded-2xl border border-blue-300/25 bg-blue-300/10 p-4">
               <Text className="text-blue-100 font-semibold">
-                MODE SIMULATION
+                SIMULATION MODE
               </Text>
               <Text className="text-blue-100/70 text-xs leading-5 mt-1">
-                Aucun paiement, aucune crypto reçue. Cet écran sert uniquement à
-                tester le parcours.
+                No payment or crypto received. This screen only
+                tests the flow.
               </Text>
             </View>
           ) : null}
@@ -185,10 +185,10 @@ export default function AddCryptoScreen() {
             </View>
             <View className="flex-1 ml-4">
               <Text className="text-white text-lg font-semibold">
-                Tester l’achat de USDC
+                Test buying USDC
               </Text>
               <Text className="text-white/50 text-sm mt-1">
-                Parcours de test · aucun USDC réel reçu
+                Test flow · no real USDC received
               </Text>
             </View>
           </View>
@@ -197,7 +197,7 @@ export default function AddCryptoScreen() {
             className="text-white/50 text-xs uppercase mt-7 mb-2"
             style={{ letterSpacing: 1.4 }}
           >
-            Montant en euros
+            Amount in euros
           </Text>
           <View className="flex-row items-center rounded-2xl border border-white/15 bg-black/40 px-4">
             <TextInput
@@ -216,8 +216,8 @@ export default function AddCryptoScreen() {
           <View className="flex-row items-center mt-5 rounded-2xl bg-white/5 p-4">
             <ShieldCheck size={18} color="#4ade80" />
             <Text className="flex-1 ml-3 text-xs leading-5 text-white/60">
-              Le sandbox MoonPay simule le parcours d’achat. Aucun paiement réel
-              et aucun dépôt sur Base Sepolia.
+              MoonPay’s sandbox simulates a purchase. No real payment
+              and no deposit on Base Sepolia.
             </Text>
           </View>
 
@@ -244,7 +244,7 @@ export default function AddCryptoScreen() {
             ) : (
               <View className="flex-row items-center">
                 <Text className="font-semibold" style={{ color: COLORS.black }}>
-                  {DEMO_MODE ? "Simuler l’achat" : "Tester MoonPay (sandbox)"}
+                  {DEMO_MODE ? "Simulate purchase" : "Tester MoonPay (sandbox)"}
                 </Text>
                 {!DEMO_MODE ? (
                   <ExternalLink
@@ -259,14 +259,14 @@ export default function AddCryptoScreen() {
         </View>
 
         <View className="mt-5 rounded-3xl border border-white/10 bg-white/[0.03] p-5">
-          <Text className="text-white font-semibold">Réseau utilisé</Text>
+          <Text className="text-white font-semibold">Network used</Text>
           <Text className="text-white/60 text-sm mt-2">
-            {NETWORK_NAME} · USDC · 6 décimales
+            {NETWORK_NAME} · USDC · 6 decimals
           </Text>
           <Text className="text-white/45 text-xs leading-5 mt-3">
-            Ton portefeuille bêta utilise Base Sepolia et des jetons de test. Le
-            sandbox MoonPay est une démonstration séparée : il ne recharge pas
-            ce solde.
+            Your beta wallet uses Base Sepolia and test tokens. The
+            MoonPay sandbox is a separate demo: it does not fund
+            this balance.
           </Text>
         </View>
       </ScrollView>

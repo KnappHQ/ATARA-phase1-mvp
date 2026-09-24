@@ -2,7 +2,7 @@
 export async function withTimeout<T>(
   task: Promise<T>,
   timeoutMs = 20_000,
-  message = "Le service met trop de temps à répondre. Réessaie dans un instant.",
+  message = "The service is taking too long to respond. Try again in a moment.",
 ): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {

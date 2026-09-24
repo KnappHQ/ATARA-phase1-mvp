@@ -192,7 +192,7 @@ export const AmountStep = ({
 
   const handleSendComplete = () => {
     if (settlementGroupId && (!settlementIntentId || selectedToken.symbol !== "USDC" || Date.now() >= Date.parse(String(params.settlementExpiresAt)))) {
-      useAlertStore.getState().error("Montant à actualiser", "Retourne au groupe pour vérifier une nouvelle proposition avant de payer."); return;
+      useAlertStore.getState().error("Amount needs updating", "Return to the group and review the updated proposal before paying."); return;
     }
     if (!canSend || isTransactionInProgress) return;
 
@@ -228,7 +228,7 @@ export const AmountStep = ({
             recipient: recipient.handle,
             amount: amountValue.toString(),
             token: selectedToken.symbol,
-            gasPaidDisplay: "Pris en charge par le sponsor",
+            gasPaidDisplay: "Sponsored",
           },
         });
       } else {
@@ -283,7 +283,7 @@ export const AmountStep = ({
         className="mb-6"
       >
         <Text className="text-sm font-medium uppercase mb-3 text-muted tracking-widest">
-          Crypto à envoyer
+          Crypto to send
         </Text>
         {isLoadingBalances ? (
           <View className="flex-row gap-2">
@@ -572,9 +572,9 @@ export const AmountStep = ({
         <View className="w-2 h-2 rounded-full bg-emarald" />
         <Text className="text-sm text-muted mr-4">Base Network</Text>
 
-        <Text className="text-sm text-muted">Frais réseau :</Text>
+        <Text className="text-sm text-muted">Network fee:</Text>
         <View className="px-2.5 py-1 rounded-full bg-emarald/10 border border-emarald/20">
-          <Text className="text-xs font-medium text-emarald">Sponsoring sous réserve de disponibilité</Text>
+          <Text className="text-xs font-medium text-emarald">Sponsorship subject to availability</Text>
         </View>
       </MotiView>
 
