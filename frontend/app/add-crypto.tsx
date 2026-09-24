@@ -244,7 +244,7 @@ export default function AddCryptoScreen() {
             ) : (
               <View className="flex-row items-center">
                 <Text className="font-semibold" style={{ color: COLORS.black }}>
-                  {DEMO_MODE ? "Simulate purchase" : "Tester MoonPay (sandbox)"}
+                  {DEMO_MODE ? "Simulate purchase" : "Try MoonPay (sandbox)"}
                 </Text>
                 {!DEMO_MODE ? (
                   <ExternalLink

@@ -70,7 +70,7 @@ function VaultsScreenEnabled() {
             </View>
             <View className="flex-1 ml-3">
               <Text className="text-white text-lg font-semibold">Collective savings</Text>
-              <Text className="text-white/50 text-sm mt-1">Base Sepolia · USDC de test</Text>
+              <Text className="text-white/50 text-sm mt-1">Base Sepolia · test USDC</Text>
             </View>
           </View>
           <Text className="text-white/60 text-sm leading-5 mt-5">
@@ -96,7 +96,7 @@ function VaultsScreenEnabled() {
             {vaults.map((vault) => (
               <Pressable key={vault} onPress={() => router.push({ pathname: "/vault-detail", params: { address: vault } })} className="flex-row items-center rounded-2xl border border-white/10 bg-white/[0.04] p-4 mb-3">
                 <View className="w-10 h-10 rounded-xl bg-white/10 items-center justify-center"><LockKeyhole size={18} color={COLORS.white} /></View>
-                <View className="flex-1 ml-3"><Text className="text-white font-semibold">Vault collectif</Text><Text className="text-white/45 text-xs font-mono mt-1">{shortAddress(vault)}</Text></View>
+                <View className="flex-1 ml-3"><Text className="text-white font-semibold">Collective Vault</Text><Text className="text-white/45 text-xs font-mono mt-1">{shortAddress(vault)}</Text></View>
                 <ChevronRight size={18} color="rgba(255,255,255,0.45)" />
               </Pressable>
             ))}
