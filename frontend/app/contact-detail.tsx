@@ -206,9 +206,9 @@ export default function ContactDetail() {
           </View>
 
           <View className="mx-6 mb-6 rounded-2xl border border-white/10 p-4">
-            <Text className="text-white font-semibold mb-2">Parts acceptées dans Groups</Text>
-            {debtError ? <Text className="text-white/50">Soldes indisponibles. Consulte Groups avant de rembourser.</Text> : debts === null ? <Text className="text-white/50">Chargement…</Text> : debts.length === 0 ? <Text className="text-white/50">Aucune part acceptée à rembourser.</Text> : debts.map(d => <Text key={d.assetSymbol} className="text-white/70 mb-2">Tu dois {d.owedByMe.toFixed(2)} {d.assetSymbol} · Te doit {d.owedToMe.toFixed(2)} {d.assetSymbol}</Text>)}
-            <Pressable onPress={() => router.push("/(tabs)/activity")}><Text style={{ color: COLORS.accent }} className="mt-2">Ouvrir l’activité et les groupes</Text></Pressable>
+            <Text className="text-white font-semibold mb-2">Accepted shares in Groups</Text>
+            {debtError ? <Text className="text-white/50">Balances unavailable. Check Groups before paying.</Text> : debts === null ? <Text className="text-white/50">Loading…</Text> : debts.length === 0 ? <Text className="text-white/50">No accepted shares to settle.</Text> : debts.map(d => <Text key={d.assetSymbol} className="text-white/70 mb-2">You owe {d.owedByMe.toFixed(2)} {d.assetSymbol} · Owes you {d.owedToMe.toFixed(2)} {d.assetSymbol}</Text>)}
+            <Pressable onPress={() => router.push("/(tabs)/activity")}><Text style={{ color: COLORS.accent }} className="mt-2">Open Activity and Groups</Text></Pressable>
           </View>
           <View className="mb-24 px-6">
             {contact.transactions.map(

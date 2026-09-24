@@ -83,7 +83,7 @@ const signPersonalMessage = async (
   const signature = await withTimeout(provider.request({
     method: "personal_sign",
     params: [stringToHex(message), wallet.address],
-  }), 60_000, "La signature n’a pas été confirmée dans le wallet. Réessaie.");
+  }), 60_000, "The wallet signature was not confirmed. Try again.");
 
   return typeof signature === "string" ? signature : "";
 };
@@ -171,7 +171,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         Promise.resolve().then(() => externalWallet.disconnect()),
       ]).then((results) => {
         if (results.some((result) => result.status === "rejected")) {
-          throw new Error("La session du fournisseur n'a pas pu être fermée. Réessaie avant de changer de compte.");
+          throw new Error("The provider session could not be closed. Try again before switching accounts.");
         }
       });
       providerCleanupRef.current = cleanup;
@@ -180,7 +180,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }).catch(() => undefined);
     }
     await withTimeout(providerCleanupRef.current, 12_000,
-      "Déconnexion du fournisseur en attente. Réessaie avant de changer de compte.");
+      "Provider logout is still pending. Try again before switching accounts.");
   }, [externalWallet.disconnect, privyLogout]);
 
   const logout = useCallback(async () => {
@@ -202,7 +202,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       await clearProviderSessions();
       setOauthError(null);
     } catch (error) {
-      setOauthError(error instanceof Error ? error.message : "Déconnexion incomplète. Réessaie.");
+      setOauthError(error instanceof Error ? error.message : "Logout incomplete. Try again.");
     } finally {
       setIsStartingOAuth(false);
     }
@@ -218,12 +218,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     autoLoginKeyRef.current = null;
     ignoredAutoLoginUserIdRef.current = user?.id ?? null;
     await clearProviderSessions();
-    if (entryRevisionRef.current !== revision) throw new Error("Connexion annulée.");
+    if (entryRevisionRef.current !== revision) throw new Error("Sign-in canceled.");
     setActiveAuthMethod(method);
     await useAuthStore.getState().clearJustLoggedOut();
     if (entryRevisionRef.current !== revision) {
       await useAuthStore.getState().logout();
-      throw new Error("Connexion annulée.");
+      throw new Error("Sign-in canceled.");
     }
     ignoredAutoLoginUserIdRef.current = null;
   }, [clearProviderSessions, user?.id]);
@@ -232,7 +232,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     async (provider: OAuthProvider) => {
       if (entryBusyRef.current) return;
       if (!isPrivyReady) {
-        setOauthError("Le service de connexion démarre encore. Réessaie dans un instant.");
+        setOauthError("The sign-in service is still starting. Try again in a moment.");
         return;
       }
       entryBusyRef.current = true;
@@ -260,8 +260,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const startPasskey = useCallback(async (mode: "login" | "signup") => {
     if (entryBusyRef.current) return;
     const relyingParty = process.env.EXPO_PUBLIC_PASSKEY_RP_ID;
-    if (!relyingParty) { setOauthError("La connexion par passkey attend la configuration du domaine."); return; }
-    if (!isPrivyReady) { setOauthError("Le service de passkey démarre encore. Réessaie dans un instant."); return; }
+    if (!relyingParty) { setOauthError("Passkey sign-in requires domain configuration."); return; }
+    if (!isPrivyReady) { setOauthError("The passkey service is still starting. Try again in a moment."); return; }
     entryBusyRef.current = true;
     setIsStartingOAuth(true); setOauthError(null);
     try {
@@ -691,8 +691,8 @@ const AuthenticationManager = ({
           onOnboardingStepChange("identity");
         } else {
           showAuthError(
-            "Connexion wallet incomplète",
-            error?.message || "Vérifie le réseau Base et réessaie.",
+            "Wallet connection incomplete",
+            error?.message || "Check the Base network and try again.",
           );
         }
       })

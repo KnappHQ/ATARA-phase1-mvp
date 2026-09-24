@@ -197,7 +197,7 @@ export const GateScreen = ({
         {(oauthError || isCheckingBackend || isStartingOAuth) && (
           <TouchableOpacity onPress={onResetSession} accessibilityRole="button"
             className="min-h-12 items-center justify-center mt-3 p-3 rounded-2xl border border-white/20">
-            <Text className="text-white text-sm">Annuler et fermer la session</Text>
+            <Text className="text-white text-sm">Cancel and log out</Text>
           </TouchableOpacity>
         )}
       </MotiView>

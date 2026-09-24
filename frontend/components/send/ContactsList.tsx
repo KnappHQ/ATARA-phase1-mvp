@@ -310,7 +310,7 @@ export const ContactsList = ({
         <View>
           <Text className="text-sm font-medium uppercase mb-3 text-muted tracking-widest">
             {isAllContactsQuery
-              ? "Tous les contacts"
+              ? "All contacts"
               : hasQuery
                 ? "Search Results"
                 : "Recent Contacts"}

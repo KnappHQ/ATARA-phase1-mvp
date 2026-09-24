@@ -202,20 +202,20 @@ export const IdentityScreen = ({
         )}
 
         <Text className="text-white/60 text-xs mt-5 mb-2">
-          Nom de ce compte (facultatif, visible dans ton profil)
+          Account name (optional, visible in your profile)
         </Text>
         <TextInput
           value={accountName}
           onChangeText={setAccountName}
-          placeholder="Par exemple : Compte personnel"
+          placeholder="For example: Personal account"
           placeholderTextColor={COLORS.placeholder}
           maxLength={40}
           editable={!isRegistering && !isGoingBack}
           className="border border-white/30 px-4 py-4 text-white text-base"
         />
         <Text className="text-white/40 text-[11px] leading-4 mt-2">
-          Tu peux le modifier plus tard. iOS peut afficher seulement « ATARA »
-          dans sa liste de clés d’accès.
+          You can change it later. iOS may display only “ATARA”
+          in its passkey list.
         </Text>
 
         <View className="mt-5 flex-row items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">

@@ -115,7 +115,7 @@ export const DisplayNameModal = ({
       <BottomSheetView style={{ paddingBottom: 20 }}>
         <View className="flex-row items-center justify-between px-6 pt-3 pb-5">
           <Text className="text-lg font-semibold text-white">
-            Nommer ce compte
+            Name this account
           </Text>
           <Pressable
             onPress={handleClose}
@@ -128,7 +128,7 @@ export const DisplayNameModal = ({
 
         <View className="px-6">
           <Text className="text-sm text-white/50 mb-4">
-            Ce nom sera visible dans ton profil ATARA. Le sélecteur de clés d’accès iOS peut encore afficher « ATARA » pour plusieurs comptes.
+            This name appears in your ATARA profile. The iOS passkey picker may still show “ATARA” for multiple accounts.
           </Text>
 
           <BottomSheetTextInput

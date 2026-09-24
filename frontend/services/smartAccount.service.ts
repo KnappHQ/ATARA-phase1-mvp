@@ -313,7 +313,7 @@ export class SmartAccountService {
   }
 
   private getGaslessCapabilities(): Record<string, unknown> {
-    if (!this.gasPolicyId) throw new Error("Le sponsoring des frais doit être configuré avant les paiements de la bêta.");
+    if (!this.gasPolicyId) throw new Error("Gas sponsorship must be configured before beta payments.");
     return { paymaster: { policyId: this.gasPolicyId } };
   }
 

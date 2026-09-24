@@ -20,7 +20,7 @@ export const CryptoActions = ({
       className="flex-1 rounded-2xl border border-white/10 bg-white/[0.06] p-4"
     >
       <ArrowDownToLine size={19} color={COLORS.accent} />
-      <Text className="text-white text-sm font-semibold mt-3">Ajouter des crypto</Text>
+      <Text className="text-white text-sm font-semibold mt-3">Add crypto</Text>
       <Text className="text-white/45 text-xs mt-1">Via MoonPay</Text>
     </TouchableOpacity>
     <TouchableOpacity
@@ -32,7 +32,7 @@ export const CryptoActions = ({
       className="flex-1 rounded-2xl border border-white/10 bg-white/[0.06] p-4"
     >
       <ShoppingBasket size={19} color="#4ade80" />
-      <Text className="text-white text-sm font-semibold mt-3">Payer une course</Text>
+      <Text className="text-white text-sm font-semibold mt-3">Pay a merchant</Text>
       <Text className="text-white/45 text-xs mt-1">USDC · Base</Text>
     </TouchableOpacity>
   </View>

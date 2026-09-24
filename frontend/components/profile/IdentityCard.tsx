@@ -48,10 +48,10 @@ export const IdentityCard = ({
             className="text-xs font-mono uppercase mb-1"
             style={{ color: `${COLORS.white}40`, letterSpacing: 1 }}
           >
-            Nom de ce compte
+            Account name
           </Text>
           <Text className="text-white text-base font-semibold">
-            {displayName || (handle ? `@${handle}` : "À nommer")}
+            {displayName || (handle ? `@${handle}` : "Add a name")}
           </Text>
         </View>
         {onEditDisplayName && (

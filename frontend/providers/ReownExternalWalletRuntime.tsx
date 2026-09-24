@@ -145,7 +145,7 @@ const ConfiguredRuntime = ({
   useEffect(() => () => attemptRef.current?.abort(), []);
 
   const connect = useCallback(async () => {
-    if (attemptRef.current) throw new Error("Une connexion wallet est déjà en cours.");
+    if (attemptRef.current) throw new Error("A wallet connection is already in progress.");
     const attempt = new AbortController();
     attemptRef.current = attempt;
     try {
@@ -171,17 +171,17 @@ const ConfiguredRuntime = ({
   }, [disconnect, close]);
 
   const ensureSupportedNetwork = useCallback(async () => {
-    if (!provider) throw new Error("Le fournisseur du wallet n'est pas encore prêt.");
+    if (!provider) throw new Error("The wallet provider is not ready yet.");
     const currentChainId = Number(await withTimeout(provider.request({ method: "eth_chainId" })));
 
     if (!Number.isFinite(currentChainId)) {
-      throw new Error("Le réseau du wallet n'est pas encore disponible.");
+      throw new Error("The wallet network is not available yet.");
     }
 
     if (currentChainId !== CHAIN_ID) {
       await withTimeout(switchNetwork(baseNetwork), 60_000);
       const confirmedChain = Number(await withTimeout(provider.request({ method: "eth_chainId" })));
-      if (confirmedChain !== CHAIN_ID) throw new Error("Le wallet n’a pas confirmé le réseau Base attendu.");
+      if (confirmedChain !== CHAIN_ID) throw new Error("The wallet did not confirm the expected Base network.");
     }
   }, [provider, switchNetwork]);
 
@@ -242,7 +242,7 @@ const RuntimeUnavailable = ({
   onError: (error: unknown) => void;
 }) => {
   useEffect(() => {
-    onError(new Error("Reown n'a pas pu être initialisé."));
+    onError(new Error("Reown could not be initialized."));
   }, [onError]);
 
   return null;

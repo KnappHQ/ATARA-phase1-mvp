@@ -31,7 +31,7 @@ export const TransactionReceipt = ({
   recipientAddress,
   usdValue,
   txHash,
-  gasPaidDisplay = "Voir le reçu réseau",
+  gasPaidDisplay = "View network receipt",
 }: TransactionReceiptProps) => {
   const formatHash = (hash?: string) => {
     if (!hash) return "#PENDING";

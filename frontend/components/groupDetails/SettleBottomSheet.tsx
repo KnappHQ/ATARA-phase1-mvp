@@ -50,7 +50,7 @@ export const SettleBottomSheet = ({
         settlementGroupId: groupId, settlementMemberId: member.userId, settlementIntentId: quote.id,
         settlementExpiresAt: quote.expiresAt,
       } });
-    } catch (error: any) { useAlertStore.getState().error("Règlement indisponible", error?.response?.data?.message ?? "Réessaie dans un instant."); }
+    } catch (error: any) { useAlertStore.getState().error("Settlement unavailable", error?.response?.data?.message ?? "Try again shortly."); }
     finally { setBusy(false); }
   };
 
@@ -107,7 +107,7 @@ export const SettleBottomSheet = ({
                     <Text className="text-white font-semibold">{amount} USDC</Text>
               </Text>
               <Text className="text-xs mt-3" style={{ color: "rgba(255,255,255,0.55)" }}>
-                Les parts acceptées seront vérifiées avant le paiement. Les montants dus dans l’autre sens restent affichés séparément.
+                Accepted shares will be verified before payment. Amounts owed in the other direction are shown separately.
               </Text>
                 </View>
                 <Pressable
@@ -148,7 +148,7 @@ export const SettleBottomSheet = ({
                     className="text-xs mt-0.5"
                     style={{ color: "rgba(255,255,255,0.4)" }}
                   >
-                    Vérifier le montant et confirmer le paiement
+                    Review amount and confirm payment
                   </Text>
                 </View>
               </Pressable>

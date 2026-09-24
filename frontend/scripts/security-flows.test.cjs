@@ -75,7 +75,7 @@ test('SDK calls are bounded, preserve errors and allow late settlement without a
   await assert.rejects(withTimeout(Promise.reject(Error('denied')), 100), /denied/);
   let reject;
   const late = new Promise((_, fail) => { reject = fail; });
-  await assert.rejects(withTimeout(late, 5), /trop de temps/);
+  await assert.rejects(withTimeout(late, 5), /taking too long/);
   reject(Error('late')); await pause(1);
 });
 
@@ -94,10 +94,10 @@ test('wallet cancellation, silent startup and disconnect never hang indefinitely
   let open = true;
   const pending = waitForExternalConnection(() => ({ isOpen: open, isConnected: false, hasProvider: false }), new AbortController().signal, 100, 1);
   open = false;
-  await assert.rejects(pending, /annulée/);
-  await assert.rejects(waitForExternalConnection(() => ({ isOpen: false }), new AbortController().signal, 5, 1), /pas répondu/);
+  await assert.rejects(pending, /canceled/);
+  await assert.rejects(waitForExternalConnection(() => ({ isOpen: false }), new AbortController().signal, 5, 1), /did not respond/);
   const aborted = new AbortController(); aborted.abort();
-  await assert.rejects(waitForExternalConnection(() => ({ isConnected: true, hasProvider: true }), aborted.signal), /annulée/);
+  await assert.rejects(waitForExternalConnection(() => ({ isConnected: true, hasProvider: true }), aborted.signal), /canceled/);
 });
 
 test('AASA diagnostic rejects a different Apple app rather than accepting any non-empty list', async () => {
@@ -113,7 +113,7 @@ test('AASA diagnostic rejects a different Apple app rather than accepting any no
     assert.equal(await probeDomainAssociation('api.atara.finance'), undefined);
     global.fetch = async () => { throw Error('offline'); };
     assert.equal(await probeDomainAssociation('api.atara.finance'), undefined);
-    assert.match(describeAuthFailure(Error('Already logged in'), { method: 'passkey' }).message, /session/);
+    assert.match(describeAuthFailure(Error('Already logged in'), { method: 'passkey' }).message, /account is still signed in/);
   } finally { global.fetch = savedFetch; }
 });
 
@@ -169,50 +169,50 @@ function securityHarness(options = {}) {
 
 test('MFA stays inline, requires six digits and only reports activation after server confirmation', async () => {
   const h = securityHarness();
-  await h.button('Configurer le second facteur').props.onPress();
+  await h.button('Set up a second factor').props.onPress();
   assert.deepEqual(h.events, ['init']);
-  assert.equal(h.button('Activer le second facteur').props.disabled, true);
-  h.find(node => node.props?.accessibilityLabel === 'Code de l’authentificateur').props.onChangeText('123456');
-  assert.equal(h.button('Activer le second facteur').props.disabled, false);
-  await h.button('Activer le second facteur').props.onPress();
+  assert.equal(h.button('Enable second factor').props.disabled, true);
+  h.find(node => node.props?.accessibilityLabel === 'Authenticator code').props.onChangeText('123456');
+  assert.equal(h.button('Enable second factor').props.disabled, false);
+  await h.button('Enable second factor').props.onPress();
   assert.deepEqual(h.events, ['init', 'submit']);
-  assert.equal(h.button('Second facteur activé').props.disabled, true);
-  assert.equal(h.button('Activer le second facteur'), undefined);
+  assert.equal(h.button('Second factor enabled').props.disabled, true);
+  assert.equal(h.button('Enable second factor'), undefined);
 });
 
 test('cancel ignores a late MFA configuration and wipes the displayed secret', async () => {
   let finish;
   const h = securityHarness({ init: () => new Promise(resolve => { finish = resolve; }) });
-  const pending = h.button('Configurer le second facteur').props.onPress();
-  h.find(node => node.type === 'Pressable' && h.nodes(node).some(child => child.props?.children === 'Annuler')).props.onPress();
+  const pending = h.button('Set up a second factor').props.onPress();
+  h.find(node => node.type === 'Pressable' && h.nodes(node).some(child => child.props?.children === 'Cancel')).props.onPress();
   finish({ authUrl: 'otpauth://totp/ATARA?secret=TESTONLY' });
   await pending;
-  assert.equal(h.button('Activer le second facteur'), undefined);
-  assert.ok(h.button('Configurer le second facteur'));
+  assert.equal(h.button('Enable second factor'), undefined);
+  assert.ok(h.button('Set up a second factor'));
 });
 
 test('slow MFA displays a timeout instead of a permanent spinner', async () => {
   const h = securityHarness({ init: () => new Promise(() => {}), timeout: 5 });
-  await h.button('Configurer le second facteur').props.onPress();
-  assert.match(h.find(node => node.props?.accessibilityRole === 'alert').props.children, /trop de temps/);
+  await h.button('Set up a second factor').props.onPress();
+  assert.match(h.find(node => node.props?.accessibilityRole === 'alert').props.children, /taking too long/);
   assert.equal(h.find(node => node.type === 'ActivityIndicator'), undefined);
 });
 
 test('wallet-only users cannot enroll MFA for an unrelated Privy wallet', () => {
-  assert.equal(securityHarness({ external: true }).button('Configurer le second facteur').props.disabled, true);
+  assert.equal(securityHarness({ external: true }).button('Set up a second factor').props.disabled, true);
 });
 
 test('revoking sessions closes Privy/Reown even when server revocation fails', async () => {
   const h = securityHarness({ revokeError: true });
-  await h.button('Révoquer toutes les sessions ATARA').props.onPress();
+  await h.button('Revoke all ATARA sessions').props.onPress();
   assert.deepEqual(h.events, ['revoke', 'logout']);
 });
 
 test('Weekly Flow is absent and logout/change account are discoverable before deletion', () => {
   assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '../app/(tabs)/index.tsx'), 'utf8'), /WeeklyInsights/);
   const profile = fs.readFileSync(path.join(__dirname, '../app/(tabs)/profile.tsx'), 'utf8');
-  assert.match(profile, /label="Se déconnecter"/);
-  assert.match(profile, /label="Utiliser un autre compte"/);
+  assert.match(profile, /label="Log out"/);
+  assert.match(profile, /label="Use another account"/);
 });
 
 test('account switching clears private cached contacts and rejects their late responses', async () => {

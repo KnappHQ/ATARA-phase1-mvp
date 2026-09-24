@@ -259,7 +259,7 @@ test('funding screen distinguishes testnet reception from MoonPay simulation', (
   const source = fs.readFileSync(path.join(__dirname, '../app/add-crypto.tsx'), 'utf8');
   assert.match(source, /Base Sepolia/);
   assert.match(source, /Clipboard\.setStringAsync\(walletAddress\)/);
-  assert.match(source, /Ne transfère jamais d’argent ni de crypto réelle ici/);
+  assert.match(source, /Never send real money or crypto here/);
   assert.match(source, /session\.mode !== "sandbox"/);
 });
 
