@@ -16,7 +16,7 @@ export const VaultEntryCard = ({ onPress }: { onPress: () => void }) => (
       <LockKeyhole size={18} color={COLORS.white} />
     </View>
     <View className="flex-1 ml-3">
-      <Text className="text-white text-sm font-semibold">Vault collectif</Text>
+      <Text className="text-white text-sm font-semibold">Collective Vault</Text>
       <Text className="text-white/45 text-xs mt-1">Save together · everyone’s approval required</Text>
     </View>
     <Text className="text-white/50 text-xs">Ouvrir</Text>
