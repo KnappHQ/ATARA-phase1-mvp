@@ -41,7 +41,7 @@ export function ShareModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
       </> : <>
         <Text className="text-white text-lg font-semibold">Request an amount</Text>
         <TextInput accessibilityLabel="Requested amount in USDC" placeholder="Amount in USDC" placeholderTextColor="#777" value={amount} onChangeText={v => setAmount(v.replace(",", "."))} keyboardType="decimal-pad" className="text-white text-xl bg-white/5 p-4 rounded-2xl mt-4" />
-        <TextInput accessibilityLabel="Note de paiement" placeholder="Optional note" placeholderTextColor="#777" maxLength={140} value={note} onChangeText={setNote} className="text-white bg-white/5 p-4 rounded-2xl my-3" />
+        <TextInput accessibilityLabel="Payment note" placeholder="Optional note" placeholderTextColor="#777" maxLength={140} value={note} onChangeText={setNote} className="text-white bg-white/5 p-4 rounded-2xl my-3" />
         <Pressable disabled={busy || !/^\d+(\.\d{1,2})?$/.test(amount) || Number(amount) <= 0} onPress={() => run(async () => { const result = await api.post("/requests", { amount, note }); setRequest(result.data.request); })} className="p-4 rounded-2xl" style={{ backgroundColor: COLORS.accent }}><Text className="text-black text-center">{busy ? "Creating…" : "Create a link valid for 24 hours"}</Text></Pressable>
         <Text className="text-white/40 text-xs leading-5 mt-4">The link contains a payment request; it never grants access to your funds. Anyone with a compatible wallet can pay without an ATARA account.</Text>
       </>}
