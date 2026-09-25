@@ -47,10 +47,10 @@ export default function Send() {
   const confirmLeavingPending = () => {
     Alert.alert(
       "Transfer still being verified",
-      "The payment may already have been sent. Leaving this screen will not cancel it. Check Activity before trying again.",
+      "The payment may already have been sent. Leaving will not cancel it. It may take time to appear in Activity. Do not send again until this attempt is resolved.",
       [
         { text: "Keep waiting", style: "cancel" },
-        { text: "Go to Activity", onPress: () => router.replace("/(tabs)/activity") },
+        { text: "Leave for Activity", onPress: () => router.replace("/(tabs)/activity") },
       ],
     );
   };
