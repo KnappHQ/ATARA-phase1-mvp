@@ -2,8 +2,8 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { ArrowLeft, X } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import React, { useCallback, useState } from "react";
-import { Pressable, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Alert, Platform, Pressable, StatusBar as NativeStatusBar, Text, View } from "react-native";
+import { SafeAreaView, initialWindowMetrics, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AmountStep } from "../components/send/AmountStep";
 import { RecipientStep } from "../components/send/RecipientStep";
 import { Contact } from "../stores/useContactStore";
@@ -13,6 +13,13 @@ type Step = "recipient" | "amount";
 
 export default function Send() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  // Transparent modals can report a zero top inset on iOS.
+  const topInset = Math.max(
+    insets.top,
+    initialWindowMetrics?.insets.top ?? 0,
+    Platform.OS === "ios" ? 47 : NativeStatusBar.currentHeight ?? 0,
+  );
   const params = useLocalSearchParams();
 
   const prefilledContact: Contact | null = params.contactId
@@ -37,8 +44,22 @@ export default function Send() {
     setIsTransactionInProgress(inProgress);
   }, []);
 
+  const confirmLeavingPending = () => {
+    Alert.alert(
+      "Transfer still being verified",
+      "The payment may already have been sent. Leaving this screen will not cancel it. Check Activity before trying again.",
+      [
+        { text: "Keep waiting", style: "cancel" },
+        { text: "Go to Activity", onPress: () => router.replace("/(tabs)/activity") },
+      ],
+    );
+  };
+
   const handleBack = () => {
-    if (isTransactionInProgress) return;
+    if (isTransactionInProgress) {
+      confirmLeavingPending();
+      return;
+    }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (step === "recipient") {
@@ -50,7 +71,10 @@ export default function Send() {
   };
 
   const handleClose = () => {
-    if (isTransactionInProgress) return;
+    if (isTransactionInProgress) {
+      confirmLeavingPending();
+      return;
+    }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.back();
@@ -71,7 +95,7 @@ export default function Send() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-black" edges={["top"]}>
+    <SafeAreaView className="flex-1 bg-black" edges={[]} style={{ paddingTop: topInset }}>
       <View
         className="flex-row items-center justify-between px-6 py-4"
         style={{
@@ -82,13 +106,13 @@ export default function Send() {
         <View className="flex-row items-center gap-3">
           <Pressable
             onPress={handleBack}
-            disabled={isTransactionInProgress}
+            hitSlop={12}
+            accessibilityLabel="Go back"
             className="w-12 h-12 rounded-full items-center justify-center active:opacity-70"
             style={{
               backgroundColor: "rgba(255, 255, 255, 0.1)",
               borderWidth: 1,
               borderColor: "rgba(255, 255, 255, 0.1)",
-              opacity: isTransactionInProgress ? 0.7 : 1,
             }}
           >
             <ArrowLeft size={20} color={COLORS.white} />
@@ -102,13 +126,13 @@ export default function Send() {
         </View>
         <Pressable
           onPress={handleClose}
-          disabled={isTransactionInProgress}
+          hitSlop={12}
+          accessibilityLabel="Close send screen"
           className="w-12 h-12 rounded-full items-center justify-center active:opacity-70"
           style={{
             backgroundColor: "rgba(255, 255, 255, 0.03)",
             borderWidth: 1,
             borderColor: "rgba(255, 255, 255, 0.1)",
-            opacity: isTransactionInProgress ? 0.7 : 1,
           }}
         >
           <X size={20} color={COLORS.white} />
