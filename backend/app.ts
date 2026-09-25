@@ -68,6 +68,10 @@ const corsOptions: CorsOptions =
 
 app.use(cors(corsOptions));
 
+// Apple and Google fetch these public trust files through shared infrastructure.
+// They must not consume or be rejected by the user API's per-IP rate limit.
+app.use("/.well-known", associationRouter);
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 100,
@@ -80,8 +84,6 @@ app.use(limiter);
 // Explicit rather than relying on body-parser's implicit 100kb default.
 app.use(express.json({ limit: "100kb" }));
 
-// These files must live at the domain root for Apple/Android passkey trust.
-app.use("/.well-known", associationRouter);
 app.use("/api/v1", rootRouter);
 
 app.use(errorMiddleware);
