@@ -88,9 +88,19 @@ export const AmountStep = ({
   const [note, setNote] = useState(prefilledNote);
   const [selectedToken, setSelectedToken] = useState<Token>(defaultToken);
   const [isSending, setIsSending] = useState(false);
+  const [isTakingLonger, setIsTakingLonger] = useState(false);
   const [isAddressReviewOpen, setIsAddressReviewOpen] = useState(false);
   const [swipeResetKey, setSwipeResetKey] = useState(0);
   const isTransactionInProgress = isSending || isTransactionLoading;
+
+  useEffect(() => {
+    if (!isTransactionInProgress) {
+      setIsTakingLonger(false);
+      return;
+    }
+    const timer = setTimeout(() => setIsTakingLonger(true), 30_000);
+    return () => clearTimeout(timer);
+  }, [isTransactionInProgress]);
 
   const truncateAddress = (address: string) => {
     if (!address || address.length < 12) return address;
@@ -577,6 +587,18 @@ export const AmountStep = ({
           <Text className="text-xs font-medium text-emarald">Sponsorship subject to availability</Text>
         </View>
       </MotiView>
+
+      {isTakingLonger && (
+        <View className="mb-4 rounded-2xl border border-white/20 bg-white/5 p-4">
+          <Text className="text-sm font-semibold text-white">
+            Still verifying your transfer
+          </Text>
+          <Text className="mt-2 text-sm leading-5 text-white/70">
+            It may already have been sent. Use the close button to leave and
+            check Activity before trying again. Leaving will not cancel it.
+          </Text>
+        </View>
+      )}
 
       <MotiView
         from={{ opacity: 0, scale: 0.9 }}
