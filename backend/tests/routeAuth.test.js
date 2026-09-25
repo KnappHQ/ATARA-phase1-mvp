@@ -131,6 +131,7 @@ test("the public domain-association files expose only validated app identities",
     const apple = await request(app).get("/.well-known/apple-app-site-association");
     assert.equal(apple.status, 200);
     assert.match(apple.headers["content-type"], /^application\/json/);
+    assert.equal(apple.headers.ratelimit, undefined, "Apple association must bypass the per-IP API quota");
     assert.deepEqual(apple.body, {
       webcredentials: { apps: ["ABCDE12345.com.atara.app"] },
     });
@@ -138,6 +139,7 @@ test("the public domain-association files expose only validated app identities",
     const android = await request(app).get("/.well-known/assetlinks.json");
     assert.equal(android.status, 200);
     assert.match(android.headers["content-type"], /^application\/json/);
+    assert.equal(android.headers.ratelimit, undefined, "Android association must bypass the per-IP API quota");
     assert.equal(android.body[0].target.package_name, "com.atara.app");
     assert.deepEqual(android.body[0].relation, [
       "delegate_permission/common.handle_all_urls",
