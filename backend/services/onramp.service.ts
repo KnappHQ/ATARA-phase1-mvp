@@ -36,6 +36,19 @@ export const buildMoonPayWidgetUrl = (input: MoonPaySessionInput): string => {
     throw new ErrorHandler("The on-ramp is not configured yet", 503);
   }
 
+  const isSandbox = NETWORK !== "base-mainnet";
+  const expectedPublicPrefix = isSandbox ? "pk_test_" : "pk_live_";
+  const expectedSecretPrefix = isSandbox ? "sk_test_" : "sk_live_";
+  if (
+    !MOONPAY_API_KEY.startsWith(expectedPublicPrefix) ||
+    !MOONPAY_SECRET_KEY.startsWith(expectedSecretPrefix)
+  ) {
+    throw new ErrorHandler(
+      `MoonPay keys do not match the configured ${isSandbox ? "sandbox" : "live"} environment`,
+      503,
+    );
+  }
+
   const url = new URL(MOONPAY_WIDGET_URL);
   // A beta checkout must never charge real money or imply delivery to Sepolia.
   const allowedHost =
