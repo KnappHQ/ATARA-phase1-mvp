@@ -595,7 +595,7 @@ export const AmountStep = ({
           </Text>
           <Text className="mt-2 text-sm leading-5 text-white/70">
             It may already have been sent. Use the close button to leave and
-            check Activity before trying again. Leaving will not cancel it.
+            check Activity. It may take time to appear there. Do not send again until this attempt is resolved. Leaving will not cancel it.
           </Text>
         </View>
       )}
