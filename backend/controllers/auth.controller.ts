@@ -3,7 +3,7 @@ import { authService } from "../services/auth.service";
 import { catchAsync } from "../utils/catchAsync";
 import { ErrorHandler } from "../utils/errorHandler";
 import { assertSmartAccountOwnedBySigner } from "../services/smartAccountOwnership.service";
-import { normalizeHandle } from "../utils/profileValidation";
+import { normalizeDisplayName, normalizeHandle } from "../utils/profileValidation";
 
 export const authController = {
   challenge: catchAsync(
@@ -26,6 +26,7 @@ export const authController = {
     async (req: Request, res: Response, next: NextFunction) => {
       const {
         handle,
+        displayName,
         signerAddress,
         smartAccountAddress,
         email,
@@ -72,6 +73,8 @@ export const authController = {
       // Same definition of a valid handle as `PATCH /user/me`, so registration
       // and profile update cannot drift apart.
       const normalizedHandle = normalizeHandle(handle);
+      const normalizedDisplayName =
+        displayName === undefined ? undefined : normalizeDisplayName(displayName);
 
       const { user, token } = await authService.register(
         normalizedHandle,
@@ -79,6 +82,7 @@ export const authController = {
         smartAccountAddress,
         email,
         authProvider,
+        normalizedDisplayName,
       );
 
       res.status(201).json({
