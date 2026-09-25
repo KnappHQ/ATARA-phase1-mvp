@@ -746,7 +746,7 @@ export const AmountStep = ({
                   ? "Loading Balances..."
                   : !balanceValidation.isValid && amountValue > 0
                     ? balanceValidation.message
-                    : "Swipe to Send"
+                    : "Slide right to send"
           }
         />
       </MotiView>
