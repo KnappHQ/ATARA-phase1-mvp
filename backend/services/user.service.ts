@@ -127,7 +127,7 @@ class UserService {
           data: {
             deletedAt: new Date(),
             handle: `deleted_${crypto.randomBytes(6).toString("hex")}`,
-            displayName: "Compte supprimé",
+            displayName: "Deleted account",
             email: null,
             profilePicUrl: null,
             authProvider: null,
