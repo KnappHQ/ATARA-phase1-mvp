@@ -96,14 +96,12 @@ class GroupService {
     description?: string,
     memberHandles?: string[],
   ) {
-    const memberUserIds: string[] = [];
-
-    if (memberHandles && memberHandles.length > 0) {
-      const resolved = await this.resolveHandles(memberHandles);
-      resolved.forEach((u) => {
-        if (u.id !== creatorId) memberUserIds.push(u.id);
-      });
-    }
+    if (!memberHandles?.length)
+      throw new ErrorHandler("Choose at least one other member", 400);
+    const resolved = await this.resolveHandles(memberHandles);
+    if (resolved.some((user) => user.id === creatorId))
+      throw new ErrorHandler("You are already in this group. Choose someone else.", 400);
+    const memberUserIds = resolved.map((user) => user.id);
 
     const group = await prisma.group.create({
       data: {

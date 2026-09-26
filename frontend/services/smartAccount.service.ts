@@ -65,6 +65,7 @@ export interface SendTransactionFailure extends Error {
   cause?: unknown;
   isPaymasterFailure?: boolean;
   canRetryWithGas?: boolean;
+  isPendingVerification?: boolean;
 }
 
 const PAYMASTER_ERROR_PATTERNS = [
@@ -115,6 +116,7 @@ const createTransactionError = (
   error.isPaymasterFailure = options?.isPaymasterFailure;
   error.code = options?.isPaymasterFailure ? "PAYMASTER_FAILURE" : undefined;
   error.canRetryWithGas = options?.isPaymasterFailure ?? false;
+  error.isPendingVerification = !!(options?.cause as SendTransactionFailure)?.isPendingVerification;
   return error;
 };
 
@@ -239,6 +241,32 @@ export class SmartAccountService {
     this.gasPolicyId = gasPolicyId;
   }
 
+  private pendingKey() {
+    return `atara.pending-call-bundle.${CHAIN_ID}.${this.smartAccountAddress.toLowerCase()}`;
+  }
+
+  /** Read-only chain status. Never resubmits the call or guesses that a timeout failed. */
+  async checkPendingOperation(): Promise<{ status: "none" | "pending" | "confirmed" | "failed"; hash?: string }> {
+    return runExclusiveOperation(`${CHAIN_ID}:${this.smartAccountAddress.toLowerCase()}`, async () => {
+      const stored = await AsyncStorage.getItem(this.pendingKey());
+      if (!stored) return { status: "none" };
+      let id: string;
+      try { id = JSON.parse(stored).id; } catch { id = stored; }
+      if (!id) return { status: "pending" };
+      const result = await this.client.getCallsStatus({ id });
+      if (result.status === "failure") {
+        await AsyncStorage.removeItem(this.pendingKey());
+        return { status: "failed" };
+      }
+      const hash = result.receipts?.[0]?.transactionHash;
+      if (hash) {
+        await AsyncStorage.removeItem(this.pendingKey());
+        return { status: "confirmed", hash };
+      }
+      return { status: "pending" };
+    });
+  }
+
   /**
    * Sends a wallet call bundle and waits for the actual transaction hash.
    *
@@ -274,7 +302,7 @@ export class SmartAccountService {
     calls: SmartAccountCall[],
     overrides?: Record<string, unknown>,
   ): Promise<TransactionResult> {
-    const pendingKey = `atara.pending-call-bundle.${CHAIN_ID}.${this.smartAccountAddress.toLowerCase()}`;
+    const pendingKey = this.pendingKey();
     const fingerprint = JSON.stringify(calls.map(c => [c.target.toLowerCase(), String(c.value ?? 0n), c.data.toLowerCase()]));
     const waitForBundle = async (id: string) => {
       const status = await this.client.waitForCallsStatus({ id, timeout: 120_000, throwOnFailure: false });
@@ -290,7 +318,7 @@ export class SmartAccountService {
       let result: TransactionResult | undefined;
       try { result = await waitForBundle(pending.id); }
       catch (error: any) {
-        if (!error?.definitiveFailure) throw new Error("An earlier operation is still unverified. No new operation was sent. Retry after checking Activity.");
+        if (!error?.definitiveFailure) throw Object.assign(new Error("An earlier operation is still unverified. No new operation was sent. Open Activity to check its chain status."), { isPendingVerification: true });
         await AsyncStorage.removeItem(pendingKey);
       }
       if (result) {
@@ -308,6 +336,7 @@ export class SmartAccountService {
       const result = await waitForBundle(id); await AsyncStorage.removeItem(pendingKey); return result;
     } catch (error: any) {
       if (error?.definitiveFailure) await AsyncStorage.removeItem(pendingKey);
+      if (!error?.definitiveFailure) error.isPendingVerification = true;
       throw error;
     }
   }

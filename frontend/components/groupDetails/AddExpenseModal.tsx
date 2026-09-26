@@ -20,7 +20,7 @@ export const AddExpenseModal = ({ isOpen, onClose, groupId }: {
   const unit = groupDetail?.assetSymbol ?? "USDC";
   const breakdown = members.map((m, i) => ({ userId: m.id, amount: custom ? (shares[m.id] ?? "0") : ((Math.floor(total / members.length) + (i < total % members.length ? 1 : 0)) / 100).toFixed(2) }));
   const splitTotal = breakdown.reduce((sum, s) => sum + Math.round(Number(s.amount) * 100), 0);
-  const valid = total > 0 && total <= 100_000_000 && description.trim().length > 0 && description.length <= 240 && members.length > 0 &&
+  const valid = total > 0 && total <= 100_000_000 && description.trim().length > 0 && description.length <= 240 && members.length > 1 &&
     breakdown.every(s => /^\d+(\.\d{1,2})?$/.test(s.amount)) && splitTotal === total;
   const close = () => { if (!busy) onClose(); };
   const submit = async () => {
@@ -51,7 +51,9 @@ export const AddExpenseModal = ({ isOpen, onClose, groupId }: {
             <Text className="text-white flex-1">@{member.handle}</Text>
             {custom ? <TextInput accessibilityLabel={`Part de ${member.handle}`} value={shares[member.id] ?? ""} onChangeText={v => setShares(s => ({ ...s, [member.id]: v.replace(",", ".") }))} placeholder="0.00" placeholderTextColor="#666" editable={!busy} keyboardType="decimal-pad" className="text-white p-2 bg-white/5 rounded-xl w-24 text-right" /> : <Text className="text-white/70">{breakdown[i].amount} {unit}</Text>}
           </View>)}
-          <Text className="text-white/50 text-xs leading-5 my-4">Each participant gets a share to accept or dispute. Remaining cents are allocated so the split adds up exactly.{custom && splitTotal !== total ? ` Remaining to allocate: ${((total - splitTotal) / 100).toFixed(2)} ${unit}.` : ""}</Text>
+          <Text className="text-white/60 text-sm leading-5 my-4">Each participant gets a share to accept or dispute. Equal shares allocate the remaining cents exactly.</Text>
+          {members.length < 2 && <Text className="text-amber-300 text-sm mb-3">Add another person to this group before proposing an expense.</Text>}
+          {custom && total > 0 && splitTotal !== total && <Text accessibilityRole="alert" className="text-amber-300 text-sm font-semibold mb-4">{splitTotal < total ? "Still to allocate" : "Over allocated"}: {(Math.abs(total - splitTotal) / 100).toFixed(2)} {unit}. Enter a share for every person, including you.</Text>}
         </ScrollView>
         <View className="flex-row gap-3 pt-3">
           <Pressable onPress={close} disabled={busy} className="flex-1 rounded-2xl bg-white/10 p-4"><Text className="text-white text-center">Close</Text></Pressable>
