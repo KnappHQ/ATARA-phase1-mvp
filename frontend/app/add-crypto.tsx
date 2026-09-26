@@ -6,12 +6,12 @@ import * as Clipboard from "expo-clipboard";
 import {
   ActivityIndicator,
   Pressable,
-  SafeAreaView,
   ScrollView,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
   Copy,
@@ -97,7 +97,11 @@ export default function AddCryptoScreen() {
         throw new Error("Unexpected live checkout in beta");
       }
       await WebBrowser.openBrowserAsync(session.url, {
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+        // Use Safari's full-screen chrome so its native Close button remains
+        // reachable even when the checkout itself displays an error.
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+        dismissButtonStyle: "close",
+        controlsColor: COLORS.white,
         toolbarColor: COLORS.black,
       });
     } catch (requestError) {
@@ -108,7 +112,7 @@ export default function AddCryptoScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-black">
+    <SafeAreaView className="flex-1 bg-black" edges={["top", "bottom"]}>
       <View className="flex-row items-center px-6 py-4 border-b border-white/10">
         <Pressable
           onPress={() => router.back()}

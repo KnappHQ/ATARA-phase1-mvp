@@ -24,6 +24,9 @@ const isPositiveAmount = (value: string | number | null | undefined) => {
   return Number.isFinite(amount) && amount > 0 && amount <= 10_000;
 };
 
+export const signMoonPayQuery = (query: string, secretKey: string): string =>
+  crypto.createHmac("sha256", secretKey).update(query).digest("base64");
+
 /**
  * Builds a signed MoonPay URL. The complete query string is signed before the
  * signature is appended, so the mobile app never receives the secret key.
@@ -34,6 +37,19 @@ export const buildMoonPayWidgetUrl = (input: MoonPaySessionInput): string => {
   }
   if (!MOONPAY_API_KEY || !MOONPAY_SECRET_KEY) {
     throw new ErrorHandler("The on-ramp is not configured yet", 503);
+  }
+
+  const isSandbox = NETWORK !== "base-mainnet";
+  const expectedPublicPrefix = isSandbox ? "pk_test_" : "pk_live_";
+  const expectedSecretPrefix = isSandbox ? "sk_test_" : "sk_live_";
+  if (
+    !MOONPAY_API_KEY.startsWith(expectedPublicPrefix) ||
+    !MOONPAY_SECRET_KEY.startsWith(expectedSecretPrefix)
+  ) {
+    throw new ErrorHandler(
+      `MoonPay keys do not match the configured ${isSandbox ? "sandbox" : "live"} environment`,
+      503,
+    );
   }
 
   const url = new URL(MOONPAY_WIDGET_URL);
@@ -71,10 +87,7 @@ export const buildMoonPayWidgetUrl = (input: MoonPaySessionInput): string => {
   // URLSearchParams applies URL encoding to each value. MoonPay signs the
   // leading '?' and the encoded query, then expects a URL-encoded base64 sig.
   url.search = new URLSearchParams(params).toString();
-  const signature = crypto
-    .createHmac("sha256", MOONPAY_SECRET_KEY)
-    .update(url.search)
-    .digest("base64");
+  const signature = signMoonPayQuery(url.search, MOONPAY_SECRET_KEY);
 
   return `${url.toString()}&signature=${encodeURIComponent(signature)}`;
 };
