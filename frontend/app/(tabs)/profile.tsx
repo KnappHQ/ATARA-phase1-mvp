@@ -12,6 +12,7 @@ import {
   Trash2,
   KeyRound,
   Network,
+  Users,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { COLORS } from "@/utils/constants";
@@ -166,6 +167,8 @@ export default function ProfileTab() {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               setLogoutOpen(true);
             }}
+            accessibilityLabel="Log out"
+            hitSlop={8}
             className="w-10 h-10 rounded-full items-center justify-center border border-white/10"
             style={{ backgroundColor: `${COLORS.white}08` }}
           >
@@ -182,6 +185,26 @@ export default function ProfileTab() {
             smartAccountAddress={user?.smartAccountAddress}
             isVerified={!!user?.smartAccountAddress}
             onEditDisplayName={openEditName}
+          />
+
+          <SectionHeader title="Account and sign-in" />
+          <Text className="text-white/50 text-xs leading-5 mb-4">
+            Name each account above and check its @handle before you
+            log out. The iOS passkey picker does not show these names yet.
+          </Text>
+          <SettingRow
+            icon={LogOut}
+            label="Log out"
+            subtitle="End your session without deleting your account or wallet"
+            onPress={() => setLogoutOpen(true)}
+            right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
+          />
+          <SettingRow
+            icon={Users}
+            label="Use another account"
+            subtitle="Log out of this account, then choose another sign-in method"
+            onPress={() => setLogoutOpen(true)}
+            right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
           />
 
           <SectionHeader title="Beta Program" delay={360} />

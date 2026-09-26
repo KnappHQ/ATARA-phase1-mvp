@@ -80,14 +80,15 @@ export const LogoutModal = ({
             </View>
 
             <Text className="text-white text-lg font-semibold mb-2">
-              Sign Out
+              End this session?
             </Text>
             <Text
               className="text-sm text-center mb-6 leading-5"
               style={{ color: `${COLORS.white}50` }}
             >
-              Are you sure you want to sign out? Sign back in with your
-              passkey, connected wallet, or an optional recovery provider.
+              Your account and funds will remain intact. Make sure you can
+              sign in again with your current method. You can then use
+              another account from the sign-in screen.
             </Text>
 
             <Pressable
@@ -103,7 +104,7 @@ export const LogoutModal = ({
                 <ActivityIndicator size="small" color={COLORS.white} />
               ) : (
                 <Text className="text-white font-semibold text-sm">
-                  Sign Out
+                  Log out
                 </Text>
               )}
             </Pressable>

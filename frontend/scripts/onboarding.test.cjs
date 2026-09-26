@@ -38,12 +38,12 @@ test('return cancels wallet readiness even if the wallet arrives afterward', asy
   await assert.rejects(waiting, /cancelled/);
 });
 
-function harness() {
+function harness(options = {}) {
   let cursor = 0;
   const slots = [];
   const events = [];
   let sdkWallets = [];
-  const user = { id: 'test-user', linked_accounts: [] };
+  let user = { id: 'test-user', linked_accounts: [] };
   const updatedUser = { ...user, address: wallet.address };
   let releaseCreate;
   const createResult = new Promise(resolve => { releaseCreate = () => resolve({ user: updatedUser }); });
@@ -74,19 +74,28 @@ function harness() {
   const { AuthProvider } = load('providers/AuthProvider.tsx', {
     react, 'react/jsx-runtime': { jsx, jsxs: jsx },
     '@privy-io/expo': {
-      usePrivy: () => ({ user, isReady: true, logout: async () => {} }),
+      usePrivy: () => ({ user, isReady: true, logout: async () => {
+        events.push('privy-logout');
+        if (options.logoutError) throw new Error('provider unavailable');
+        user = null;
+      } }),
       useEmbeddedEthereumWallet: () => ({ wallets: sdkWallets, create: async () => { events.push('create'); return createResult; } }),
       useLoginWithOAuth: () => ({ login: async () => {}, state: { status: 'idle' } }),
     },
-    '@privy-io/expo/passkey': { useLoginWithPasskey: () => ({}), useSignupWithPasskey: () => ({}) },
+    '@privy-io/expo/passkey': {
+      useLoginWithPasskey: () => ({ loginWithPasskey: async () => { assert.equal(user, null); events.push('passkey-login'); } }),
+      useSignupWithPasskey: () => ({ signupWithPasskey: async () => { assert.equal(user, null); events.push('passkey-signup'); } }),
+    },
     'expo-haptics': { impactAsync: async () => {}, ImpactFeedbackStyle: {} },
     '@/services/settlementRecovery.service': {}, '@/services/api': {},
     '@/services/auth.service': { AuthService }, '@/utils/walletReadiness': readiness,
+    '@/utils/asyncOperation': load('utils/asyncOperation.ts'),
+    viem: { stringToHex: value => '0x' + Buffer.from(value).toString('hex') },
     '@/services/smartAccount.service': { createAlchemySmartAccountService: async ({ wallet: signer }) => {
       assert.equal(signer, wallet); events.push('alchemy'); return { getSmartAccountAddress: () => '0xSmart' };
     } },
-    '@/providers/ExternalWalletProvider': { useExternalWallet: () => ({ enabled: true, disconnect: async () => {} }) },
-    '@/utils/authDiagnostics': {}, '@/stores/useAlertStore': {}, '@/stores/useAuthStore': { useAuthStore },
+    '@/providers/ExternalWalletProvider': { useExternalWallet: () => ({ enabled: true, disconnect: async () => { events.push('wallet-disconnect'); }, connect: async () => { events.push('wallet-connect'); } }) },
+    '@/utils/authDiagnostics': load('utils/authDiagnostics.ts'), '@/stores/useAlertStore': {}, '@/stores/useAuthStore': { useAuthStore },
     '@/utils/privy': { getPrimaryEmbeddedEthereumWalletAddress: u => u?.address, getPrimaryEmailAddress: () => null, getPrimaryOAuthProvider: () => null },
   });
   const render = () => { cursor = 0; return AuthProvider({ children: null }).props.value; };
@@ -105,13 +114,39 @@ test('passkey registration resumes after create() publishes its wallet; double t
   assert.deepEqual(h.events, ['create', 'alchemy', 'challenge', 'register']);
 });
 
+test('fresh passkey signup closes the old provider session first and coalesces double taps', async () => {
+  const previous = process.env.EXPO_PUBLIC_PASSKEY_RP_ID;
+  process.env.EXPO_PUBLIC_PASSKEY_RP_ID = 'api.atara.finance';
+  try {
+    const h = harness(); const auth = h.render();
+    await Promise.all([auth.startPasskey('signup'), auth.startPasskey('signup')]);
+    assert.deepEqual(h.events, ['privy-logout', 'wallet-disconnect', 'passkey-signup']);
+  } finally {
+    if (previous === undefined) delete process.env.EXPO_PUBLIC_PASSKEY_RP_ID;
+    else process.env.EXPO_PUBLIC_PASSKEY_RP_ID = previous;
+  }
+});
+
+test('failed provider logout blocks switching rather than linking to the previous account', async () => {
+  const h = harness({ logoutError: true });
+  await h.render().startExternalWallet();
+  assert.equal(h.events.includes('wallet-connect'), false);
+  assert.ok(h.render().oauthError);
+});
+
+test('external wallet sign-in clears the existing Privy session before opening Reown', async () => {
+  const h = harness();
+  await h.render().startExternalWallet();
+  assert.deepEqual(h.events, ['privy-logout', 'wallet-disconnect', 'wallet-connect']);
+});
+
 test('Back during creation prevents Alchemy, challenge and registration after late completion', async () => {
   const h = harness(); const auth = h.render();
   const pending = auth.registerWithHandle({ handle: 'tester' });
   await auth.logout();
   h.releaseCreate(); h.publishWallet();
   await assert.rejects(pending, /cancelled/);
-  assert.deepEqual(h.events, ['create', 'logout']);
+  assert.deepEqual(h.events, ['create', 'logout', 'privy-logout', 'wallet-disconnect']);
   assert.equal(h.render().onboardingStep, 'gate');
 });
 
@@ -126,6 +161,74 @@ test('cancelled registration response never commits a local session', async () =
   assert.equal(saved, false);
 });
 
+test('new account name is saved through the current profile API after signup', async () => {
+  const events = [];
+  const { AuthService } = load('services/auth.service.ts', {
+    '../utils/walletReadiness': readiness,
+    '../stores/useAuthStore': { useAuthStore: { getState: () => ({
+      setAuth: async () => events.push('registered'),
+      updateProfile: async ({ displayName }) => events.push(`named:${displayName}`),
+    }) } },
+    './api': { api: { post: async () => ({ data: { user: { id: 'new' }, token: 'token' } }) } },
+  });
+  await AuthService.register({ handle: 'test', displayName: 'Personnel' });
+  assert.deepEqual(events, ['registered', 'named:Personnel']);
+});
+
+test('profile name failure does not turn a successful signup into a second signup', async () => {
+  const { AuthService } = load('services/auth.service.ts', {
+    '../utils/walletReadiness': readiness,
+    '../stores/useAuthStore': { useAuthStore: { getState: () => ({
+      setAuth: async () => {},
+      updateProfile: async () => { throw new Error('profile temporarily unavailable'); },
+    }) } },
+    './api': { api: { post: async () => ({ data: { user: { id: 'new' }, token: 'token' } }) } },
+  });
+  const previousWarn = console.warn;
+  console.warn = () => {};
+  try {
+    assert.deepEqual(await AuthService.register({ displayName: 'Personnel' }), { id: 'new' });
+  } finally {
+    console.warn = previousWarn;
+  }
+});
+
+test('cancelled automatic login never commits a late backend session', async () => {
+  const controller = new AbortController();
+  let saved = false;
+  let requestCount = 0;
+  const { AuthService } = load('services/auth.service.ts', {
+    '../utils/walletReadiness': readiness,
+    '../stores/useAuthStore': { useAuthStore: { getState: () => ({ setAuth: async () => { saved = true; } }) } },
+    './api': { api: { post: async (_path, _body, config) => {
+      assert.equal(config.signal, controller.signal);
+      requestCount++;
+      if (requestCount === 1) return { data: { message: 'challenge' } };
+      controller.abort();
+      return { data: { user: {}, token: 'late-token' } };
+    } } },
+  });
+
+  await assert.rejects(
+    AuthService.loginWithSigner('0xabc', async () => 'signature', controller.signal),
+    /cancelled/,
+  );
+  assert.equal(requestCount, 2);
+  assert.equal(saved, false);
+});
+
+test('logout-all clears this device even when remote revocation fails', async () => {
+  let localLogouts = 0;
+  const { AuthService } = load('services/auth.service.ts', {
+    '../utils/walletReadiness': readiness,
+    '../stores/useAuthStore': { useAuthStore: { getState: () => ({ logout: async () => { localLogouts++; } }) } },
+    './api': { api: { post: async () => { throw new Error('offline'); } } },
+  });
+
+  await assert.rejects(AuthService.logoutAll(), /offline/);
+  assert.equal(localLogouts, 1);
+});
+
 test('Back stays in safe-area flow, with a 48pt touch target and outside keyboard scroll', () => {
   const source = fs.readFileSync(path.join(__dirname, '../components/onboarding/IdentityScreen.tsx'), 'utf8');
   assert.doesNotMatch(source, /absolute left-5 top-4/);
@@ -133,6 +236,31 @@ test('Back stays in safe-area flow, with a 48pt touch target and outside keyboar
   assert.match(source, /disabled=\{isGoingBack\}/);
   assert.match(source, /keyboardShouldPersistTaps="handled"/);
   assert.ok(source.indexOf('onPress={handleBack}') < source.indexOf('<KeyboardAvoidingView'));
+});
+
+test('the sign-in gate scrolls on small phones and blocks Privy actions until ready', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../components/onboarding/GateScreen.tsx'), 'utf8');
+  assert.match(source, /<ScrollView/);
+  assert.match(source, /contentContainerStyle=\{\{/);
+  assert.match(source, /!isPrivyReady/);
+  assert.match(source, /Preparing secure sign-in/);
+});
+
+test('unstable external wallet login is absent from the beta gate and runtime is opt-in', () => {
+  const gate = fs.readFileSync(path.join(__dirname, '../components/onboarding/GateScreen.tsx'), 'utf8');
+  const provider = fs.readFileSync(path.join(__dirname, '../providers/ExternalWalletProvider.tsx'), 'utf8');
+  assert.doesNotMatch(gate, /Use my existing wallet/);
+  assert.doesNotMatch(gate, /onStartExternalWallet/);
+  assert.match(provider, /EXPO_PUBLIC_ENABLE_EXTERNAL_WALLET === "true"/);
+  assert.match(provider, /if \(!externalWalletEnabled\) return;/);
+});
+
+test('funding screen distinguishes testnet reception from MoonPay simulation', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../app/add-crypto.tsx'), 'utf8');
+  assert.match(source, /Base Sepolia/);
+  assert.match(source, /Clipboard\.setStringAsync\(walletAddress\)/);
+  assert.match(source, /Never send real money or crypto here/);
+  assert.match(source, /session\.mode !== "sandbox"/);
 });
 
 test('concurrent sends on the same wallet are rejected before any network call', async () => {
@@ -227,7 +355,7 @@ test('external wallet loading keeps the app root mounted and contains runtime fa
   assert.match(providerSource, /<WalletRuntimeBoundary/);
   assert.match(providerSource, /shouldRestoreExternalWalletSession/);
   assert.doesNotMatch(runtimeSource, /autoConnect/);
-  assert.doesNotMatch(runtimeSource, /\{children\}/);
+  assert.match(runtimeSource, /modalContentWrapper=\{WalletModalContent\}/);
   assert.match(runtimeSource, /onValue\(value\)/);
 });
 
@@ -289,6 +417,7 @@ test('a valid SecureStore backend session survives a normal app relaunch', async
       },
     },
     '@/services/user.service': { UserService: {} },
+    '@/utils/accountScope': load('utils/accountScope.ts'),
     '@sentry/react-native': {
       setUser: () => {},
       captureException: () => {},
@@ -299,4 +428,59 @@ test('a valid SecureStore backend session survives a normal app relaunch', async
   assert.equal(useAuthStore.getState().isAuthenticated, true);
   assert.equal(useAuthStore.getState().user.handle, 'tanguy');
   assert.equal(restoredWalletAddress, profile.smartAccountAddress);
+});
+
+test('logout wins over a login whose SecureStore write completes late', async () => {
+  const values = new Map();
+  let releaseTokenWrite;
+  let markTokenWriteStarted;
+  const tokenWriteStarted = new Promise(resolve => { markTokenWriteStarted = resolve; });
+  const tokenWriteBlock = new Promise(resolve => { releaseTokenWrite = resolve; });
+  let state;
+  const create = initializer => {
+    const set = update => {
+      const next = typeof update === 'function' ? update(state) : update;
+      state = { ...state, ...next };
+    };
+    state = initializer(set, () => state);
+    const hook = () => state;
+    hook.getState = () => state;
+    return hook;
+  };
+  const { useAuthStore } = load('stores/useAuthStore.ts', {
+    'expo-secure-store': {
+      getItemAsync: async key => values.get(key) ?? null,
+      setItemAsync: async (key, value) => {
+        if (key === 'auth_token') {
+          markTokenWriteStarted();
+          await tokenWriteBlock;
+        }
+        values.set(key, value);
+      },
+      deleteItemAsync: async key => { values.delete(key); },
+    },
+    'zustand': { create },
+    'jwt-decode': { jwtDecode: () => ({ exp: 0 }) },
+    './useWalletStore': {
+      useWalletStore: { getState: () => ({ setWalletAddress: () => {}, reset: () => {} }) },
+    },
+    '@/services/user.service': { UserService: {} },
+    '@/utils/accountScope': load('utils/accountScope.ts'),
+    '@sentry/react-native': { setUser: () => {}, captureException: () => {} },
+  });
+
+  const lateLogin = useAuthStore.getState().setAuth(
+    { id: 'late', handle: 'late', smartAccountAddress: '0x123' },
+    'late-token',
+  );
+  await tokenWriteStarted;
+  const logout = useAuthStore.getState().logout();
+  assert.equal(useAuthStore.getState().isAuthenticated, false);
+  releaseTokenWrite();
+
+  await assert.rejects(lateLogin, /cancelled/);
+  await logout;
+  assert.equal(values.has('auth_token'), false);
+  assert.equal(values.has('user_profile'), false);
+  assert.equal(useAuthStore.getState().isAuthenticated, false);
 });

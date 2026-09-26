@@ -18,7 +18,6 @@ export interface SendTransactionRequest {
   decimals?: number;
   usdValue?: string;
   note?: string;
-  forceGasPayment?: boolean;
   /** Called after the transaction is synced to the backend DB. Safe to call backend endpoints that depend on the transaction record existing. */
   settlement?: SettlementReference;
   onSynced?: (transactionId: string) => Promise<void> | void;
@@ -93,26 +92,18 @@ export class TransactionService {
     try {
       const network = await api.get("/health/backend");
       const expectedChain = process.env.EXPO_PUBLIC_NETWORK === "base-mainnet" ? 8453 : 84532;
-      if (network.data.chainId !== expectedChain) throw new Error("L’app et le service utilisent des réseaux différents. Aucun paiement envoyé.");
+      if (network.data.chainId !== expectedChain) throw new Error("The app and service use different networks. No payment was sent.");
       // SmartAccountService.sendTransaction now internally:
       // 1. Sends the UserOperation (gas-sponsored via policy)
       // 2. Waits for it to be bundled into a real transaction
       // 3. Returns the actual mined transaction hash
-      const result = request.forceGasPayment
-        ? await this.smartAccountService.sendTransactionWithGas({
-            recipientAddress: request.recipientAddress,
-            amount: request.amount,
-            tokenSymbol: request.tokenSymbol,
-            tokenAddress: request.tokenAddress,
-            decimals: request.decimals,
-          })
-        : await this.smartAccountService.sendTransaction({
-            recipientAddress: request.recipientAddress,
-            amount: request.amount,
-            tokenSymbol: request.tokenSymbol,
-            tokenAddress: request.tokenAddress,
-            decimals: request.decimals,
-          });
+      const result = await this.smartAccountService.sendTransaction({
+        recipientAddress: request.recipientAddress,
+        amount: request.amount,
+        tokenSymbol: request.tokenSymbol,
+        tokenAddress: request.tokenAddress,
+        decimals: request.decimals,
+      });
 
       if (!result.success || !result.hash) {
         throw new Error("Transaction failed to execute");
@@ -127,7 +118,7 @@ export class TransactionService {
       if (request.settlement) {
         try {
           await queueSettlement({ reference: request.settlement, sync: { receiverAddress: request.recipientAddress, txHash: result.hash, amount: request.amount, rawAmountWei, assetSymbol: request.tokenSymbol, userNote: request.note } });
-        } catch { useAlertStore.getState().error("Reçu à conserver", "Le paiement est envoyé. La reprise du rapprochement n’a pas pu être enregistrée sur cet appareil."); }
+        } catch { useAlertStore.getState().error("Keep your receipt", "Payment sent. This device could not save the payment reconciliation record."); }
       }
       // Sync with backend in background (don't block the UI)
       this.syncTransactionWithBackend(transactionId)
@@ -141,7 +132,7 @@ export class TransactionService {
             await request.onSynced(backendTransactionId);
           }
         })
-        .catch(() => useAlertStore.getState().error("Paiement envoyé, historique à vérifier", "Conserve le reçu et actualise Activity. Ne paie pas une seconde fois pour corriger un délai de synchronisation."));
+        .catch(() => useAlertStore.getState().error("Payment sent; check your history", "Keep your receipt and refresh Activity. Do not pay a second time because of a sync delay."));
 
       return {
         transactionId,
@@ -153,7 +144,7 @@ export class TransactionService {
 
       const isPaymasterFailure = !!error?.isPaymasterFailure;
       const failureMessage = isPaymasterFailure
-        ? "Sponsoring indisponible ou plafond atteint. Réessaie plus tard."
+        ? "Gas sponsorship is unavailable or its limit has been reached. Try again later."
         : error.message;
 
       markTransactionFailed(transactionId, failureMessage);

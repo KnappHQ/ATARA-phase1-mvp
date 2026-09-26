@@ -55,11 +55,8 @@ const PRIVY_RELYING_PARTY = /relying ?party|rp ?id/i;
 /**
  * iOS's own wording when it could not verify the associated domain:
  * "Unable to verify webcredentials association of <TEAM>.<bundle> with domain
- * <host>". The app is configured correctly at that point - the operating system
- * fetched the association file and did not get what it needed. That is a server
- * problem, never a Privy setting, so it must not be answered with "check your
- * Privy dashboard". `associated domain` leaves the Privy pattern above for the
- * same reason: the two failures share that vocabulary and nothing else.
+ * <host>". This can involve the server, Apple's cache or the signed app's
+ * entitlements. The message alone cannot distinguish between them.
  */
 const DOMAIN_ASSOCIATION =
   /webcredentials|associated ?domain|association of .* with domain/i;
@@ -69,7 +66,7 @@ const DOMAIN_ASSOCIATION =
  * project" here would send them hunting a problem that does not exist.
  */
 const CANCELLED =
-  /user (rejected|cancell?ed|denied)|cancell?ed by|request rejected|abort/i;
+  /user (rejected|cancell?ed|denied)|cancell?ed by|request rejected|abort|annulée/i;
 
 export const describeAuthFailure = (
   error: unknown,
@@ -81,7 +78,7 @@ export const describeAuthFailure = (
   if (CANCELLED.test(raw)) {
     return {
       layer: "unknown",
-      message: "Connexion annulée.",
+      message: "Sign-in canceled.",
       raw,
     };
   }
@@ -89,9 +86,9 @@ export const describeAuthFailure = (
   if (NETWORK_PATTERNS.some((pattern) => lower.includes(pattern))) {
     return {
       layer: "network",
-      message: "Aucune réponse du réseau.",
+      message: "No network response.",
       action:
-        "Vérifiez la connexion de l'appareil, puis que l'API ATARA répond.",
+        "Check this device's connection, then check that the ATARA API responds.",
       raw,
     };
   }
@@ -102,29 +99,37 @@ export const describeAuthFailure = (
     return {
       layer: "api",
       message:
-        "Le système n'a pas pu vérifier l'association de domaine des passkeys.",
+        "iOS could not verify the passkey domain association.",
       action:
-        "api.atara.finance doit servir /.well-known/apple-app-site-association en 200, sans redirection. Il répond 503 tant que APPLE_TEAM_ID est absente du serveur.",
+        "Update ATARA and try again. If the problem persists, the build's Apple domain association needs checking. Your existing account has not been deleted.",
       raw,
     };
   }
 
   if (context.method === "passkey") {
+    if (/already logged in/i.test(raw)) {
+      return {
+        layer: "privy",
+        message: "An account is still signed in.",
+        action: "Log out before creating another account. To protect this account, use Add a passkey in Security.",
+        raw,
+      };
+    }
     if (PRIVY_RELYING_PARTY.test(raw)) {
       return {
         layer: "privy",
-        message: "Privy refuse le domaine de passkey.",
+        message: "Privy rejected the passkey domain.",
         action:
-          "Déclarez api.atara.finance comme domaine relais dans l'application Privy, et vérifiez que /.well-known/apple-app-site-association répond 200 sans redirection.",
+          "Set api.atara.finance as the relay domain in Privy and verify that /.well-known/apple-app-site-association returns HTTP 200 without a redirect.",
         raw,
       };
     }
     if (PRIVY_NOT_ALLOWED.test(raw)) {
       return {
         layer: "privy",
-        message: "Privy n'autorise pas cette opération par passkey.",
+        message: "Privy does not allow this passkey operation.",
         action:
-          "Activez la méthode Passkey pour cette application dans le dashboard Privy — création et connexion sont deux réglages distincts.",
+          "Enable Passkey in the Privy dashboard. Sign-up and sign-in have separate settings.",
         raw,
       };
     }
@@ -133,9 +138,9 @@ export const describeAuthFailure = (
   if (context.method === "oauth" && PRIVY_NOT_ALLOWED.test(raw)) {
     return {
       layer: "privy",
-      message: "Privy n'autorise pas ce fournisseur.",
+      message: "Privy does not allow this sign-in provider.",
       action:
-        "Activez Google ou Apple dans le dashboard Privy, et autorisez la redirection atara://oauth-callback.",
+        "Enable Google or Apple in Privy and allow the atara://oauth-callback redirect.",
       raw,
     };
   }
@@ -143,18 +148,18 @@ export const describeAuthFailure = (
   if (context.method === "wallet") {
     return {
       layer: "wallet",
-      message: "La connexion au wallet n'a pas abouti.",
+      message: raw || "Wallet sign-in did not finish.",
       action:
-        "Vérifiez que com.atara.app est autorisé dans le projet Reown, sur iOS comme sur Android.",
+        "Check your connection and open your wallet app to confirm the request. You can cancel and try again.",
       raw,
     };
   }
 
   return {
     layer: "unknown",
-    message: raw || "Connexion non terminée.",
+    message: raw || "Sign-in incomplete.",
     action:
-      "À vérifier dans cet ordre : l'API ATARA répond, l'application Privy autorise cette méthode, le projet Reown autorise com.atara.app.",
+      "Check in this order: the ATARA API responds; Privy allows this method; and the Reown project allows com.atara.app.",
     raw,
   };
 };
@@ -181,13 +186,14 @@ const DOMAIN_ASSOCIATION_TIMEOUT_MS = 4000;
 export const probeDomainAssociation = async (
   relyingParty: string,
   timeoutMs: number = DOMAIN_ASSOCIATION_TIMEOUT_MS,
+  expectedAppId = "8UTUKDR95M.com.atara.app",
 ): Promise<AuthFailure | undefined> => {
   const url = `https://${relyingParty}/.well-known/apple-app-site-association`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const response = await fetch(url, { signal: controller.signal });
+    const response = await fetch(url, { signal: controller.signal, redirect: "error" });
     const body = (await response.json().catch(() => null)) as {
       error?: unknown;
       webcredentials?: { apps?: unknown };
@@ -195,13 +201,13 @@ export const probeDomainAssociation = async (
 
     if (response.ok) {
       const apps = body?.webcredentials?.apps;
-      if (Array.isArray(apps) && apps.length > 0) return undefined;
+      if (Array.isArray(apps) && apps.includes(expectedAppId)) return undefined;
 
       return {
         layer: "api",
-        message: `${relyingParty} publie une association de domaine vide.`,
+        message: `${relyingParty} does not publish this app's association.`,
         action:
-          "Le fichier doit contenir webcredentials.apps avec <APPLE_TEAM_ID>.com.atara.app.",
+          `The file must list ${expectedAppId} in webcredentials.apps.`,
         raw: JSON.stringify(body),
       };
     }
@@ -213,8 +219,8 @@ export const probeDomainAssociation = async (
 
     return {
       layer: "api",
-      message: "L'API ne publie pas encore l'association de domaine.",
-      action: `${url} répond ${response.status} : ${detail}`,
+      message: "The API does not publish the domain association yet.",
+      action: `${url} returned ${response.status}: ${detail}`,
       raw: detail,
     };
   } catch {

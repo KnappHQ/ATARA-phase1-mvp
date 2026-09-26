@@ -34,7 +34,7 @@ function VaultsScreenEnabled() {
       setVaults(await VaultService.getVaults(account));
       setError(null);
     } catch (requestError: any) {
-      setError(requestError?.message || "Impossible de charger les Vaults.");
+      setError(requestError?.message || "Could not load Vaults.");
     } finally {
       setLoading(false);
     }
@@ -63,26 +63,26 @@ function VaultsScreenEnabled() {
 
       <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
         <View className="rounded-3xl border border-white/10 bg-white/[0.06] p-5">
-          {DEMO_MODE ? <View className="mb-5 rounded-2xl border border-blue-300/25 bg-blue-300/10 p-4"><Text className="text-blue-100 font-semibold">MODE SIMULATION</Text><Text className="text-blue-100/70 text-xs leading-5 mt-1">Ce Vault est fictif : aucune création et aucun dépôt ne touchent la blockchain.</Text></View> : null}
+          {DEMO_MODE ? <View className="mb-5 rounded-2xl border border-blue-300/25 bg-blue-300/10 p-4"><Text className="text-blue-100 font-semibold">SIMULATION MODE</Text><Text className="text-blue-100/70 text-xs leading-5 mt-1">This Vault is simulated: creation and deposits never reach the blockchain.</Text></View> : null}
           <View className="flex-row items-center">
             <View className="w-11 h-11 rounded-2xl bg-white/10 items-center justify-center">
               <LockKeyhole size={21} color={COLORS.accent} />
             </View>
             <View className="flex-1 ml-3">
-              <Text className="text-white text-lg font-semibold">Épargne collective</Text>
-              <Text className="text-white/50 text-sm mt-1">Base Sepolia · USDC de test</Text>
+              <Text className="text-white text-lg font-semibold">Collective savings</Text>
+              <Text className="text-white/50 text-sm mt-1">Base Sepolia · test USDC</Text>
             </View>
           </View>
           <Text className="text-white/60 text-sm leading-5 mt-5">
-            Chaque membre accepte les règles, dépose ses fonds, puis valide chaque retrait. ATARA ne peut pas déplacer l’argent.
+            Each member accepts the rules, deposits funds, and approves every withdrawal. ATARA cannot move the funds.
           </Text>
         </View>
 
         {!VaultService.isConfigured() && !DEMO_MODE ? (
           <View className="mt-4 rounded-3xl border border-amber-300/20 bg-amber-300/5 p-5">
-            <Text className="text-amber-100 font-semibold">Vault en préparation</Text>
+            <Text className="text-amber-100 font-semibold">Vault coming soon</Text>
             <Text className="text-amber-100/65 text-sm leading-5 mt-2">
-              Le contrat Base Sepolia doit être déployé et vérifié avant d’activer la création de Vaults.
+              The Base Sepolia contract must be deployed and verified before Vault creation is enabled.
             </Text>
           </View>
         ) : loading ? (
@@ -90,13 +90,13 @@ function VaultsScreenEnabled() {
         ) : error ? (
           <View className="mt-5 rounded-3xl border border-red-300/20 bg-red-300/5 p-5"><Text className="text-red-200 text-sm">{error}</Text></View>
         ) : vaults.length === 0 ? (
-          <View className="items-center py-12"><Text className="text-white/50 text-sm">Aucun Vault pour le moment.</Text></View>
+          <View className="items-center py-12"><Text className="text-white/50 text-sm">No Vaults yet.</Text></View>
         ) : (
           <View className="mt-5">
             {vaults.map((vault) => (
               <Pressable key={vault} onPress={() => router.push({ pathname: "/vault-detail", params: { address: vault } })} className="flex-row items-center rounded-2xl border border-white/10 bg-white/[0.04] p-4 mb-3">
                 <View className="w-10 h-10 rounded-xl bg-white/10 items-center justify-center"><LockKeyhole size={18} color={COLORS.white} /></View>
-                <View className="flex-1 ml-3"><Text className="text-white font-semibold">Vault collectif</Text><Text className="text-white/45 text-xs font-mono mt-1">{shortAddress(vault)}</Text></View>
+                <View className="flex-1 ml-3"><Text className="text-white font-semibold">Collective Vault</Text><Text className="text-white/45 text-xs font-mono mt-1">{shortAddress(vault)}</Text></View>
                 <ChevronRight size={18} color="rgba(255,255,255,0.45)" />
               </Pressable>
             ))}

@@ -32,30 +32,30 @@ export const AddExpenseModal = ({ isOpen, onClose, groupId }: {
       await addExpense(groupId, description.trim(), Number(amount), key.current.id, custom ? breakdown : undefined);
       setDescription(""); setAmount(""); setShares({}); key.current = null; onClose();
     } catch (error: any) {
-      useAlertStore.getState().error("Dépense non ajoutée", error?.response?.data?.message ?? "Réessaie : une réponse perdue ne créera pas de doublon.");
+      useAlertStore.getState().error("Expense not added", error?.response?.data?.message ?? "Try again: a lost response will not create a duplicate.");
     } finally { setBusy(false); }
   };
   return <Modal visible={isOpen} transparent animationType="slide" onRequestClose={close}>
     <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,.75)" }}>
       <View style={{ backgroundColor: "#100e12", borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, maxHeight: "90%", borderWidth: 1, borderColor: "#302b32" }}>
-        <Text className="text-white text-xl font-semibold mb-4">Ajouter une dépense</Text>
+        <Text className="text-white text-xl font-semibold mb-4">Add an expense</Text>
         <ScrollView keyboardShouldPersistTaps="handled">
-          <Text className="text-white/50 mb-2">Tu as avancé cet argent pour le groupe.</Text>
+          <Text className="text-white/50 mb-2">You paid this amount for the group.</Text>
           <TextInput accessibilityLabel="Description" value={description} onChangeText={setDescription} maxLength={240} editable={!busy} placeholder="Restaurant, taxi, week-end…" placeholderTextColor="#666" className="text-white bg-white/5 rounded-2xl p-4 mb-3" />
-          <Text className="text-white/60 mb-2">Montant en {unit}</Text>
-          <TextInput accessibilityLabel={`Montant en ${unit}`} value={amount} onChangeText={v => setAmount(v.replace(",", "."))} editable={!busy} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor="#666" className="text-white text-2xl bg-white/5 rounded-2xl p-4 mb-3" />
+          <Text className="text-white/60 mb-2">Amount in {unit}</Text>
+          <TextInput accessibilityLabel={`Amount in ${unit}`} value={amount} onChangeText={v => setAmount(v.replace(",", "."))} editable={!busy} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor="#666" className="text-white text-2xl bg-white/5 rounded-2xl p-4 mb-3" />
           <View className="flex-row gap-3 my-2">
-            {[false, true].map(option => <Pressable key={String(option)} disabled={busy} onPress={() => setCustom(option)} className="flex-1 p-3 rounded-full" style={{ backgroundColor: custom === option ? COLORS.accent : "#222" }}><Text style={{ textAlign: "center", color: custom === option ? "#000" : "#fff" }}>{option ? "Personnalisé" : "Parts égales"}</Text></Pressable>)}
+            {[false, true].map(option => <Pressable key={String(option)} disabled={busy} onPress={() => setCustom(option)} className="flex-1 p-3 rounded-full" style={{ backgroundColor: custom === option ? COLORS.accent : "#222" }}><Text style={{ textAlign: "center", color: custom === option ? "#000" : "#fff" }}>{option ? "Custom" : "Equal shares"}</Text></Pressable>)}
           </View>
           {members.map((member, i) => <View key={member.id} className="flex-row items-center justify-between py-3 border-b border-white/10">
             <Text className="text-white flex-1">@{member.handle}</Text>
             {custom ? <TextInput accessibilityLabel={`Part de ${member.handle}`} value={shares[member.id] ?? ""} onChangeText={v => setShares(s => ({ ...s, [member.id]: v.replace(",", ".") }))} placeholder="0.00" placeholderTextColor="#666" editable={!busy} keyboardType="decimal-pad" className="text-white p-2 bg-white/5 rounded-xl w-24 text-right" /> : <Text className="text-white/70">{breakdown[i].amount} {unit}</Text>}
           </View>)}
-          <Text className="text-white/50 text-xs leading-5 my-4">Chaque participant reçoit une proposition à accepter ou contester. Les centimes restants sont répartis pour conserver exactement le total.{custom && splitTotal !== total ? ` Reste à répartir : ${((total - splitTotal) / 100).toFixed(2)} ${unit}.` : ""}</Text>
+          <Text className="text-white/50 text-xs leading-5 my-4">Each participant gets a share to accept or dispute. Remaining cents are allocated so the split adds up exactly.{custom && splitTotal !== total ? ` Remaining to allocate: ${((total - splitTotal) / 100).toFixed(2)} ${unit}.` : ""}</Text>
         </ScrollView>
         <View className="flex-row gap-3 pt-3">
-          <Pressable onPress={close} disabled={busy} className="flex-1 rounded-2xl bg-white/10 p-4"><Text className="text-white text-center">Fermer</Text></Pressable>
-          <Pressable onPress={submit} disabled={!valid || busy} className="flex-1 rounded-2xl p-4" style={{ backgroundColor: COLORS.accent, opacity: valid && !busy ? 1 : .4 }}>{busy ? <ActivityIndicator color="#000" /> : <Text className="text-black text-center">Proposer les parts</Text>}</Pressable>
+          <Pressable onPress={close} disabled={busy} className="flex-1 rounded-2xl bg-white/10 p-4"><Text className="text-white text-center">Close</Text></Pressable>
+          <Pressable onPress={submit} disabled={!valid || busy} className="flex-1 rounded-2xl p-4" style={{ backgroundColor: COLORS.accent, opacity: valid && !busy ? 1 : .4 }}>{busy ? <ActivityIndicator color="#000" /> : <Text className="text-black text-center">Propose shares</Text>}</Pressable>
         </View>
       </View>
     </View>

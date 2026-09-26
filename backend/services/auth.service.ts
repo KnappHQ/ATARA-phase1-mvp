@@ -145,6 +145,7 @@ class AuthService {
     smartAccountAddress: string,
     email?: string,
     authProvider?: string,
+    displayName?: string,
   ) {
     const normalizedSigner = signerAddress.toLowerCase();
     const normalizedSmart = smartAccountAddress.toLowerCase();
@@ -178,6 +179,7 @@ class AuthService {
     const newUser = await prisma.user.create({
       data: {
         handle,
+        displayName: displayName || null,
         publicAddress: normalizedSigner,
         smartAccountAddress: normalizedSmart,
         email: email || null,
