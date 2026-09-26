@@ -17,9 +17,11 @@ import { GroupContactRow } from "@/components/groupCreate/GroupContactRow";
 import { GroupCreateFooter } from "@/components/groupCreate/GroupCreateFooter";
 import { Users } from "lucide-react-native";
 import { COLORS } from "@/utils/constants";
+import { useAuthStore } from "@/stores/useAuthStore";
 
 export default function GroupCreateScreen() {
   const router = useRouter();
+  const me = useAuthStore((state) => state.user);
   const { createGroup } = useGroupStore();
   const {
     recentContacts,
@@ -47,9 +49,13 @@ export default function GroupCreateScreen() {
   }, [searchContacts, searchQuery]);
 
   const isSearchMode = searchQuery.trim().length > 0;
-  const allResults = isSearchMode
+  const allResults = (isSearchMode
     ? contactSearchResults.map(mapContactToMember)
-    : recentContacts.map(mapContactToMember);
+    : recentContacts.map(mapContactToMember)).filter((contact) =>
+      contact.id !== me?.id &&
+      contact.handle.toLowerCase() !== me?.handle?.toLowerCase() &&
+      contact.address?.toLowerCase() !== me?.smartAccountAddress?.toLowerCase(),
+    );
   const displayList = allResults.filter(
     (r) => !selectedMembers.some((m) => m.id === r.id),
   );

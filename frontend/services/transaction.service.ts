@@ -147,7 +147,11 @@ export class TransactionService {
         ? "Gas sponsorship is unavailable or its limit has been reached. Try again later."
         : error.message;
 
-      markTransactionFailed(transactionId, failureMessage);
+      if (error?.isPendingVerification) {
+        updateTransaction(transactionId, { error: "Awaiting chain verification. Check Activity before sending again." });
+      } else {
+        markTransactionFailed(transactionId, failureMessage);
+      }
 
       return {
         transactionId,

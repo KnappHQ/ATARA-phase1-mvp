@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { GroupService } from "@/services/group.service";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { View, Text, Pressable, ScrollView, Platform } from "react-native";
+import { View, Text, Pressable, ScrollView, Platform, Share, Alert } from "react-native";
 import * as Haptics from "expo-haptics";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -23,6 +23,7 @@ import {
   DisplayTransaction,
   useTransactionHistoryStore,
 } from "@/stores/useTransactionHistoryStore";
+import { api } from "@/services/api";
 
 const truncateAddress = (address: string) => {
   if (!address || address.length < 12) return address;
@@ -55,6 +56,7 @@ export default function ContactDetail() {
   const address = params.address as string;
   const [debts, setDebts] = useState<Awaited<ReturnType<typeof GroupService.contactBalances>> | null>(null);
   const [debtError, setDebtError] = useState(false);
+  const [reminding, setReminding] = useState(false);
   useEffect(() => {
     let active = true; setDebts(null); setDebtError(false);
     if (address) GroupService.contactBalances(address).then(result => { if (active) setDebts(result); }).catch(() => { if (active) setDebtError(true); });
@@ -111,6 +113,25 @@ export default function ContactDetail() {
         isInApp: tx.isInApp.toString(),
       },
     });
+  };
+
+  const owedToMe = debts?.reduce((sum, balance) => sum + balance.owedToMe, 0) ?? 0;
+  const handleRepaymentReminder = async () => {
+    if (reminding || owedToMe <= 0) return;
+    setReminding(true);
+    try {
+      const amount = owedToMe.toFixed(2);
+      const response = await api.post("/requests", {
+        amount,
+        note: `Remboursement demandé à ${contact?.displayName ?? "ce contact"}`,
+      });
+      const request = response.data.request;
+      await Share.share({
+        message: `Salut, ATARA indique que tu me dois ${amount} USDC. Tu peux vérifier les parts acceptées et me rembourser ici : ${request.url}`,
+      });
+    } catch (error: any) {
+      Alert.alert("Rappel non envoyé", error?.response?.data?.message ?? "Réessaie dans un instant.");
+    } finally { setReminding(false); }
   };
 
   if (!contact) {
@@ -208,6 +229,7 @@ export default function ContactDetail() {
           <View className="mx-6 mb-6 rounded-2xl border border-white/10 p-4">
             <Text className="text-white font-semibold mb-2">Accepted shares in Groups</Text>
             {debtError ? <Text className="text-white/50">Balances unavailable. Check Groups before paying.</Text> : debts === null ? <Text className="text-white/50">Loading…</Text> : debts.length === 0 ? <Text className="text-white/50">No accepted shares to settle.</Text> : debts.map(d => <Text key={d.assetSymbol} className="text-white/70 mb-2">You owe {d.owedByMe.toFixed(2)} {d.assetSymbol} · Owes you {d.owedToMe.toFixed(2)} {d.assetSymbol}</Text>)}
+            {owedToMe > 0 && <Pressable disabled={reminding} onPress={handleRepaymentReminder} className="mt-2 rounded-xl p-3" style={{ backgroundColor: `${COLORS.accent}20`, opacity: reminding ? .5 : 1 }}><Text style={{ color: COLORS.accent }} className="text-center font-semibold">{reminding ? "Preparing reminder…" : `Send a repayment reminder · ${owedToMe.toFixed(2)} USDC`}</Text></Pressable>}
             <Pressable onPress={() => router.push("/(tabs)/activity")}><Text style={{ color: COLORS.accent }} className="mt-2">Open Activity and Groups</Text></Pressable>
           </View>
           <View className="mb-24 px-6">
