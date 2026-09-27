@@ -104,6 +104,11 @@ export const GroupService = {
     return response.data.group;
   },
 
+  addMembers: async (groupId: string, handles: string[]) => {
+    const response = await api.post(`/groups/${groupId}/members`, { handles });
+    return response.data.added;
+  },
+
   addExpense: async (groupId: string, description: string, amount: number, clientRequestId: string,
     customSplits?: { userId: string; amount: string }[]) => {
     const response = await api.post(`/groups/${groupId}/expenses`, {
