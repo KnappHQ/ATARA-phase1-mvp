@@ -24,6 +24,11 @@ import type {
 
 import { APP_NETWORK, CHAIN_ID } from "@/utils/constants";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useAddressVerificationStore } from "@/stores/useAddressVerificationStore";
+import {
+  compareDerivedAddress,
+  type AddressVerification,
+} from "@/utils/addressVerification";
 import { useExternalWallet } from "@/providers/ExternalWalletProvider";
 
 // ERC-20 ABI for transfer function
@@ -223,7 +228,45 @@ export const createAlchemySmartAccountService = async ({
     account: account.address,
   });
 
+  if (smartAccountAddress) {
+    verifyStoredAddress(smartAccountAddress, () =>
+      requestClient
+        .requestAccount({ creationHint: { accountType: "sma-b" } })
+        .then((derived: { address: string }) => derived.address),
+    );
+  }
+
   return new SmartAccountService(client, account.address, alchemyGasPolicyId);
+};
+
+/**
+ * Re-derives the smart account from this phone's signer and compares it with
+ * the address ATARA's service supplied. Runs in the background, once per
+ * address, and only ever records a result: the stored address is never
+ * replaced and nothing is blocked. A legitimate account and a check that could
+ * not run must both keep working exactly as before.
+ */
+const verifyStoredAddress = (
+  storedAddress: string,
+  derive: () => Promise<string>,
+) => {
+  const verification = useAddressVerificationStore.getState();
+  if (verification.address === storedAddress.toLowerCase()) return;
+  verification.setResult(storedAddress, "unverified");
+  // Promise.resolve().then(...) turns a synchronous throw from the SDK into a
+  // rejection. Without it, a throw here would escape into the service factory
+  // and stop the user from paying — the one thing this check must never do.
+  Promise.resolve()
+    .then(derive)
+    .then((derived) => compareDerivedAddress(storedAddress, derived))
+    .catch((): AddressVerification => "unverified")
+    .then((status) => {
+      useAddressVerificationStore.getState().setResult(storedAddress, status);
+      if (status === "mismatch") {
+        Sentry.captureMessage("Stored smart account does not match this signer's derivation");
+      }
+    })
+    .catch(() => undefined);
 };
 
 export class SmartAccountService {

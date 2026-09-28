@@ -4,6 +4,7 @@ import * as Clipboard from "expo-clipboard";
 import { SvgUri } from "react-native-svg";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useWalletStore } from "@/stores/useWalletStore";
+import { useAddressVerificationStore } from "@/stores/useAddressVerificationStore";
 import { api } from "@/services/api";
 import { COLORS } from "@/utils/constants";
 
@@ -11,6 +12,7 @@ type Request = { id: string; url: string; amount: string; chainId: number; expir
 export function ShareModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const user = useAuthStore(s => s.user);
   const address = useWalletStore(s => s.smartAccountAddress);
+  const verification = useAddressVerificationStore(s => s.statusFor(address));
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [request, setRequest] = useState<Request | null>(null);
@@ -27,6 +29,14 @@ export function ShareModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
       <Text className="text-white text-2xl font-semibold">Receive · @{user?.handle ?? ""}</Text>
       <Text className="text-white/50 my-3">{mainnet ? "Base · Real funds" : "Base Sepolia · Test funds"}</Text>
       <Text selectable className="text-white/80 p-4 rounded-2xl bg-white/5">{address ?? "Loading wallet"}</Text>
+      {verification === "mismatch" ? (
+        <View accessibilityRole="alert" className="mt-3 p-4 rounded-2xl border border-red-400/40 bg-red-500/10">
+          <Text className="text-red-200 font-semibold">This address does not match the key on this phone.</Text>
+          <Text className="text-red-100/70 text-xs leading-5 mt-1">Do not share it or ask anyone to pay it until support has checked your account. Your key and your funds are not affected by this check.</Text>
+        </View>
+      ) : verification === "verified" ? (
+        <Text className="text-white/40 text-xs mt-2">Checked on this phone: this address is derived from your own key.</Text>
+      ) : null}
       <Pressable disabled={!address} onPress={() => run(async () => { await Clipboard.setStringAsync(address!); setMessage("Address copied. Use only the network shown."); })}><Text style={{ color: COLORS.accent }} className="my-4">Copy my Base address</Text></Pressable>
       <Text className="text-white/50 text-xs mb-6">This address receives supported assets on Base. Do not send native BTC, SOL, or XMR to this address.</Text>
       {!!message && <Text accessibilityRole="alert" className="text-white/70 my-3">{message}</Text>}

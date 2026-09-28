@@ -5,6 +5,7 @@ import { ethers } from "ethers";
 import { ALCHEMY_URL, ALCHEMY_KEY } from "../utils/constants";
 import { NETWORK } from "../utils/constants";
 import { getKnownTokens } from "../utils/tokenConfig";
+import { logError } from "../utils/logger";
 
 const KNOWN_TOKENS = getKnownTokens(NETWORK as "base-sepolia" | "base-mainnet");
 
@@ -127,81 +128,77 @@ class WalletService {
         tokens,
       };
     } catch (error: any) {
-      console.error("Failed to fetch portfolio:", error);
-      throw new ErrorHandler(
-        error.message || "Failed to fetch portfolio data",
-        500,
-      );
+      logError("wallet.portfolio", error);
+      // A fixed message on purpose. The provider's own error text can carry
+      // the RPC URL, and Alchemy's URL contains the API key.
+      throw new ErrorHandler("Balance data is temporarily unavailable", 503);
     }
   }
 
   /**
-   * Get ETH balance for an address
+   * ETH balance for an address. A failed read throws: returning "0" here told
+   * the app the wallet was empty, which is a claim about someone's money that
+   * nobody had checked.
    */
   private async getETHBalance(address: string): Promise<string> {
-    try {
-      const balanceWei = await provider.getBalance(address);
-      return ethers.utils.formatEther(balanceWei);
-    } catch (error) {
-      console.error("Failed to get ETH balance:", error);
-      return "0";
-    }
+    const balanceWei = await provider.getBalance(address);
+    return ethers.utils.formatEther(balanceWei);
   }
 
   /**
-   * Get ERC-20 token balances via Alchemy
+   * ERC-20 balances via Alchemy. Throws on failure, for the same reason as
+   * getETHBalance. A token that is genuinely not configured is still "0": that
+   * is a fact about the configuration, not a failed read.
    */
   private async getTokenBalances(
     address: string,
   ): Promise<{ USDT: string; USDC: string }> {
-    try {
-      const trackedTokens = Object.values(KNOWN_TOKENS).filter(
-        (token) => token.address,
-      );
+    const trackedTokens = Object.values(KNOWN_TOKENS).filter(
+      (token) => token.address,
+    );
 
-      if (trackedTokens.length === 0) {
-        return { USDT: "0", USDC: "0" };
-      }
-
-      const response = await axios.post(ALCHEMY_URL, {
-        id: 1,
-        jsonrpc: "2.0",
-        method: "alchemy_getTokenBalances",
-        params: [address, trackedTokens.map((token) => token.address)],
-      });
-
-      if (response.data.error) {
-        throw new Error(response.data.error.message);
-      }
-
-      const tokenBalances = response.data.result?.tokenBalances || [];
-
-      const getBalance = (symbol: keyof typeof KNOWN_TOKENS) => {
-        const token = KNOWN_TOKENS[symbol];
-
-        if (!token.address) {
-          return "0";
-        }
-
-        const balance = tokenBalances.find(
-          (t: any) =>
-            t.contractAddress?.toLowerCase() === token.address.toLowerCase(),
-        );
-
-        return ethers.utils.formatUnits(
-          balance?.tokenBalance || "0",
-          token.decimals,
-        );
-      };
-
-      return {
-        USDT: getBalance("USDT"),
-        USDC: getBalance("USDC"),
-      };
-    } catch (error) {
-      console.error("Failed to get token balances:", error);
+    if (trackedTokens.length === 0) {
       return { USDT: "0", USDC: "0" };
     }
+
+    const response = await axios.post(ALCHEMY_URL, {
+      id: 1,
+      jsonrpc: "2.0",
+      method: "alchemy_getTokenBalances",
+      params: [address, trackedTokens.map((token) => token.address)],
+    });
+
+    if (response.data.error) {
+      throw new Error("Token balance provider returned an error");
+    }
+
+    const tokenBalances = response.data.result?.tokenBalances;
+    if (!Array.isArray(tokenBalances)) {
+      throw new Error("Token balance provider returned no balances");
+    }
+
+    const getBalance = (symbol: keyof typeof KNOWN_TOKENS) => {
+      const token = KNOWN_TOKENS[symbol];
+
+      if (!token.address) {
+        return "0";
+      }
+
+      const balance = tokenBalances.find(
+        (t: any) =>
+          t.contractAddress?.toLowerCase() === token.address.toLowerCase(),
+      );
+
+      return ethers.utils.formatUnits(
+        balance?.tokenBalance || "0",
+        token.decimals,
+      );
+    };
+
+    return {
+      USDT: getBalance("USDT"),
+      USDC: getBalance("USDC"),
+    };
   }
 
   /**
