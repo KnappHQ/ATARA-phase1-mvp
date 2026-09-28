@@ -81,3 +81,27 @@ test("fails closed when server-side Alchemy verification is unavailable", async 
     /Unable to verify smart account ownership right now/,
   );
 });
+
+test("times out ownership verification instead of blocking registration indefinitely", async () => {
+  const signer = Wallet.createRandom();
+  let receivedSignal;
+
+  await assert.rejects(
+    () =>
+      resolveExpectedSmartAccountAddress(signer.address, {
+        apiKey: "test-key",
+        timeoutMs: 5,
+        fetchImpl: async (_url, options) => {
+          receivedSignal = options.signal;
+          await new Promise((resolve, reject) => {
+            options.signal.addEventListener("abort", () =>
+              reject(new Error("aborted")),
+            );
+          });
+        },
+      }),
+    /Unable to verify smart account ownership right now/,
+  );
+
+  assert.equal(receivedSignal.aborted, true);
+});

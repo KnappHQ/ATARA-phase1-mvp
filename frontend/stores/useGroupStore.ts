@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { accountRevision, onAccountReset } from "@/utils/accountScope";
 import * as Sentry from "@sentry/react-native";
 import {
   GroupService,
@@ -168,48 +169,63 @@ export const useGroupStore = create<GroupState>((set, get) => ({
   detailError: null,
 
   fetchGroups: async () => {
+    const revision = accountRevision();
     const { isLoading } = get();
     if (isLoading) return;
 
     set({ isLoading: true, error: null });
     try {
       const data = await GroupService.getMyGroups();
+      if (revision !== accountRevision()) return;
       set({ groups: data.map(mapSummaryToGroup) });
     } catch (err: any) {
+      if (revision !== accountRevision()) return;
       console.error("Failed to fetch groups:", err);
       Sentry.captureException(err);
       set({ error: err.response?.data?.message || "Failed to load groups" });
     } finally {
-      set({ isLoading: false });
+      if (revision === accountRevision()) set({ isLoading: false });
     }
   },
 
   createGroup: async (name, memberHandles, description) => {
+    const revision = accountRevision();
     await GroupService.createGroup(name, memberHandles, description);
+    if (revision !== accountRevision()) return;
     await get().fetchGroups();
   },
 
   fetchGroupDetail: async (id) => {
+    const revision = accountRevision();
     set({ isLoadingDetail: true, detailError: null });
     try {
       const data = await GroupService.getGroupDetails(id);
+      if (revision !== accountRevision()) return;
       set({ groupDetail: mapDetailResponse(data) });
     } catch (err: any) {
+      if (revision !== accountRevision()) return;
       set({
         detailError:
           err.response?.data?.message || "Failed to load group details",
       });
     } finally {
-      set({ isLoadingDetail: false });
+      if (revision === accountRevision()) set({ isLoadingDetail: false });
     }
   },
 
   addExpense: async (groupId, description, amount, clientRequestId, customSplits) => {
+    const revision = accountRevision();
     await GroupService.addExpense(groupId, description, amount, clientRequestId, customSplits);
+    if (revision !== accountRevision()) return;
     await get().fetchGroupDetail(groupId);
   },
 
   clearDetail: () => set({ groupDetail: null, detailError: null }),
 
   clearError: () => set({ error: null }),
+}));
+
+onAccountReset(() => useGroupStore.setState({
+  groups: [], groupDetail: null, isLoading: false, isLoadingDetail: false,
+  error: null, detailError: null,
 }));

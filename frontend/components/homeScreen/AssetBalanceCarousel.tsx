@@ -71,8 +71,8 @@ export const AssetBalanceCarousel = ({
         className="items-center"
         accessible
         accessibilityRole="adjustable"
-        accessibilityLabel={`Solde ${asset.name}`}
-        accessibilityHint="Balaye horizontalement pour changer de crypto"
+        accessibilityLabel={`${asset.name} balance`}
+        accessibilityHint="Swipe sideways to change crypto"
       >
         <View className="flex-row items-center gap-2 mb-2">
           <View className="w-7 h-7 rounded-full bg-white/10 items-center justify-center">
@@ -92,7 +92,7 @@ export const AssetBalanceCarousel = ({
           <Text className="text-2xl text-white/45 ml-2">{asset.symbol}</Text>
         </View>
         <Text className="text-sm text-white/45 mt-2">
-          ≈ {formatUsd(asset.usdValue)} · solde disponible
+          ≈ {formatUsd(asset.usdValue)} · available balance
         </Text>
 
         <View className="flex-row items-center gap-3 mt-5" accessible={false}>
@@ -108,7 +108,7 @@ export const AssetBalanceCarousel = ({
           <ChevronRight size={14} color="rgba(255,255,255,0.35)" />
         </View>
         <Text className="text-[10px] text-white/35 mt-2">
-          Balaye pour changer de crypto
+          Swipe to change crypto
         </Text>
       </Animated.View>
     </GestureDetector>

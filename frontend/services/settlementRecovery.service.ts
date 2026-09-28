@@ -13,7 +13,7 @@ export async function queueSettlement(item: PendingSettlement) {
 }
 export async function retryPendingSettlements() {
   if (!useAuthStore.getState().user) return { remaining: 0, settled: 0 };
-  if (replaying) throw new Error('Une vérification est déjà en cours. Réessaie dans quelques instants.');
+  if (replaying) throw new Error('A verification is already in progress. Try again shortly.');
   replaying = true; let remaining = 0, settled = 0;
   const queuePrefix = prefix();
   try {

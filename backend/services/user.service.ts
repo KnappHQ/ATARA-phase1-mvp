@@ -97,9 +97,11 @@ class UserService {
   public async deleteAccount(userId: string) {
     await prisma.$transaction(
       async (tx) => {
+        // The text goes too: people write their name, email or a payment
+        // detail into feedback, and unlinking the row does not unwrite that.
         await tx.feedback.updateMany({
           where: { userId },
-          data: { userId: null, handle: null },
+          data: { userId: null, handle: null, message: "" },
         });
 
         // Retain shared ledger rows and replay protection. Deleting an account
@@ -115,6 +117,12 @@ class UserService {
         await tx.paymentRequest.deleteMany({
           where: { creatorId: userId, paidAt: null },
         });
+        // A paid request stays, so its payment cannot be replayed against a
+        // new one, but what the person wrote on it does not need to.
+        await tx.paymentRequest.updateMany({
+          where: { creatorId: userId, paidAt: { not: null } },
+          data: { note: "" },
+        });
         await tx.settlementIntent.deleteMany({
           where: {
             settledAt: null,
@@ -127,7 +135,7 @@ class UserService {
           data: {
             deletedAt: new Date(),
             handle: `deleted_${crypto.randomBytes(6).toString("hex")}`,
-            displayName: "Compte supprimé",
+            displayName: "Deleted account",
             email: null,
             profilePicUrl: null,
             authProvider: null,
@@ -207,7 +215,6 @@ class UserService {
             handle: true,
             displayName: true,
             profilePicUrl: true,
-            publicAddress: true,
             smartAccountAddress: true,
           },
         },
@@ -218,7 +225,6 @@ class UserService {
             handle: true,
             displayName: true,
             profilePicUrl: true,
-            publicAddress: true,
             smartAccountAddress: true,
           },
         },
@@ -255,7 +261,9 @@ class UserService {
       handle: true,
       displayName: true,
       profilePicUrl: true,
-      publicAddress: true,
+      // The owner (signer) address is not returned about anyone: it is the key
+      // that controls the account, and nothing in the app needs it. Linking it
+      // to a @handle only helps someone map the owner across the chain.
       smartAccountAddress: true,
       ...(includePrivate && { email: true }),
     };

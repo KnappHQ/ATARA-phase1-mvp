@@ -2,6 +2,7 @@ import { create } from "zustand";
 import * as Sentry from "@sentry/react-native";
 import { ContactService } from "@/services/contact.service";
 import { truncateAddress } from "@/utils/format";
+import { accountRevision, onAccountReset } from "@/utils/accountScope";
 
 export interface Contact {
   id: string;
@@ -48,6 +49,7 @@ export const useContactStore = create<ContactState>((set, get) => ({
   },
 
   searchContacts: async (query: string) => {
+    const revision = accountRevision();
     if (!query.trim()) {
       set({ searchResults: [], isSearching: false });
       return;
@@ -57,8 +59,10 @@ export const useContactStore = create<ContactState>((set, get) => ({
 
     try {
       const results = await ContactService.searchContacts(query);
+      if (revision !== accountRevision()) return;
       set({ searchResults: results, isSearching: false });
     } catch (error: any) {
+      if (revision !== accountRevision()) return;
       console.error("Search contacts failed:", error);
       Sentry.captureException(error);
       set({
@@ -67,17 +71,20 @@ export const useContactStore = create<ContactState>((set, get) => ({
         isSearching: false,
       });
     } finally {
-      set({ isLoadingSearch: false });
+      if (revision === accountRevision()) set({ isLoadingSearch: false });
     }
   },
 
   getRecentContacts: async () => {
+    const revision = accountRevision();
     set({ isLoadingRecents: true, recentContactsError: null });
 
     try {
       const contacts = await ContactService.getRecentContacts();
+      if (revision !== accountRevision()) return;
       set({ recentContacts: contacts });
     } catch (error: any) {
+      if (revision !== accountRevision()) return;
       console.error("Failed to load recent contacts:", error);
       Sentry.captureException(error);
       set({
@@ -85,7 +92,7 @@ export const useContactStore = create<ContactState>((set, get) => ({
         recentContactsError: error?.message || "Failed to load recent contacts",
       });
     } finally {
-      set({ isLoadingRecents: false });
+      if (revision === accountRevision()) set({ isLoadingRecents: false });
     }
   },
 
@@ -113,4 +120,10 @@ export const useContactStore = create<ContactState>((set, get) => ({
       ),
     });
   },
+}));
+
+onAccountReset(() => useContactStore.setState({
+  recentContacts: [], searchResults: [], favoriteContacts: [], searchQuery: "",
+  isSearching: false, searchError: null, recentContactsError: null,
+  isLoadingRecents: false, isLoadingSearch: false,
 }));

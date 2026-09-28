@@ -16,6 +16,29 @@ const AUTH_CHAIN_ID =
 const AUTH_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const TOKEN_TTL = "7d";
 
+/**
+ * What the app needs about the account that just signed in: the fields of its
+ * `UserProfile`. Sign-in used to answer with the whole row, legacy TOTP fields
+ * and recovery phone included, and the app saved it on the phone as received.
+ */
+export const toSessionProfile = (user: {
+  id: string;
+  handle: string;
+  smartAccountAddress: string | null;
+  displayName: string | null;
+  email: string | null;
+  profilePicUrl: string | null;
+  authProvider: string | null;
+}) => ({
+  id: user.id,
+  handle: user.handle,
+  smartAccountAddress: user.smartAccountAddress,
+  displayName: user.displayName,
+  email: user.email,
+  profilePicUrl: user.profilePicUrl,
+  authProvider: user.authProvider,
+});
+
 class AuthService {
   private generateToken(user: {
     id: string;
@@ -145,6 +168,7 @@ class AuthService {
     smartAccountAddress: string,
     email?: string,
     authProvider?: string,
+    displayName?: string,
   ) {
     const normalizedSigner = signerAddress.toLowerCase();
     const normalizedSmart = smartAccountAddress.toLowerCase();
@@ -178,6 +202,7 @@ class AuthService {
     const newUser = await prisma.user.create({
       data: {
         handle,
+        displayName: displayName || null,
         publicAddress: normalizedSigner,
         smartAccountAddress: normalizedSmart,
         email: email || null,
@@ -187,7 +212,7 @@ class AuthService {
 
     const token = this.generateToken(newUser);
 
-    return { user: newUser, token };
+    return { user: toSessionProfile(newUser), token };
   }
 
   public async login(signerAddress: string) {
@@ -203,7 +228,7 @@ class AuthService {
 
     const token = this.generateToken(user);
 
-    return { user, token };
+    return { user: toSessionProfile(user), token };
   }
 
   public async logoutAll(userId: string) {

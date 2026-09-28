@@ -48,10 +48,10 @@ export const IdentityCard = ({
             className="text-xs font-mono uppercase mb-1"
             style={{ color: `${COLORS.white}40`, letterSpacing: 1 }}
           >
-            Display Name
+            Account name
           </Text>
           <Text className="text-white text-base font-semibold">
-            {displayName || "—"}
+            {displayName || (handle ? `@${handle}` : "Add a name")}
           </Text>
         </View>
         {onEditDisplayName && (
@@ -78,7 +78,7 @@ export const IdentityCard = ({
           className="text-xs font-mono uppercase mb-1"
           style={{ color: `${COLORS.white}40`, letterSpacing: 1 }}
         >
-          Handle
+          Identifiant unique ATARA
         </Text>
         <Text
           className="text-base font-semibold"

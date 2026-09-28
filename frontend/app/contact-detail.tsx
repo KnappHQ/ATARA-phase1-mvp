@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { GroupService } from "@/services/group.service";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { View, Text, Pressable, ScrollView, Platform } from "react-native";
+import { View, Text, Pressable, ScrollView, Platform, Share, Alert } from "react-native";
 import * as Haptics from "expo-haptics";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -55,6 +55,7 @@ export default function ContactDetail() {
   const address = params.address as string;
   const [debts, setDebts] = useState<Awaited<ReturnType<typeof GroupService.contactBalances>> | null>(null);
   const [debtError, setDebtError] = useState(false);
+  const [reminding, setReminding] = useState(false);
   useEffect(() => {
     let active = true; setDebts(null); setDebtError(false);
     if (address) GroupService.contactBalances(address).then(result => { if (active) setDebts(result); }).catch(() => { if (active) setDebtError(true); });
@@ -111,6 +112,24 @@ export default function ContactDetail() {
         isInApp: tx.isInApp.toString(),
       },
     });
+  };
+
+  const owedToMe = debts?.reduce((sum, balance) => sum + balance.owedToMe, 0) ?? 0;
+  // The reminder travels through whatever messenger the person picks, so it
+  // carries no amount, no name and no link. It used to create a public payment
+  // link: paying it never settled the group shares, so the debt stayed open
+  // and invited a second payment. Settling in Groups marks the shares paid.
+  const handleRepaymentReminder = async () => {
+    if (reminding || owedToMe <= 0) return;
+    setReminding(true);
+    try {
+      await Share.share({
+        message:
+          "Hi! A friendly reminder about our shared expenses on ATARA. You can check the shares you accepted and settle them in the app, under Groups.",
+      });
+    } catch (error: any) {
+      Alert.alert("Reminder not sent", error?.message ?? "Try again in a moment.");
+    } finally { setReminding(false); }
   };
 
   if (!contact) {
@@ -206,9 +225,11 @@ export default function ContactDetail() {
           </View>
 
           <View className="mx-6 mb-6 rounded-2xl border border-white/10 p-4">
-            <Text className="text-white font-semibold mb-2">Parts acceptées dans Groups</Text>
-            {debtError ? <Text className="text-white/50">Soldes indisponibles. Consulte Groups avant de rembourser.</Text> : debts === null ? <Text className="text-white/50">Chargement…</Text> : debts.length === 0 ? <Text className="text-white/50">Aucune part acceptée à rembourser.</Text> : debts.map(d => <Text key={d.assetSymbol} className="text-white/70 mb-2">Tu dois {d.owedByMe.toFixed(2)} {d.assetSymbol} · Te doit {d.owedToMe.toFixed(2)} {d.assetSymbol}</Text>)}
-            <Pressable onPress={() => router.push("/(tabs)/activity")}><Text style={{ color: COLORS.accent }} className="mt-2">Ouvrir l’activité et les groupes</Text></Pressable>
+            <Text className="text-white font-semibold mb-2">Accepted shares in Groups</Text>
+            {debtError ? <Text className="text-white/50">Balances unavailable. Check Groups before paying.</Text> : debts === null ? <Text className="text-white/50">Loading…</Text> : debts.length === 0 ? <Text className="text-white/50">No accepted shares to settle.</Text> : debts.map(d => <Text key={d.assetSymbol} className="text-white/70 mb-2">You owe {d.owedByMe.toFixed(2)} {d.assetSymbol} · Owes you {d.owedToMe.toFixed(2)} {d.assetSymbol}</Text>)}
+            {owedToMe > 0 && <Pressable disabled={reminding} onPress={handleRepaymentReminder} className="mt-2 rounded-xl p-3" style={{ backgroundColor: `${COLORS.accent}20`, opacity: reminding ? .5 : 1 }}><Text style={{ color: COLORS.accent }} className="text-center font-semibold">{reminding ? "Preparing reminder…" : "Send a repayment reminder"}</Text></Pressable>}
+            {owedToMe > 0 && <Text className="text-white/40 text-xs mt-2">The message has no amount, name or payment link. They settle in Groups, which marks the shares as paid.</Text>}
+            <Pressable onPress={() => router.push("/(tabs)/activity")}><Text style={{ color: COLORS.accent }} className="mt-2">Open Activity and Groups</Text></Pressable>
           </View>
           <View className="mb-24 px-6">
             {contact.transactions.map(

@@ -2,6 +2,16 @@ import { create } from "zustand";
 import * as Sentry from "@sentry/react-native";
 import { CHAIN_ID, DEFAULT_ASSETS, NETWORK_NAME } from "@/utils/constants";
 import { WalletService } from "@/services/wallet.service";
+import { readOnChainBalances } from "@/utils/chainBalance";
+import { mergeOnChainBalances } from "@/utils/walletBalance";
+
+/**
+ * Where the balances on screen came from. "service" is ATARA's portfolio API,
+ * with USD prices. "chain" is a direct read from Base when that API failed:
+ * real token amounts, no prices. null means nothing has been read yet, so the
+ * zeros on screen are placeholders, not a balance.
+ */
+export type BalanceSource = "service" | "chain" | null;
 
 export interface Token {
   symbol: string;
@@ -23,6 +33,7 @@ export interface WalletState {
   networkName: string;
   chainId: number;
   balanceError: string | null;
+  balanceSource: BalanceSource;
   totalUSDValue: number;
   change24h: number;
   percentChange24h: number;
@@ -46,6 +57,7 @@ export const useWalletStore = create<WalletState>((set, get) => {
     lastUpdated: undefined,
     isLoadingBalances: false,
     balanceError: null,
+    balanceSource: null as BalanceSource,
   });
   return ({
   assets: [...DEFAULT_ASSETS],
@@ -53,6 +65,7 @@ export const useWalletStore = create<WalletState>((set, get) => {
   networkName: NETWORK_NAME,
   chainId: CHAIN_ID,
   balanceError: null,
+  balanceSource: null,
   totalUSDValue: 0,
   change24h: 0,
   percentChange24h: 0,
@@ -158,15 +171,37 @@ export const useWalletStore = create<WalletState>((set, get) => {
         lastUpdated: new Date(),
         isLoadingBalances: false,
         balanceError: null,
+        balanceSource: "service",
       });
     } catch (error: any) {
       if (request !== balanceRequest) return;
-      console.error("Failed to refresh balances:", error);
+      console.error("Failed to refresh balances:", error?.message);
       Sentry.captureException(error);
-      set({
-        balanceError: error.message || "Failed to load portfolio",
-        isLoadingBalances: false,
-      });
+
+      // The money is on Base, not at ATARA. When ATARA's portfolio API is
+      // unavailable, read the amounts from the chain instead of leaving
+      // placeholder zeros that look like an empty wallet — and that the send
+      // screen would treat as one, blocking every payment.
+      try {
+        const readings = await readOnChainBalances(smartAccountAddress, get().assets);
+        if (request !== balanceRequest) return;
+        set({
+          assets: mergeOnChainBalances(get().assets, readings),
+          lastUpdated: new Date(),
+          isLoadingBalances: false,
+          balanceError: null,
+          balanceSource: "chain",
+        });
+      } catch (chainError: any) {
+        if (request !== balanceRequest) return;
+        Sentry.captureException(chainError);
+        // Keep whatever was last read successfully; only the error changes.
+        set({
+          balanceError:
+            "Balance unavailable. Neither ATARA's service nor the Base network could be reached.",
+          isLoadingBalances: false,
+        });
+      }
     }
   },
 

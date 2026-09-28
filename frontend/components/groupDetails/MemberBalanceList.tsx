@@ -58,7 +58,7 @@ export const MemberBalanceList = ({
             className="font-mono text-base"
             style={{ color: `${COLORS.white}99` }}
           >
-            Aucune part acceptée à rembourser
+            No accepted shares to settle
           </Text>
         </View>
       ) : (
@@ -102,10 +102,10 @@ export const MemberBalanceList = ({
                   >
                     {displayName(b)}
                   </Text>
-                  {isSettled ? <Text className="text-white/40 text-xs">Aucune part acceptée à régler</Text> : <View>
-                    {owesThem && <Text className="text-white/70 text-xs mt-1">Tu dois {b.owedByMe.toFixed(2)} {unit}</Text>}
+                  {isSettled ? <Text className="text-white/40 text-xs">No accepted shares to pay</Text> : <View>
+                    {owesThem && <Text className="text-white/70 text-xs mt-1">You owe {b.owedByMe.toFixed(2)} {unit}</Text>}
                     {owesMe && <Text style={{ color: COLORS.accent }} className="text-xs mt-1">Te doit {b.owedToMe.toFixed(2)} {unit}</Text>}
-                    {owesMe && <Pressable onPress={() => Share.share({ message: `Salut @${b.handle}, rappel pour ta part acceptée de ${b.owedToMe.toFixed(2)} ${unit} dans notre groupe ATARA. Ouvre Groups pour vérifier et régler. Merci !` })}><Text className="text-white/50 text-xs mt-2">Partager un rappel</Text></Pressable>}
+                    {owesMe && <Pressable onPress={() => Share.share({ message: `Hi @${b.handle}, a reminder about your accepted share of ${b.owedToMe.toFixed(2)} ${unit} in our ATARA group. Open Groups to review and settle it. Thanks!` })}><Text className="text-white/50 text-xs mt-2">Share a reminder</Text></Pressable>}
                   </View>}
                 </View>
 

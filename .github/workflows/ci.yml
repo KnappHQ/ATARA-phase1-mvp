@@ -58,7 +58,7 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run bundle:native
-      - run: node --test scripts/release-preflight.test.cjs scripts/onboarding.test.cjs
+      - run: node --test scripts/*.test.cjs
 
   vault-contracts:
     runs-on: ubuntu-latest

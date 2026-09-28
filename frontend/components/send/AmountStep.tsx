@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import {
-  Modal,
   Pressable,
   ScrollView,
   Text,
@@ -13,6 +12,7 @@ import { AlertCircle } from "lucide-react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SwipeToSend } from "./SwipeToSend";
 import { BalanceLoader } from "./BalanceLoader";
+import { PaymentReview } from "./PaymentReview";
 import { Contact } from "@/stores/useContactStore";
 import { useWalletStore, Token } from "@/stores/useWalletStore";
 import { useTransactionStore } from "@/stores/useTransactionStore";
@@ -38,7 +38,6 @@ interface AmountStepProps {
 }
 
 const QUICK_AMOUNTS = ["25%", "50%", "75%", "MAX"];
-const STANDARD_GAS_DISPLAY = "À vérifier dans le portefeuille";
 
 export const AmountStep = ({
   recipient,
@@ -89,15 +88,22 @@ export const AmountStep = ({
   const [note, setNote] = useState(prefilledNote);
   const [selectedToken, setSelectedToken] = useState<Token>(defaultToken);
   const [isSending, setIsSending] = useState(false);
-  const [pendingRetryRequest, setPendingRetryRequest] =
-    useState<SendTransactionRequest | null>(null);
-  const [isRetryingWithGas, setIsRetryingWithGas] = useState(false);
-  const [canRetryWithGas, setCanRetryWithGas] = useState(false);
-  const [isGasDialogOpen, setIsGasDialogOpen] = useState(false);
+  const [isTakingLonger, setIsTakingLonger] = useState(false);
   const [isAddressReviewOpen, setIsAddressReviewOpen] = useState(false);
+  // Set when a payment was submitted but its outcome could not be confirmed.
+  // It stays until the person leaves: sending again could pay twice.
+  const [statusUnknown, setStatusUnknown] = useState(false);
   const [swipeResetKey, setSwipeResetKey] = useState(0);
-  const isTransactionInProgress =
-    isSending || isRetryingWithGas || isTransactionLoading;
+  const isTransactionInProgress = isSending || isTransactionLoading;
+
+  useEffect(() => {
+    if (!isTransactionInProgress) {
+      setIsTakingLonger(false);
+      return;
+    }
+    const timer = setTimeout(() => setIsTakingLonger(true), 30_000);
+    return () => clearTimeout(timer);
+  }, [isTransactionInProgress]);
 
   const truncateAddress = (address: string) => {
     if (!address || address.length < 12) return address;
@@ -176,12 +182,33 @@ export const AmountStep = ({
   const canSend =
     isValidAmount &&
     !isTransactionInProgress &&
+    !statusUnknown &&
     smartAccountService &&
     transactionService;
 
-  const buildTransactionRequest = (
-    forceGasPayment = false,
-  ): SendTransactionRequest => ({
+  const recipientLabel = recipient.isLocalContact
+    ? recipient.name
+      ? `${recipient.name} (your nickname)`
+      : "External address"
+    : `@${recipient.handle}`;
+  const approxUsd =
+    selectedToken.usdPrice > 0
+      ? `$${(amountValue * selectedToken.usdPrice).toFixed(2)}`
+      : null;
+
+  // A group quote is valid for a limited time. Checked when the review opens
+  // and again when it is confirmed: the review can stay open past expiry.
+  const settlementNeedsUpdate = () =>
+    !!settlementGroupId &&
+    (!settlementIntentId ||
+      selectedToken.symbol !== "USDC" ||
+      !(Date.now() < Date.parse(String(params.settlementExpiresAt))));
+  const warnSettlementNeedsUpdate = () =>
+    useAlertStore
+      .getState()
+      .error("Amount needs updating", "Return to the group and review the updated proposal before paying.");
+
+  const buildTransactionRequest = (): SendTransactionRequest => ({
     recipientAddress: recipient.smartAccountAddress,
     recipientHandle: recipient.handle,
     recipientName: recipient.name,
@@ -194,15 +221,14 @@ export const AmountStep = ({
         ? `$${(amountValue * selectedToken.usdPrice).toFixed(2)}`
         : selectedToken.usdValue,
     note: note || undefined,
-    forceGasPayment,
     settlement: settlementGroupId && settlementMemberId && settlementIntentId
       ? { groupId: settlementGroupId, memberId: settlementMemberId, intentId: settlementIntentId }
       : undefined,
   });
 
   const handleSendComplete = () => {
-    if (settlementGroupId && (!settlementIntentId || selectedToken.symbol !== "USDC" || Date.now() >= Date.parse(String(params.settlementExpiresAt)))) {
-      useAlertStore.getState().error("Montant à actualiser", "Retourne au groupe pour vérifier une nouvelle proposition avant de payer."); return;
+    if (settlementNeedsUpdate()) {
+      warnSettlementNeedsUpdate(); setSwipeResetKey((key) => key + 1); return;
     }
     if (!canSend || isTransactionInProgress) return;
 
@@ -219,22 +245,22 @@ export const AmountStep = ({
 
   const handleConfirmAddressAndSend = async () => {
     if (!canSend || isTransactionInProgress) return;
+    if (settlementNeedsUpdate()) {
+      closeAddressReview();
+      warnSettlementNeedsUpdate();
+      return;
+    }
 
     setIsAddressReviewOpen(false);
     clearError();
     setIsSending(true);
-    setCanRetryWithGas(false);
-    setIsGasDialogOpen(false);
 
     try {
       const transactionRequest = buildTransactionRequest();
-      setPendingRetryRequest(transactionRequest);
-
       const result =
         await transactionService.sendTransaction(transactionRequest);
 
       if (result.success) {
-        setPendingRetryRequest(null);
         router.push({
           pathname: "/transaction-success",
           params: {
@@ -243,23 +269,11 @@ export const AmountStep = ({
             recipient: recipient.handle,
             amount: amountValue.toString(),
             token: selectedToken.symbol,
-            gasPaidDisplay: "Pris en charge par le sponsor",
+            gasPaidDisplay: "Sponsored",
           },
         });
       } else {
-        setPendingRetryRequest({
-          ...transactionRequest,
-          transactionId: result.transactionId,
-        });
-
-        if (result.isPaymasterFailure) {
-          setCanRetryWithGas(true);
-          setIsGasDialogOpen(true);
-          return;
-        }
-
-        setCanRetryWithGas(false);
-        setIsGasDialogOpen(false);
+        if (result.isPendingVerification) setStatusUnknown(true);
         throw new Error(result.error || "Transaction failed");
       }
     } catch {
@@ -267,49 +281,6 @@ export const AmountStep = ({
       // Error is stored in transaction store
     } finally {
       setIsSending(false);
-    }
-  };
-
-  const handleRetryWithGas = async () => {
-    if (
-      isTransactionInProgress ||
-      !transactionService ||
-      !pendingRetryRequest
-    ) {
-      return;
-    }
-
-    clearError();
-    setIsGasDialogOpen(false);
-    setIsRetryingWithGas(true);
-
-    try {
-      const result = await transactionService.sendTransaction({
-        ...pendingRetryRequest,
-        forceGasPayment: true,
-        transactionId: pendingRetryRequest.transactionId,
-      });
-
-      if (!result.success) {
-        throw new Error(result.error || "Gas-funded retry failed");
-      }
-
-      setPendingRetryRequest(null);
-      setCanRetryWithGas(false);
-
-      router.push({
-        pathname: "/transaction-success",
-        params: {
-          transactionId: result.transactionId,
-          hash: result.hash || "",
-          recipient: recipient.handle,
-          amount: amountValue.toString(),
-          token: selectedToken.symbol,
-          gasPaidDisplay: STANDARD_GAS_DISPLAY,
-        },
-      });
-    } finally {
-      setIsRetryingWithGas(false);
     }
   };
 
@@ -354,7 +325,7 @@ export const AmountStep = ({
         className="mb-6"
       >
         <Text className="text-sm font-medium uppercase mb-3 text-muted tracking-widest">
-          Crypto à envoyer
+          Crypto to send
         </Text>
         {isLoadingBalances ? (
           <View className="flex-row gap-2">
@@ -512,7 +483,7 @@ export const AmountStep = ({
         <TextInput
           value={note}
           onChangeText={setNote}
-          placeholder="Add a note (optional)"
+          placeholder="Message to the recipient (optional)"
           placeholderTextColor={COLORS.muted}
           editable={!isTransactionInProgress}
           className="w-full px-4 py-4 rounded-2xl text-base text-primary border border-muted/40"
@@ -521,9 +492,14 @@ export const AmountStep = ({
             opacity: isTransactionInProgress ? 0.55 : 1,
           }}
         />
+        {/* Say who reads it: the note is not a private memo. */}
+        <Text className="text-xs text-muted mt-2 px-1">
+          Stored by ATARA and shown to the recipient if they use ATARA. Not
+          written on the blockchain.
+        </Text>
       </MotiView>
 
-      {transactionError && !isGasDialogOpen && !canRetryWithGas && (
+      {transactionError && (
         <MotiView
           from={{ opacity: 0, translateY: -5 }}
           animate={{ opacity: 1, translateY: 0 }}
@@ -535,170 +511,21 @@ export const AmountStep = ({
               {transactionError}
             </Text>
           </View>
-          {canRetryWithGas && pendingRetryRequest && (
-            <Pressable
-              onPress={handleRetryWithGas}
-              disabled={isTransactionInProgress}
-              className="mt-3 self-start px-4 py-2 rounded-2xl bg-white"
-              style={{ opacity: isTransactionInProgress ? 0.7 : 1 }}
-            >
-              <Text className="text-sm font-semibold text-black">
-                {isRetryingWithGas ? "Retrying..." : "Send with gas"}
-              </Text>
-            </Pressable>
-          )}
         </MotiView>
       )}
 
-      <Modal
+      <PaymentReview
         visible={isAddressReviewOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          if (!isTransactionInProgress) {
-            closeAddressReview();
-          }
-        }}
-      >
-        <View className="flex-1 bg-black/75 items-center justify-center px-6">
-          <View className="w-full max-w-[360px] rounded-3xl border border-white/10 bg-[#111111] p-5">
-            <View className="mb-4 h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5">
-              <AlertCircle size={18} color={COLORS.white} />
-            </View>
-
-            <Text className="text-xl font-semibold text-white mb-2">
-              Review recipient
-            </Text>
-            <Text className="text-sm leading-6 text-white/65 mb-4">
-              Check this address carefully before transferring any funds.
-              Transfers cannot be reversed after signing.
-            </Text>
-
-            <View className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 mb-4">
-              <Text className="text-xs uppercase tracking-widest text-muted mb-2">
-                Recipient
-              </Text>
-              <Text className="text-base font-semibold text-white mb-2">
-                @{recipient.handle}
-              </Text>
-              <Text
-                className="font-mono text-sm text-white/70"
-                selectable
-                numberOfLines={1}
-              >
-                {recipient.smartAccountAddress}
-              </Text>
-            </View>
-
-            <View className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 mb-5">
-              <View className="flex-row justify-between gap-4">
-                <Text className="text-sm text-muted">Amount</Text>
-                <Text className="text-sm font-semibold text-white">
-                  {amountValue.toString()} {selectedToken.symbol}
-                </Text>
-              </View>
-              {selectedToken.usdPrice > 0 && (
-                <View className="mt-2 flex-row justify-between gap-4">
-                  <Text className="text-sm text-muted">Approx. value</Text>
-                  <Text className="text-sm font-semibold text-white">
-                    ${(amountValue * selectedToken.usdPrice).toFixed(2)}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            <View className="flex-row gap-3">
-              <Pressable
-                onPress={closeAddressReview}
-                disabled={isTransactionInProgress}
-                className="flex-1 items-center justify-center rounded-2xl border border-white/15 py-3"
-                style={{ opacity: isTransactionInProgress ? 0.6 : 1 }}
-              >
-                <Text className="text-sm font-semibold text-white">
-                  Review again
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={handleConfirmAddressAndSend}
-                disabled={isTransactionInProgress}
-                className="flex-1 items-center justify-center rounded-2xl bg-white py-3"
-                style={{ opacity: isTransactionInProgress ? 0.7 : 1 }}
-              >
-                <Text className="text-sm font-semibold text-black">
-                  Confirm send
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={isGasDialogOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          if (isTransactionInProgress) return;
-
-          setIsGasDialogOpen(false);
-          setCanRetryWithGas(false);
-          setPendingRetryRequest(null);
-          clearError();
-        }}
-      >
-        <View className="flex-1 bg-black/70 items-center justify-center px-6">
-          <View className="w-full max-w-[340px] rounded-3xl border border-white/10 bg-[#111111] p-5">
-            <Text className="text-lg font-semibold text-white mb-2">
-              Paymaster limit reached
-            </Text>
-            <Text className="text-sm leading-6 text-white/70 mb-4">
-              {transactionError ||
-                "The gas sponsor could not cover this transaction right now."}
-            </Text>
-            <View className="rounded-2xl border border-white/10 bg-white/5 p-4 mb-4">
-              <Text className="text-xs uppercase tracking-widest text-muted mb-1">
-                Continue with gas
-              </Text>
-              <Text className="text-base font-medium text-white">
-                Frais réseau : {STANDARD_GAS_DISPLAY}
-              </Text>
-              <Text className="text-xs text-white/50 mt-1">
-                You will approve a self-funded transaction instead of a
-                sponsored one.
-              </Text>
-            </View>
-            <View className="flex-row gap-3">
-              <Pressable
-                onPress={() => {
-                  if (isTransactionInProgress) return;
-
-                  setIsGasDialogOpen(false);
-                  setCanRetryWithGas(false);
-                  setPendingRetryRequest(null);
-                  clearError();
-                }}
-                disabled={isTransactionInProgress}
-                className="flex-1 items-center justify-center rounded-2xl border border-white/15 py-3"
-                style={{ opacity: isTransactionInProgress ? 0.6 : 1 }}
-              >
-                <Text className="text-sm font-semibold text-white">
-                  Not now
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={handleRetryWithGas}
-                disabled={isTransactionInProgress}
-                className="flex-1 items-center justify-center rounded-2xl bg-white py-3"
-                style={{ opacity: isTransactionInProgress ? 0.7 : 1 }}
-              >
-                <Text className="text-sm font-semibold text-black">
-                  {isRetryingWithGas ? "Sending..." : "Continue with gas"}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        recipientLabel={recipientLabel}
+        recipientAddress={recipient.smartAccountAddress}
+        amount={amountValue.toString()}
+        tokenSymbol={selectedToken.symbol}
+        approxUsd={approxUsd}
+        note={note || undefined}
+        busy={isTransactionInProgress}
+        onCancel={closeAddressReview}
+        onConfirm={handleConfirmAddressAndSend}
+      />
 
       {!balanceValidation.isValid && amountValue > 0 && (
         <MotiView
@@ -722,11 +549,45 @@ export const AmountStep = ({
         <View className="w-2 h-2 rounded-full bg-emarald" />
         <Text className="text-sm text-muted mr-4">Base Network</Text>
 
-        <Text className="text-sm text-muted">Network Fee:</Text>
+        <Text className="text-sm text-muted">Network fee:</Text>
         <View className="px-2.5 py-1 rounded-full bg-emarald/10 border border-emarald/20">
-          <Text className="text-xs font-medium text-emarald">Sponsoring sous réserve de disponibilité</Text>
+          <Text className="text-xs font-medium text-emarald">Sponsorship subject to availability</Text>
         </View>
       </MotiView>
+
+      {statusUnknown && (
+        <View
+          accessibilityRole="alert"
+          className="mb-4 rounded-2xl border border-bitcoin/40 bg-bitcoin/10 p-4"
+        >
+          <Text className="text-sm font-semibold text-white">
+            Status unknown. Do not send again.
+          </Text>
+          <Text className="mt-2 text-sm leading-5 text-white/70">
+            This payment may still go through. Check Activity: it can take a
+            few minutes to appear. ATARA will not send a new payment from this
+            phone until this one is settled.
+          </Text>
+          <Pressable
+            onPress={() => router.push("/(tabs)/activity")}
+            className="mt-3 self-start rounded-xl border border-white/20 px-4 py-2"
+          >
+            <Text className="text-sm font-semibold text-white">Open Activity</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {isTakingLonger && !statusUnknown && (
+        <View className="mb-4 rounded-2xl border border-white/20 bg-white/5 p-4">
+          <Text className="text-sm font-semibold text-white">
+            Still verifying your transfer
+          </Text>
+          <Text className="mt-2 text-sm leading-5 text-white/70">
+            It may already have been sent. Use the close button to leave and
+            check Activity. It may take time to appear there. Do not send again until this attempt is resolved. Leaving will not cancel it.
+          </Text>
+        </View>
+      )}
 
       <MotiView
         from={{ opacity: 0, scale: 0.9 }}
@@ -738,15 +599,17 @@ export const AmountStep = ({
           disabled={!canSend || isLoadingBalances}
           resetKey={swipeResetKey}
           label={
-            isSending || isRetryingWithGas
+            isSending
               ? "Sending Transaction..."
-              : !smartAccountService
+              : statusUnknown
+                ? "Check Activity first"
+                : !smartAccountService
                 ? "Wallet Not Connected"
                 : isLoadingBalances
                   ? "Loading Balances..."
                   : !balanceValidation.isValid && amountValue > 0
                     ? balanceValidation.message
-                    : "Swipe to Send"
+                    : "Slide right to send"
           }
         />
       </MotiView>

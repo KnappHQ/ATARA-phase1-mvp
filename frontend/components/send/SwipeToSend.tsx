@@ -1,18 +1,12 @@
-import { useEffect, useState } from "react";
-import { View, Text } from "react-native";
-import { MotiView } from "moti";
+import { useEffect, useRef, useState } from "react";
+import { Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  interpolate,
-  Extrapolation,
-  runOnJS,
+  Extrapolation, interpolate, runOnJS, useAnimatedStyle, useSharedValue, withSpring,
 } from "react-native-reanimated";
-import { ArrowUp, Check } from "lucide-react-native";
-import { COLORS } from "@/utils/constants";
+import { ArrowRight, Check } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
+import { COLORS } from "@/utils/constants";
 
 interface SwipeToSendProps {
   onComplete: () => void;
@@ -21,116 +15,77 @@ interface SwipeToSendProps {
   resetKey?: number;
 }
 
-const CONTAINER_HEIGHT = 200;
-const THUMB_SIZE = 64;
-const MAX_DRAG = CONTAINER_HEIGHT - THUMB_SIZE - 16;
+const HEIGHT = 80;
+const THUMB = 64;
+const INSET = 8;
 
 export const SwipeToSend = ({
-  onComplete,
-  disabled = false,
-  label = "Swipe to Send",
-  resetKey = 0,
+  onComplete, disabled = false, label = "Slide right to send", resetKey = 0,
 }: SwipeToSendProps) => {
   const [isComplete, setIsComplete] = useState(false);
-  const translateY = useSharedValue(0);
-  const startY = useSharedValue(0);
+  const [hasLayout, setHasLayout] = useState(false);
+  const translateX = useSharedValue(0);
+  const maxDrag = useSharedValue(0);
+  const completed = useSharedValue(false);
+  const completionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   useEffect(() => {
     setIsComplete(false);
-    translateY.value = withSpring(0);
-  }, [resetKey, translateY]);
+    completed.value = false;
+    translateX.value = withSpring(0);
+    return () => {
+      if (completionTimer.current) clearTimeout(completionTimer.current);
+    };
+  }, [resetKey, completed, translateX]);
 
   const handleComplete = () => {
     setIsComplete(true);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    setTimeout(onComplete, 300);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    completionTimer.current = setTimeout(() => {
+      completionTimer.current = null;
+      onCompleteRef.current();
+    }, 300);
   };
 
   const panGesture = Gesture.Pan()
-    .onStart(() => {
-      startY.value = translateY.value;
-    })
+    .activeOffsetX(12)
+    .failOffsetY([-12, 12])
     .onUpdate((event) => {
-      const newValue = startY.value + event.translationY;
-      translateY.value = Math.max(-MAX_DRAG, Math.min(0, newValue));
+      translateX.value = Math.max(0, Math.min(maxDrag.value, event.translationX));
     })
-    .onEnd((event) => {
-      const threshold = -MAX_DRAG * 0.85;
-
-      if (translateY.value <= threshold && !isComplete) {
-        translateY.value = withSpring(-MAX_DRAG);
+    .onEnd(() => {
+      if (maxDrag.value > 0 && translateX.value >= maxDrag.value * 0.85 && !completed.value) {
+        completed.value = true;
+        translateX.value = withSpring(maxDrag.value);
         runOnJS(handleComplete)();
-      } else if (!isComplete) {
-        translateY.value = withSpring(0);
+      } else if (!completed.value) {
+        translateX.value = withSpring(0);
       }
     })
-    .enabled(!disabled && !isComplete);
+    .enabled(!disabled && !isComplete && hasLayout);
 
-  const thumbStyle = useAnimatedStyle(() => {
-    const progress = interpolate(
-      translateY.value,
-      [0, -MAX_DRAG],
-      [0, 1],
-      Extrapolation.CLAMP,
-    );
-
-    return {
-      transform: [
-        { translateY: translateY.value },
-        { scale: interpolate(progress, [0, 1], [1, 1.1]) },
-      ],
-    };
-  });
-
-  const arrowOpacity = useAnimatedStyle(() => {
-    const progress = interpolate(
-      translateY.value,
-      [0, -MAX_DRAG],
-      [0, 1],
-      Extrapolation.CLAMP,
-    );
-    return {
-      opacity: interpolate(progress, [0, 0.8, 1], [1, 1, 0]),
-    };
-  });
-
-  const checkOpacity = useAnimatedStyle(() => {
-    const progress = interpolate(
-      translateY.value,
-      [0, -MAX_DRAG],
-      [0, 1],
-      Extrapolation.CLAMP,
-    );
-    return {
-      opacity: interpolate(progress, [0, 0.8, 1], [0, 0, 1]),
-    };
-  });
-
-  const glowStyle = useAnimatedStyle(() => {
-    const progress = interpolate(
-      translateY.value,
-      [0, -MAX_DRAG],
-      [0, 1],
-      Extrapolation.CLAMP,
-    );
-    return {
-      opacity: progress * 0.2,
-    };
-  });
+  const thumbStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
+  const fillStyle = useAnimatedStyle(() => ({
+    width: THUMB + INSET * 2 + translateX.value,
+  }));
+  const labelStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(
+      maxDrag.value > 0 ? translateX.value / maxDrag.value : 0,
+      [0, 0.8, 1], [1, 0.3, 0], Extrapolation.CLAMP,
+    ),
+  }));
 
   if (disabled) {
     return (
-      <View
-        className="w-full rounded-2xl items-center justify-center"
-        style={{
-          height: CONTAINER_HEIGHT,
-          backgroundColor: "rgba(255, 255, 255, 0.05)",
-          borderWidth: 1,
-          borderColor: "rgba(255, 255, 255, 0.1)",
-          opacity: 0.5,
-        }}
-      >
-        <Text className="text-sm" style={{ color: "rgba(255, 255, 255, 0.4)" }}>
+      <View className="w-full rounded-2xl items-center justify-center" style={{
+        height: HEIGHT, backgroundColor: "rgba(255,255,255,0.05)",
+        borderWidth: 1, borderColor: "rgba(255,255,255,0.1)", opacity: 0.5,
+      }}>
+        <Text className="text-sm text-center px-4" style={{ color: COLORS.platinum }}>
           {label}
         </Text>
       </View>
@@ -139,122 +94,54 @@ export const SwipeToSend = ({
 
   return (
     <View
-      className="relative w-full rounded-2xl overflow-hidden"
+      className="relative w-full rounded-2xl overflow-hidden justify-center"
+      onLayout={(event) => {
+        const distance = Math.max(0, event.nativeEvent.layout.width - THUMB - INSET * 2);
+        maxDrag.value = distance;
+        setHasLayout(distance > 0);
+      }}
       style={{
-        height: CONTAINER_HEIGHT,
-        backgroundColor: "rgba(245, 245, 240, 0.02)",
-        borderWidth: 1,
-        borderColor: "rgba(245, 245, 240, 0.15)",
+        height: HEIGHT, backgroundColor: "rgba(245,245,240,0.04)",
+        borderWidth: 1, borderColor: "rgba(245,245,240,0.2)",
       }}
     >
+      <Animated.View className="absolute left-0 top-0 bottom-0 rounded-2xl" style={[
+        { backgroundColor: "rgba(245,245,240,0.12)" }, fillStyle,
+      ]} />
       <Animated.View
-        className="absolute inset-0 rounded-2xl"
-        style={[
-          {
-            backgroundColor: "rgba(245, 245, 240, 0.05)",
-          },
-          glowStyle,
-        ]}
-      />
-
-      <View className="absolute inset-x-0 top-4 bottom-20 flex-col items-center justify-between opacity-20">
-        {[...Array(5)].map((_, i) => (
-          <View
-            key={i}
-            className="w-8 h-0.5 rounded-full"
-            style={{ backgroundColor: "rgba(245, 245, 240, 0.2)" }}
-          />
-        ))}
-      </View>
-
-      <Animated.View
-        className="absolute top-6 inset-x-0 items-center"
-        style={arrowOpacity}
+        pointerEvents="none"
+        className="absolute inset-0 justify-center items-center"
+        style={[{ paddingLeft: THUMB + INSET * 2 }, labelStyle]}
       >
-        <Text
-          className="text-sm uppercase"
-          style={{
-            color: "rgba(245, 245, 240, 0.5)",
-            letterSpacing: 1.5,
-          }}
-        >
+        <Text numberOfLines={1} className="text-sm font-medium text-center" style={{
+          color: COLORS.platinum, letterSpacing: 0.4,
+        }}>
           {label}
         </Text>
       </Animated.View>
-
-      <Animated.View
-        className="absolute top-1/2 left-1/2 items-center justify-center"
-        style={[
-          checkOpacity,
-          {
-            width: 64,
-            height: 64,
-            marginLeft: -32,
-            marginTop: -32,
-          },
-        ]}
-      >
-        <View
-          className="w-16 h-16 rounded-full items-center justify-center"
-          style={{
-            backgroundColor: "rgba(245, 245, 240, 0.15)",
-            borderWidth: 1,
-            borderColor: "rgba(245, 245, 240, 0.3)",
-          }}
-        >
-          <Check size={32} color={COLORS.platinum} />
-        </View>
-      </Animated.View>
-
       <GestureDetector gesture={panGesture}>
         <Animated.View
-          className="absolute bottom-2 left-1/2 items-center justify-center"
-          style={[
-            thumbStyle,
-            {
-              width: THUMB_SIZE,
-              height: THUMB_SIZE,
-              marginLeft: -THUMB_SIZE / 2,
-            },
-          ]}
+          accessibilityRole="button"
+          accessibilityLabel={label}
+          accessibilityHint="Slide from left to right to review the recipient"
+          accessibilityActions={[{ name: "activate", label: "Review recipient" }]}
+          onAccessibilityAction={() => {
+            if (!disabled && !isComplete && hasLayout && !completed.value) {
+              completed.value = true;
+              translateX.value = withSpring(maxDrag.value);
+              handleComplete();
+            }
+          }}
+          className="absolute items-center justify-center"
+          style={[thumbStyle, { left: INSET, width: THUMB, height: THUMB }]}
         >
-          <View
-            className="w-16 h-16 rounded-full items-center justify-center"
-            style={{
-              backgroundColor: COLORS.platinum,
-              shadowColor: COLORS.platinum,
-              shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.25,
-              shadowRadius: 20,
-              elevation: 10,
-            }}
-          >
-            <Animated.View style={arrowOpacity}>
-              <ArrowUp size={24} color={COLORS.black} />
-            </Animated.View>
-            <Animated.View className="absolute" style={checkOpacity}>
-              <Check size={24} color={COLORS.black} />
-            </Animated.View>
+          <View className="w-16 h-16 rounded-xl items-center justify-center" style={{
+            backgroundColor: COLORS.platinum,
+          }}>
+            {isComplete
+              ? <Check size={26} color={COLORS.black} />
+              : <ArrowRight size={26} color={COLORS.black} />}
           </View>
-
-          {!isComplete && (
-            <MotiView
-              className="absolute rounded-full"
-              from={{ scale: 1, opacity: 0.4 }}
-              animate={{ scale: 1.3, opacity: 0 }}
-              transition={{
-                type: "timing",
-                duration: 1500,
-                loop: true,
-              }}
-              style={{
-                width: THUMB_SIZE,
-                height: THUMB_SIZE,
-                borderWidth: 2,
-                borderColor: "rgba(245, 245, 240, 0.25)",
-              }}
-            />
-          )}
         </Animated.View>
       </GestureDetector>
     </View>

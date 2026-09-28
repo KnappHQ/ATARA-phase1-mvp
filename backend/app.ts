@@ -68,6 +68,10 @@ const corsOptions: CorsOptions =
 
 app.use(cors(corsOptions));
 
+// Public OS trust documents are not user API requests. Apple/Google fetch
+// through shared infrastructure: the API's per-IP quota must not block them.
+app.use("/.well-known", associationRouter);
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 100,
@@ -80,8 +84,6 @@ app.use(limiter);
 // Explicit rather than relying on body-parser's implicit 100kb default.
 app.use(express.json({ limit: "100kb" }));
 
-// These files must live at the domain root for Apple/Android passkey trust.
-app.use("/.well-known", associationRouter);
 app.use("/api/v1", rootRouter);
 
 app.use(errorMiddleware);

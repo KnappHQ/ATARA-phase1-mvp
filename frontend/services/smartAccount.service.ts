@@ -24,6 +24,11 @@ import type {
 
 import { APP_NETWORK, CHAIN_ID } from "@/utils/constants";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useAddressVerificationStore } from "@/stores/useAddressVerificationStore";
+import {
+  compareDerivedAddress,
+  type AddressVerification,
+} from "@/utils/addressVerification";
 import { useExternalWallet } from "@/providers/ExternalWalletProvider";
 
 // ERC-20 ABI for transfer function
@@ -65,6 +70,7 @@ export interface SendTransactionFailure extends Error {
   cause?: unknown;
   isPaymasterFailure?: boolean;
   canRetryWithGas?: boolean;
+  isPendingVerification?: boolean;
 }
 
 const PAYMASTER_ERROR_PATTERNS = [
@@ -115,6 +121,7 @@ const createTransactionError = (
   error.isPaymasterFailure = options?.isPaymasterFailure;
   error.code = options?.isPaymasterFailure ? "PAYMASTER_FAILURE" : undefined;
   error.canRetryWithGas = options?.isPaymasterFailure ?? false;
+  error.isPendingVerification = !!(options?.cause as SendTransactionFailure)?.isPendingVerification;
   return error;
 };
 
@@ -221,7 +228,45 @@ export const createAlchemySmartAccountService = async ({
     account: account.address,
   });
 
+  if (smartAccountAddress) {
+    verifyStoredAddress(smartAccountAddress, () =>
+      requestClient
+        .requestAccount({ creationHint: { accountType: "sma-b" } })
+        .then((derived: { address: string }) => derived.address),
+    );
+  }
+
   return new SmartAccountService(client, account.address, alchemyGasPolicyId);
+};
+
+/**
+ * Re-derives the smart account from this phone's signer and compares it with
+ * the address ATARA's service supplied. Runs in the background, once per
+ * address, and only ever records a result: the stored address is never
+ * replaced and nothing is blocked. A legitimate account and a check that could
+ * not run must both keep working exactly as before.
+ */
+const verifyStoredAddress = (
+  storedAddress: string,
+  derive: () => Promise<string>,
+) => {
+  const verification = useAddressVerificationStore.getState();
+  if (verification.address === storedAddress.toLowerCase()) return;
+  verification.setResult(storedAddress, "unverified");
+  // Promise.resolve().then(...) turns a synchronous throw from the SDK into a
+  // rejection. Without it, a throw here would escape into the service factory
+  // and stop the user from paying — the one thing this check must never do.
+  Promise.resolve()
+    .then(derive)
+    .then((derived) => compareDerivedAddress(storedAddress, derived))
+    .catch((): AddressVerification => "unverified")
+    .then((status) => {
+      useAddressVerificationStore.getState().setResult(storedAddress, status);
+      if (status === "mismatch") {
+        Sentry.captureMessage("Stored smart account does not match this signer's derivation");
+      }
+    })
+    .catch(() => undefined);
 };
 
 export class SmartAccountService {
@@ -237,6 +282,32 @@ export class SmartAccountService {
     this.client = client;
     this.smartAccountAddress = smartAccountAddress;
     this.gasPolicyId = gasPolicyId;
+  }
+
+  private pendingKey() {
+    return `atara.pending-call-bundle.${CHAIN_ID}.${this.smartAccountAddress.toLowerCase()}`;
+  }
+
+  /** Read-only chain status. Never resubmits the call or guesses that a timeout failed. */
+  async checkPendingOperation(): Promise<{ status: "none" | "pending" | "confirmed" | "failed"; hash?: string }> {
+    return runExclusiveOperation(`${CHAIN_ID}:${this.smartAccountAddress.toLowerCase()}`, async () => {
+      const stored = await AsyncStorage.getItem(this.pendingKey());
+      if (!stored) return { status: "none" };
+      let id: string;
+      try { id = JSON.parse(stored).id; } catch { id = stored; }
+      if (!id) return { status: "pending" };
+      const result = await this.client.getCallsStatus({ id });
+      if (result.status === "failure") {
+        await AsyncStorage.removeItem(this.pendingKey());
+        return { status: "failed" };
+      }
+      const hash = result.receipts?.[0]?.transactionHash;
+      if (hash) {
+        await AsyncStorage.removeItem(this.pendingKey());
+        return { status: "confirmed", hash };
+      }
+      return { status: "pending" };
+    });
   }
 
   /**
@@ -274,7 +345,7 @@ export class SmartAccountService {
     calls: SmartAccountCall[],
     overrides?: Record<string, unknown>,
   ): Promise<TransactionResult> {
-    const pendingKey = `atara.pending-call-bundle.${CHAIN_ID}.${this.smartAccountAddress.toLowerCase()}`;
+    const pendingKey = this.pendingKey();
     const fingerprint = JSON.stringify(calls.map(c => [c.target.toLowerCase(), String(c.value ?? 0n), c.data.toLowerCase()]));
     const waitForBundle = async (id: string) => {
       const status = await this.client.waitForCallsStatus({ id, timeout: 120_000, throwOnFailure: false });
@@ -290,7 +361,7 @@ export class SmartAccountService {
       let result: TransactionResult | undefined;
       try { result = await waitForBundle(pending.id); }
       catch (error: any) {
-        if (!error?.definitiveFailure) throw new Error("An earlier operation is still unverified. No new operation was sent. Retry after checking Activity.");
+        if (!error?.definitiveFailure) throw Object.assign(new Error("An earlier operation is still unverified. No new operation was sent. Open Activity to check its chain status."), { isPendingVerification: true });
         await AsyncStorage.removeItem(pendingKey);
       }
       if (result) {
@@ -308,12 +379,13 @@ export class SmartAccountService {
       const result = await waitForBundle(id); await AsyncStorage.removeItem(pendingKey); return result;
     } catch (error: any) {
       if (error?.definitiveFailure) await AsyncStorage.removeItem(pendingKey);
+      if (!error?.definitiveFailure) error.isPendingVerification = true;
       throw error;
     }
   }
 
   private getGaslessCapabilities(): Record<string, unknown> {
-    if (!this.gasPolicyId) throw new Error("Le sponsoring des frais doit être configuré avant les paiements de la bêta.");
+    if (!this.gasPolicyId) throw new Error("Gas sponsorship must be configured before beta payments.");
     return { paymaster: { policyId: this.gasPolicyId } };
   }
 

@@ -11,10 +11,14 @@ import {
 } from "../utils/constants";
 import { ErrorHandler } from "../utils/errorHandler";
 
+/**
+ * Only what MoonPay needs to deliver the purchase: the address to send it to.
+ * Our account id and the user's email used to ride along in the URL. Nothing
+ * reads them back (there is no MoonPay webhook), and MoonPay collects its own
+ * identity details during checkout, from the user, with their consent.
+ */
 export type MoonPaySessionInput = {
   walletAddress: string;
-  userId: string;
-  email?: string | null;
   baseCurrencyAmount?: string | number | null;
 };
 
@@ -23,6 +27,9 @@ const isPositiveAmount = (value: string | number | null | undefined) => {
   const amount = Number(value);
   return Number.isFinite(amount) && amount > 0 && amount <= 10_000;
 };
+
+export const signMoonPayQuery = (query: string, secretKey: string): string =>
+  crypto.createHmac("sha256", secretKey).update(query).digest("base64");
 
 /**
  * Builds a signed MoonPay URL. The complete query string is signed before the
@@ -34,6 +41,19 @@ export const buildMoonPayWidgetUrl = (input: MoonPaySessionInput): string => {
   }
   if (!MOONPAY_API_KEY || !MOONPAY_SECRET_KEY) {
     throw new ErrorHandler("The on-ramp is not configured yet", 503);
+  }
+
+  const isSandbox = NETWORK !== "base-mainnet";
+  const expectedPublicPrefix = isSandbox ? "pk_test_" : "pk_live_";
+  const expectedSecretPrefix = isSandbox ? "sk_test_" : "sk_live_";
+  if (
+    !MOONPAY_API_KEY.startsWith(expectedPublicPrefix) ||
+    !MOONPAY_SECRET_KEY.startsWith(expectedSecretPrefix)
+  ) {
+    throw new ErrorHandler(
+      `MoonPay keys do not match the configured ${isSandbox ? "sandbox" : "live"} environment`,
+      503,
+    );
   }
 
   const url = new URL(MOONPAY_WIDGET_URL);
@@ -58,10 +78,8 @@ export const buildMoonPayWidgetUrl = (input: MoonPaySessionInput): string => {
     ["baseCurrencyCode", MOONPAY_BASE_CURRENCY_CODE],
     ["walletAddress", input.walletAddress],
     ["theme", "dark"],
-    ["externalCustomerId", input.userId],
   ];
 
-  if (input.email) params.push(["email", input.email]);
   if (isPositiveAmount(input.baseCurrencyAmount)) {
     params.push(["baseCurrencyAmount", String(input.baseCurrencyAmount)]);
     params.push(["lockAmount", "true"]);
@@ -71,10 +89,7 @@ export const buildMoonPayWidgetUrl = (input: MoonPaySessionInput): string => {
   // URLSearchParams applies URL encoding to each value. MoonPay signs the
   // leading '?' and the encoded query, then expects a URL-encoded base64 sig.
   url.search = new URLSearchParams(params).toString();
-  const signature = crypto
-    .createHmac("sha256", MOONPAY_SECRET_KEY)
-    .update(url.search)
-    .digest("base64");
+  const signature = signMoonPayQuery(url.search, MOONPAY_SECRET_KEY);
 
   return `${url.toString()}&signature=${encodeURIComponent(signature)}`;
 };

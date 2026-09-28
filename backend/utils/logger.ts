@@ -27,6 +27,23 @@ import { NODE_ENV } from "./constants";
 export const redactPath = (path: string): string =>
   path.replace(/(0x)?[0-9a-fA-F]{32,}/g, "[redacted]");
 
+/**
+ * Strips secrets and personal data out of free text before it is logged.
+ *
+ * An error message is not ours to trust: ethers and axios quote the URL they
+ * called, and Alchemy's URL carries the API key in its path. A JSON-RPC error
+ * can echo the request, which carries a wallet address. Covered here:
+ * versioned API path keys (`/v2/<key>`), query strings, bearer tokens, email
+ * addresses, and any long hex run (addresses, hashes, tokens).
+ */
+export const redactSecrets = (text: string): string =>
+  text
+    .replace(/(https?:\/\/[^\s"'?]*?\/v\d+\/)[^\s"'/?]+/gi, "$1[redacted]")
+    .replace(/(https?:\/\/[^\s"'?]+)\?[^\s"']*/gi, "$1?[redacted]")
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/g, "Bearer [redacted]")
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[email]")
+    .replace(/(0x)?[0-9a-fA-F]{32,}/g, "[redacted]");
+
 export const logError = (
   context: string,
   error: unknown,
@@ -41,15 +58,16 @@ export const logError = (
 
   if (error instanceof Error) {
     entry.error = error.name;
-    entry.message = error.message;
+    entry.message = redactSecrets(error.message);
     // A stack can carry file paths and, through an error message, values from
-    // the failing call. Kept out of production logs.
-    if (NODE_ENV !== "production") {
-      entry.stack = error.stack;
+    // the failing call. Kept out of production logs, and redacted even in
+    // development: a stack repeats the message.
+    if (NODE_ENV !== "production" && error.stack) {
+      entry.stack = redactSecrets(error.stack);
     }
   } else {
     entry.error = "NonError";
-    entry.message = String(error);
+    entry.message = redactSecrets(String(error));
   }
 
   process.stderr.write(`${JSON.stringify(entry)}\n`);

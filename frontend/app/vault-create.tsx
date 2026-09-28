@@ -80,7 +80,7 @@ function VaultCreateScreenEnabled() {
       await smartAccount.sendContractCalls([{ target: call.target, data: call.data }]);
       router.replace("/vaults");
     } catch (requestError: any) {
-      setError(requestError?.message || "La création du Vault a échoué.");
+      setError(requestError?.message || "Vault creation failed.");
     } finally { setBusy(false); }
   };
 
@@ -96,29 +96,29 @@ function VaultCreateScreenEnabled() {
 
   return (
     <SafeAreaView className="flex-1 bg-black">
-      <View className="flex-row items-center px-6 py-4 border-b border-white/10"><Pressable onPress={() => router.back()} className="w-11 h-11 rounded-full items-center justify-center bg-white/10"><ArrowLeft size={20} color={COLORS.white} /></Pressable><Text className="ml-4 text-xl font-semibold text-white">Créer un Vault</Text></View>
+      <View className="flex-row items-center px-6 py-4 border-b border-white/10"><Pressable onPress={() => router.back()} className="w-11 h-11 rounded-full items-center justify-center bg-white/10"><ArrowLeft size={20} color={COLORS.white} /></Pressable><Text className="ml-4 text-xl font-semibold text-white">Create a Vault</Text></View>
       <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 50 }} showsVerticalScrollIndicator={false}>
         <View className="rounded-3xl border border-white/10 bg-white/[0.06] p-5">
-          {DEMO_MODE ? <View className="mb-5 rounded-2xl border border-blue-300/25 bg-blue-300/10 p-4"><Text className="text-blue-100 font-semibold">MODE SIMULATION</Text><Text className="text-blue-100/70 text-xs leading-5 mt-1">La création sera visualisée sans publier de contrat.</Text></View> : null}
-          <View className="flex-row items-center"><View className="w-11 h-11 rounded-2xl bg-white/10 items-center justify-center"><LockKeyhole size={21} color={COLORS.accent} /></View><View className="flex-1 ml-3"><Text className="text-white text-lg font-semibold">Règles immuables</Text><Text className="text-white/50 text-sm mt-1">Base Sepolia · USDC · 2 à 10 membres</Text></View></View>
-          <Text className="text-white/55 text-sm leading-5 mt-5">Le nom et les adresses des membres seront publics sur la blockchain. Le retrait restera soumis à l’accord de tout le monde.</Text>
+          {DEMO_MODE ? <View className="mb-5 rounded-2xl border border-blue-300/25 bg-blue-300/10 p-4"><Text className="text-blue-100 font-semibold">SIMULATION MODE</Text><Text className="text-blue-100/70 text-xs leading-5 mt-1">You can preview creation without deploying a contract.</Text></View> : null}
+          <View className="flex-row items-center"><View className="w-11 h-11 rounded-2xl bg-white/10 items-center justify-center"><LockKeyhole size={21} color={COLORS.accent} /></View><View className="flex-1 ml-3"><Text className="text-white text-lg font-semibold">Immutable rules</Text><Text className="text-white/50 text-sm mt-1">Base Sepolia · USDC · 2 to 10 members</Text></View></View>
+          <Text className="text-white/55 text-sm leading-5 mt-5">The name and member addresses will be public on the blockchain. Every withdrawal requires everyone’s approval.</Text>
           <Text className="text-white/50 text-xs uppercase mt-6 mb-2" style={{ letterSpacing: 1.4 }}>Nom public</Text>
           <TextInput value={name} onChangeText={setName} maxLength={64} placeholder="Notre cagnotte" placeholderTextColor="rgba(255,255,255,0.25)" className="rounded-2xl border border-white/15 bg-black/40 px-4 py-4 text-white" />
-          <Text className="text-white/50 text-xs uppercase mt-5 mb-2" style={{ letterSpacing: 1.4 }}>Inviter des contacts</Text>
+          <Text className="text-white/50 text-xs uppercase mt-5 mb-2" style={{ letterSpacing: 1.4 }}>Invite contacts</Text>
           <View className="rounded-2xl border border-white/15 bg-black/40 p-3">
-            <View className="flex-row items-center"><UserPlus size={16} color={COLORS.accent} /><TextInput value={inviteQuery} onChangeText={setInviteQuery} autoCapitalize="none" autoCorrect={false} placeholder="@handle pour rechercher" placeholderTextColor="rgba(255,255,255,0.25)" className="flex-1 px-3 py-2 text-white" /></View>
+            <View className="flex-row items-center"><UserPlus size={16} color={COLORS.accent} /><TextInput value={inviteQuery} onChangeText={setInviteQuery} autoCapitalize="none" autoCorrect={false} placeholder="Search @handle" placeholderTextColor="rgba(255,255,255,0.25)" className="flex-1 px-3 py-2 text-white" /></View>
             {inviteQuery.trim().startsWith("@") && contactSuggestions.length > 0 ? <View className="mt-2 border-t border-white/10 pt-2">{contactSuggestions.map((contact) => <Pressable key={contact.smartAccountAddress} onPress={() => addInvite(contact)} className="flex-row items-center rounded-xl px-2 py-3"><View className="w-8 h-8 rounded-full bg-white/10 items-center justify-center"><Text className="text-white text-xs font-semibold">{(contact.name || contact.handle).slice(0, 2).toUpperCase()}</Text></View><View className="flex-1 ml-3"><Text className="text-white text-sm">{contact.handle}</Text><Text className="text-white/45 text-xs mt-0.5">{contact.name || contact.smartAccountAddress.slice(0, 10) + "…"}</Text></View><Text className="text-white/40 text-lg">＋</Text></Pressable>)}</View> : null}
             {invitedContacts.length > 0 ? <View className="flex-row flex-wrap mt-2">{invitedContacts.map((contact) => <View key={contact.smartAccountAddress} className="flex-row items-center rounded-full bg-white/10 px-3 py-2 mr-2 mb-2"><Text className="text-white text-xs">{contact.handle}</Text><Pressable onPress={() => removeInvite(contact.smartAccountAddress)} hitSlop={8} className="ml-2"><X size={13} color="rgba(255,255,255,0.65)" /></Pressable></View>)}</View> : null}
           </View>
-          <Text className="text-white/40 text-xs leading-5 mt-2">Les membres invités devront accepter les règles du Vault avant tout dépôt. Les invitations ajoutent leur smart account à la liste publique.</Text>
-          <Text className="text-white/50 text-xs uppercase mt-5 mb-2" style={{ letterSpacing: 1.4 }}>Adresses supplémentaires</Text>
+          <Text className="text-white/40 text-xs leading-5 mt-2">Invited members must accept the Vault rules before depositing. Invitations add their smart accounts to the public member list.</Text>
+          <Text className="text-white/50 text-xs uppercase mt-5 mb-2" style={{ letterSpacing: 1.4 }}>Additional addresses</Text>
           <TextInput value={memberText} onChangeText={setMemberText} multiline autoCapitalize="none" autoCorrect={false} placeholder="0x… , 0x…" placeholderTextColor="rgba(255,255,255,0.25)" className="min-h-[92px] rounded-2xl border border-white/15 bg-black/40 px-4 py-4 text-sm text-white" />
-          <Text className="text-white/40 text-xs leading-5 mt-2">Ton compte est ajouté automatiquement. {members.length}/10 membres préparés.</Text>
-          <Text className="text-white/50 text-xs uppercase mt-5 mb-2" style={{ letterSpacing: 1.4 }}>Durée avant retrait (jours)</Text>
+          <Text className="text-white/40 text-xs leading-5 mt-2">Your account is added automatically. {members.length}/10 members selected.</Text>
+          <Text className="text-white/50 text-xs uppercase mt-5 mb-2" style={{ letterSpacing: 1.4 }}>Lock period (days)</Text>
           <TextInput value={days} onChangeText={(value) => setDays(value.replace(/[^0-9]/g, ""))} keyboardType="number-pad" placeholder="30" placeholderTextColor="rgba(255,255,255,0.25)" className="rounded-2xl border border-white/15 bg-black/40 px-4 py-4 text-white" />
-          <Text className="text-white/55 text-sm mt-3">Fonds bloqués jusqu’au {new Date(unlockAt * 1000).toLocaleDateString("fr-FR", { dateStyle: "long" })}.</Text>
+          <Text className="text-white/55 text-sm mt-3">Funds locked until {new Date(unlockAt * 1000).toLocaleDateString("en-US", { dateStyle: "long" })}.</Text>
           {error ? <Text className="text-red-300 text-sm leading-5 mt-4">{error}</Text> : null}
-          <Pressable onPress={create} disabled={!valid || busy} className="mt-6 h-14 rounded-2xl items-center justify-center" style={{ backgroundColor: COLORS.white, opacity: valid && !busy ? 1 : 0.4 }}>{busy ? <ActivityIndicator color={COLORS.black} /> : <Text className="font-semibold" style={{ color: COLORS.black }}>Créer le Vault</Text>}</Pressable>
+          <Pressable onPress={create} disabled={!valid || busy} className="mt-6 h-14 rounded-2xl items-center justify-center" style={{ backgroundColor: COLORS.white, opacity: valid && !busy ? 1 : 0.4 }}>{busy ? <ActivityIndicator color={COLORS.black} /> : <Text className="font-semibold" style={{ color: COLORS.black }}>Create Vault</Text>}</Pressable>
         </View>
       </ScrollView>
     </SafeAreaView>
