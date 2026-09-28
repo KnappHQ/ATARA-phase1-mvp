@@ -242,7 +242,9 @@ veut dire et de ses limites.
 
 - L'app suit `release/store-beta` (TestFlight). **L'API Render se déploie depuis
   `main`** (`render.yaml`) : les changements backend de cette PR ne seront en
-  ligne qu'après la fusion release → `main`.
+  ligne qu'après la fusion release → `main`. Le workflow « Verify Render
+  Deploy » confirme ensuite que Render sert bien le commit fusionné
+  (`GET /api/v1/health/backend` renvoie `commit`), et échoue sinon.
 - Chaque changement app reste compatible avec l'ancien backend dans cet
   intervalle : l'app nettoie elle-même le profil reçu, désactive l'édition de la
   note pour le destinataire et ne lit que le statut des liens.
