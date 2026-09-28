@@ -201,8 +201,13 @@ export const IdentityScreen = ({
           <Text className="text-red-400 text-xs mt-2 px-1">{error}</Text>
         )}
 
+        <Text className="text-white/40 text-[11px] leading-4 mt-2 px-1">
+          Anyone signed in to ATARA can find your @handle and see the address
+          you receive payments at.
+        </Text>
+
         <Text className="text-white/60 text-xs mt-5 mb-2">
-          Account name (optional, visible in your profile)
+          Account name (optional, other ATARA users can see it and search it)
         </Text>
         <TextInput
           value={accountName}

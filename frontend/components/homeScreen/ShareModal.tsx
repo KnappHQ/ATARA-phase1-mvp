@@ -2,15 +2,19 @@ import { useState } from "react";
 import { Modal, Pressable, Share, Text, TextInput, ScrollView, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { SvgUri } from "react-native-svg";
+import QRCodeStyled from "react-native-qrcode-styled";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useWalletStore } from "@/stores/useWalletStore";
+import { useAddressVerificationStore } from "@/stores/useAddressVerificationStore";
 import { api } from "@/services/api";
-import { COLORS } from "@/utils/constants";
+import { CHAIN_ID, COLORS } from "@/utils/constants";
+import { buildReceiveUri } from "@/utils/paymentRequest";
 
 type Request = { id: string; url: string; amount: string; chainId: number; expiresAt: string };
 export function ShareModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const user = useAuthStore(s => s.user);
   const address = useWalletStore(s => s.smartAccountAddress);
+  const verification = useAddressVerificationStore(s => s.statusFor(address));
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [request, setRequest] = useState<Request | null>(null);
@@ -27,6 +31,19 @@ export function ShareModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
       <Text className="text-white text-2xl font-semibold">Receive · @{user?.handle ?? ""}</Text>
       <Text className="text-white/50 my-3">{mainnet ? "Base · Real funds" : "Base Sepolia · Test funds"}</Text>
       <Text selectable className="text-white/80 p-4 rounded-2xl bg-white/5">{address ?? "Loading wallet"}</Text>
+      {verification === "mismatch" ? (
+        <View accessibilityRole="alert" className="mt-3 p-4 rounded-2xl border border-red-400/40 bg-red-500/10">
+          <Text className="text-red-200 font-semibold">This address does not match the key on this phone.</Text>
+          <Text className="text-red-100/70 text-xs leading-5 mt-1">Do not share it or ask anyone to pay it until support has checked your account. Your key and your funds are not affected by this check.</Text>
+        </View>
+      ) : verification === "verified" ? (
+        <Text className="text-white/40 text-xs mt-2">Checked on this phone: this address is derived from your own key.</Text>
+      ) : null}
+      {/* Drawn on the phone: no service sees the address to render it. Not shown when the address failed its check. */}
+      {!!address && verification !== "mismatch" && <View className="items-center mt-5">
+        <View className="rounded-2xl bg-white p-3"><QRCodeStyled data={buildReceiveUri(address, CHAIN_ID)} pieceSize={5} accessibilityLabel="QR code of your receiving address" /></View>
+        <Text className="text-white/40 text-xs text-center mt-2">Scan with a Base-compatible wallet. The code holds this address and the network, nothing else.</Text>
+      </View>}
       <Pressable disabled={!address} onPress={() => run(async () => { await Clipboard.setStringAsync(address!); setMessage("Address copied. Use only the network shown."); })}><Text style={{ color: COLORS.accent }} className="my-4">Copy my Base address</Text></Pressable>
       <Text className="text-white/50 text-xs mb-6">This address receives supported assets on Base. Do not send native BTC, SOL, or XMR to this address.</Text>
       {!!message && <Text accessibilityRole="alert" className="text-white/70 my-3">{message}</Text>}
@@ -41,9 +58,10 @@ export function ShareModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
       </> : <>
         <Text className="text-white text-lg font-semibold">Request an amount</Text>
         <TextInput accessibilityLabel="Requested amount in USDC" placeholder="Amount in USDC" placeholderTextColor="#777" value={amount} onChangeText={v => setAmount(v.replace(",", "."))} keyboardType="decimal-pad" className="text-white text-xl bg-white/5 p-4 rounded-2xl mt-4" />
-        <TextInput accessibilityLabel="Payment note" placeholder="Optional note" placeholderTextColor="#777" maxLength={140} value={note} onChangeText={setNote} className="text-white bg-white/5 p-4 rounded-2xl my-3" />
+        <TextInput accessibilityLabel="Payment note" placeholder="Optional note, seen by anyone with the link" placeholderTextColor="#777" maxLength={140} value={note} onChangeText={setNote} className="text-white bg-white/5 p-4 rounded-2xl my-3" />
         <Pressable disabled={busy || !/^\d+(\.\d{1,2})?$/.test(amount) || Number(amount) <= 0} onPress={() => run(async () => { const result = await api.post("/requests", { amount, note }); setRequest(result.data.request); })} className="p-4 rounded-2xl" style={{ backgroundColor: COLORS.accent }}><Text className="text-black text-center">{busy ? "Creating…" : "Create a link valid for 24 hours"}</Text></Pressable>
         <Text className="text-white/40 text-xs leading-5 mt-4">The link contains a payment request; it never grants access to your funds. Anyone with a compatible wallet can pay without an ATARA account.</Text>
+        <Text className="text-white/40 text-xs leading-5 mt-2">Whoever has the link sees the amount, the note and your receiving address while it can be paid. Once it is paid or canceled, or a day after it expires, the link shows only its status.</Text>
       </>}
     </ScrollView></View>
   </Modal>;

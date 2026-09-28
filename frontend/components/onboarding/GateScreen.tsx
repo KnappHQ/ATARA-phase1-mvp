@@ -77,7 +77,16 @@ export const GateScreen = ({
           </View>
 
           <Text className="text-white text-xl font-semibold mb-2">
-            Your keys. Your route.
+            Your money. Your control. Your privacy.
+          </Text>
+          {/* Each claim here is what the code does; see docs/CONTROL_PRIVACY_AUDIT.md. */}
+          <Text className="text-white/55 text-sm leading-5 mb-2">
+            ATARA holds no key and cannot move your money: payments are signed
+            on this phone, with a key secured by Privy.
+          </Text>
+          <Text className="text-white/55 text-sm leading-5 mb-2">
+            Payments are public on the Base network: amounts and addresses,
+            not names. Someone who knows your @handle can find your address.
           </Text>
           <Text className="text-white/55 text-sm leading-5 mb-5">
             A passkey does not require a Google or Apple sign-in. Social sign-in

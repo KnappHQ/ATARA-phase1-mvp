@@ -1,4 +1,4 @@
-export const PRIVACY_POLICY_LAST_UPDATED = "09/09/2026";
+export const PRIVACY_POLICY_LAST_UPDATED = "28/09/2026";
 
 export const PRIVACY_POLICY_FOOTER_TEXT = "ATARA LTD — privacy@atara.finance";
 
@@ -21,7 +21,7 @@ export const PRIVACY_POLICY_SECTIONS: PrivacyPolicySection[] = [
   {
     title: "2. What ATARA is — and what we do not hold",
     body: [
-      "ATARA is a self-custodial crypto wallet built on Base. You control your funds. ATARA does not take custody of your crypto assets and does not hold a conventional custodial balance on your behalf. Wallet authentication and key-management infrastructure are provided by specialist third-party providers. ATARA does not ask you to disclose a seed phrase to us.",
+      "ATARA is a self-custodial crypto wallet built on Base. ATARA does not take custody of your crypto assets and does not hold a conventional custodial balance on your behalf. Payments are signed on your device with a key secured by our authentication and key-management provider (Privy); ATARA's servers hold no signing key and cannot move your funds. ATARA does not ask you to disclose a seed phrase to us.",
     ],
   },
   {
@@ -48,7 +48,11 @@ export const PRIVACY_POLICY_SECTIONS: PrivacyPolicySection[] = [
   {
     title: "5. Who we share your information with",
     body: [
-      "ATARA uses third-party providers for authentication and embedded-wallet infrastructure (Privy), external-wallet discovery (Reown when enabled), smart-account and blockchain connectivity (Alchemy), hosting/database services, error monitoring, and other technical functions. Providers process information only as needed to deliver those services and subject to their contractual and legal obligations. We may also disclose information where required by law. We do not sell personal data.",
+      "ATARA uses third-party providers for authentication and embedded-wallet infrastructure (Privy), external-wallet discovery (Reown when enabled), smart-account and blockchain connectivity (Alchemy), hosting/database services, and other technical functions. Providers process information only as needed to deliver those services and subject to their contractual and legal obligations. We may also disclose information where required by law. We do not sell personal data.",
+      "Error monitoring (Sentry) receives crash reports identified by an opaque account number. Wallet addresses, transaction hashes, payment-link tokens, handles and email addresses are removed on your device before a report is sent.",
+      "Card purchases (MoonPay) happen only if you choose to buy crypto. ATARA sends MoonPay the address to deliver to, and nothing that identifies you; MoonPay collects the details it needs from you directly, under its own privacy policy.",
+      "Feedback you send is delivered to our team by email through Resend, with your handle.",
+      "Other ATARA users see your handle, display name, profile picture and receiving address. The person you pay, if they use ATARA, sees the message and category you attach to the payment.",
     ],
   },
   {

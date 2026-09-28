@@ -16,6 +16,7 @@ import { useAlertStore } from "@/stores/useAlertStore";
 import { AppAlert } from "@/components/alert/AppAlert";
 import { VaultOpeningAnimation } from "@/components/onboarding/VaultOpeningAnimation";
 import { ExternalWalletProvider } from "@/providers/ExternalWalletProvider";
+import { scrubBreadcrumb, scrubEvent } from "@/utils/privacyScrub";
 
 import "./global.css";
 
@@ -25,6 +26,10 @@ Sentry.init({
   dsn: sentryDsn,
   enabled: Boolean(sentryDsn),
   sendDefaultPii: false,
+  // Addresses, payment-link tokens, handles and emails are removed from every
+  // breadcrumb and report before it leaves the phone.
+  beforeBreadcrumb: (breadcrumb) => scrubBreadcrumb(breadcrumb),
+  beforeSend: (event) => scrubEvent(event),
 });
 
 SplashScreen.preventAutoHideAsync();

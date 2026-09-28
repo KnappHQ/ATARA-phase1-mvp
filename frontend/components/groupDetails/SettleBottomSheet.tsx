@@ -46,7 +46,7 @@ export const SettleBottomSheet = ({
       router.push({ pathname: "/send", params: {
         contactId: member.userId, contactHandle: member.handle,
         contactName: member.displayName || member.handle, contactSmartAddress: member.smartAccountAddress,
-        prefilledAmount: String(quote.amount), prefilledAsset: "USDC", prefilledNote: `Remboursement : ${groupName}`,
+        prefilledAmount: String(quote.amount), prefilledAsset: "USDC", prefilledNote: `Settlement: ${groupName}`,
         settlementGroupId: groupId, settlementMemberId: member.userId, settlementIntentId: quote.id,
         settlementExpiresAt: quote.expiresAt,
       } });

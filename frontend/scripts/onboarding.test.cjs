@@ -284,7 +284,8 @@ test('operation lock releases on failure and does not block a different wallet',
 });
 
 function walletStoreHarness() {
-  let state; const requests = [];
+  let state; const requests = []; const chainReads = [];
+  const walletBalance = load('utils/walletBalance.ts', { './paymentRequest': load('utils/paymentRequest.ts') });
   const { useWalletStore } = load('stores/useWalletStore.ts', {
     zustand: { create: initializer => {
       state = initializer(update => { state = { ...state, ...update }; }, () => state);
@@ -293,10 +294,47 @@ function walletStoreHarness() {
     '@sentry/react-native': { captureException: () => {} },
     '@/utils/constants': { DEFAULT_ASSETS: [{ symbol: 'ETH', balance: '0', usdValue: '$0', usdPrice: 0 }], CHAIN_ID: 84532, NETWORK_NAME: 'Base Sepolia' },
     '@/services/wallet.service': { WalletService: { getPortfolio: () => new Promise((resolve, reject) => requests.push({ resolve, reject })) } },
+    '@/utils/chainBalance': { readOnChainBalances: (owner) => new Promise((resolve, reject) => chainReads.push({ owner, resolve, reject })) },
+    '@/utils/walletBalance': walletBalance,
   });
   const portfolio = (amount) => ({ totalUSD: amount, change24h: 0, percentChange24h: 0, tokens: [{ symbol: 'ETH', balance: String(amount), usdValue: amount }] });
-  return { store: useWalletStore, requests, portfolio };
+  return { store: useWalletStore, requests, chainReads, portfolio };
 }
+
+const oneEth = [{ symbol: 'ETH', balanceWei: '1000000000000000000', decimals: 18 }];
+
+test('when the portfolio service fails, balances come from the chain instead of zeros', async () => {
+  const h = walletStoreHarness();
+  h.store.getState().setWalletAddress('0xA');
+  const run = h.store.getState().refreshBalances();
+  h.requests[0].reject(new Error('service down')); await pause(0);
+  assert.equal(h.chainReads[0].owner, '0xA');
+  h.chainReads[0].resolve(oneEth); await run;
+  assert.equal(h.store.getState().assets[0].balance, '1');
+  assert.equal(h.store.getState().balanceSource, 'chain');
+  assert.equal(h.store.getState().balanceError, null);
+});
+
+test('a late chain read for a previous wallet is ignored', async () => {
+  const h = walletStoreHarness();
+  h.store.getState().setWalletAddress('0xA');
+  const run = h.store.getState().refreshBalances();
+  h.requests[0].reject(new Error('service down')); await pause(0);
+  h.store.getState().setWalletAddress('0xB');
+  h.chainReads[0].resolve(oneEth); await run;
+  assert.equal(h.store.getState().assets[0].balance, '0');
+  assert.equal(h.store.getState().balanceSource, null);
+});
+
+test('when the chain is unreachable too, the balance is reported unavailable, not zero', async () => {
+  const h = walletStoreHarness();
+  h.store.getState().setWalletAddress('0xA');
+  const run = h.store.getState().refreshBalances();
+  h.requests[0].reject(new Error('service down')); await pause(0);
+  h.chainReads[0].reject(new Error('rpc down')); await run;
+  assert.equal(h.store.getState().balanceSource, null);
+  assert.match(h.store.getState().balanceError, /unavailable/i);
+});
 
 test('switching wallets clears old balances and ignores a late portfolio response', async () => {
   const h = walletStoreHarness();
@@ -418,6 +456,8 @@ test('a valid SecureStore backend session survives a normal app relaunch', async
     },
     '@/services/user.service': { UserService: {} },
     '@/utils/accountScope': load('utils/accountScope.ts'),
+    './useAddressBookStore': { useAddressBookStore: { getState: () => ({ openFor: () => {} }) } },
+    '@/utils/userProfile': load('utils/userProfile.ts'),
     '@sentry/react-native': {
       setUser: () => {},
       captureException: () => {},
@@ -466,6 +506,8 @@ test('logout wins over a login whose SecureStore write completes late', async ()
     },
     '@/services/user.service': { UserService: {} },
     '@/utils/accountScope': load('utils/accountScope.ts'),
+    './useAddressBookStore': { useAddressBookStore: { getState: () => ({ openFor: () => {} }) } },
+    '@/utils/userProfile': load('utils/userProfile.ts'),
     '@sentry/react-native': { setUser: () => {}, captureException: () => {} },
   });
 

@@ -11,21 +11,27 @@ async function fetchJson(url, options) {
   return data;
 }
 function saveReceipt(hash) { byId("hash").value = hash; try { sessionStorage.setItem(`atara-payment-${token}`, hash); } catch {} }
+function restoreReceipt() { try { const saved = sessionStorage.getItem(`atara-payment-${token}`); if (saved) saveReceipt(saved); } catch {} }
 async function load() {
   request = await fetchJson(endpoint);
-  byId("network").textContent = request.chainId === 84532 ? "Base Sepolia · Test funds only" : "Base · Real funds";
-  byId("amount").textContent = `${request.amount} USDC`;
-  byId("note").textContent = request.note;
-  byId("recipient").textContent = request.recipientAddress;
-  byId("expiry").textContent = `Valid until ${new Date(request.expiresAt).toLocaleString("en-US")}`;
-  byId("receipt").hidden = false;
+  // A closed request only reports its status: its amount, note and address
+  // are no longer shown to whoever holds the link.
+  const closed = !("amount" in request);
+  byId("network").textContent = closed ? "Payment request closed" : request.chainId === 84532 ? "Base Sepolia · Test funds only" : "Base · Real funds";
+  byId("amount").textContent = closed ? ({ PAID: "Paid", EXPIRED: "Expired", CANCELLED: "Canceled" }[request.status] || "Unavailable") : `${request.amount} USDC`;
+  byId("note").textContent = closed ? "" : request.note;
+  byId("recipient").textContent = closed ? "Details are hidden once a request is closed." : request.recipientAddress;
+  byId("expiry").textContent = closed ? "" : `Valid until ${new Date(request.expiresAt).toLocaleString("en-US")}`;
+  // The payer's own reference stays visible; signing a receipt needs the
+  // details, so it is only offered while they are shown.
+  byId("receipt").hidden = false; byId("confirm").disabled = closed;
   if (request.status !== "OPEN") {
     statusText({ PAID: "Payment confirmed.", EXPIRED: "Request expired. Do not send another payment.", CANCELLED: "Request canceled. Do not send another payment." }[request.status]);
     byId("connect").disabled = true; byId("copy").disabled = true; byId("qr").hidden = true;
-    if (request.txHash) saveReceipt(request.txHash);
+    restoreReceipt();
     return;
   }
-  try { const saved = sessionStorage.getItem(`atara-payment-${token}`); if (saved) saveReceipt(saved); } catch {}
+  restoreReceipt();
   byId("connect").disabled = !!byId("hash").value;
   byId("copy").disabled = false;
   byId("qr").src = `${endpoint}/qr`; byId("qr").hidden = false;
@@ -65,6 +71,6 @@ byId("confirm").onclick = async () => {
     await fetchJson(`${endpoint}/confirm`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ txHash: hash, payerAddress, signature }) });
     saveReceipt(hash); await load();
   } catch (error) { statusText(error.message || "Verification unavailable. Keep your receipt."); }
-  finally { busy = false; byId("confirm").disabled = false; }
+  finally { busy = false; byId("confirm").disabled = !request || !("amount" in request); }
 };
 load().catch(error => statusText(error.message));

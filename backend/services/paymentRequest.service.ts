@@ -12,6 +12,24 @@ const hash = (token: string) => crypto.createHash("sha256").update(token).digest
 const publicPaymentOrigin = () =>
   process.env.PUBLIC_PAYMENT_ORIGIN || process.env.RENDER_EXTERNAL_URL || "";
 
+type PaymentRequestRow = Prisma.PaymentRequestGetPayload<Record<string, never>>;
+type RequestStatus = "OPEN" | "PAID" | "CANCELLED" | "EXPIRED";
+
+/**
+ * How long an unpaid request keeps showing its details after it expires. A
+ * payer who sent in time can still sign the receipt confirmation, which needs
+ * them. After that, and as soon as a request is paid or canceled, the link
+ * answers with its status only: who asked whom for how much, and to which
+ * address, stops being readable by anyone who ever saw the link.
+ */
+export const CONFIRMATION_GRACE_MS = 24 * 3600_000;
+
+const statusOf = (request: PaymentRequestRow, now: Date): RequestStatus =>
+  request.paidAt ? "PAID" : request.cancelledAt ? "CANCELLED" : request.expiresAt < now ? "EXPIRED" : "OPEN";
+
+const confirmationMessageFor = (request: PaymentRequestRow) =>
+  `ATARA receipt confirmation\nRequest: ${request.id}\nChain: ${request.chainId}\nRecipient: ${request.recipientAddress}\nAmount: ${request.amount.toString()} USDC`;
+
 export const validateRequestToken = (token: string) => {
   if (!/^[a-f0-9]{64}$/.test(token)) throw new ErrorHandler("Payment request not found", 404);
   return token;
@@ -40,13 +58,16 @@ export const paymentRequestService = {
     if (!request) throw new ErrorHandler("Payment request not found", 404);
     return request;
   },
-  async publicDetails(token: string) {
+  async publicDetails(token: string, now: Date = new Date()) {
     const request = await this.resolve(token);
+    const status = statusOf(request, now);
+    const readable = status === "OPEN" ||
+      (status === "EXPIRED" && now.getTime() - request.expiresAt.getTime() < CONFIRMATION_GRACE_MS);
+    if (!readable) return { status };
     return { amount: request.amount.toString(), assetSymbol: "USDC", recipientAddress: request.recipientAddress,
       note: request.note, chainId: request.chainId, tokenAddress: request.tokenAddress, expiresAt: request.expiresAt,
-      status: request.paidAt ? "PAID" : request.cancelledAt ? "CANCELLED" : request.expiresAt < new Date() ? "EXPIRED" : "OPEN",
-      txHash: request.txHash,
-      confirmationMessage: `ATARA receipt confirmation\nRequest: ${request.id}\nChain: ${request.chainId}\nRecipient: ${request.recipientAddress}\nAmount: ${request.amount.toString()} USDC`,
+      status,
+      confirmationMessage: confirmationMessageFor(request),
       uri: `ethereum:${request.tokenAddress}@${request.chainId}/transfer?address=${request.recipientAddress}&uint256=${ethers.utils.parseUnits(request.amount.toString(), 6).toString()}`,
     };
   },
@@ -58,8 +79,7 @@ export const paymentRequestService = {
     const request = await this.resolve(token);
     if (request.chainId !== paymentChainId) throw new ErrorHandler("This request belongs to another network", 409);
     if (typeof txHash !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(txHash)) throw new ErrorHandler("Invalid transaction hash", 400);
-    const details = await this.publicDetails(token);
-    await verifyReceiptSigner(payerAddress, `${details.confirmationMessage}\nTransaction: ${txHash.toLowerCase()}`, signature);
+    await verifyReceiptSigner(payerAddress, `${confirmationMessageFor(request)}\nTransaction: ${txHash.toLowerCase()}`, signature);
     const proof = await verifyTokenPayment({ txHash, token: request.tokenAddress, recipient: request.recipientAddress, sender: payerAddress });
     if (!proof.rawAmount.eq(ethers.utils.parseUnits(request.amount.toString(), 6))) throw new ErrorHandler("Payment amount does not match this request", 400);
     if (proof.confirmedAt.getTime() < Math.floor(request.createdAt.getTime() / 1000) * 1000 || proof.confirmedAt > request.expiresAt)

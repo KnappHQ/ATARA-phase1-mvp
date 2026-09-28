@@ -16,6 +16,7 @@ import { BalanceSkeleton } from "./BalanceSkeleton";
 import { AssetBalanceCarousel } from "./AssetBalanceCarousel";
 import { useWalletStore } from "@/stores/useWalletStore";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { splitUsd } from "@/utils/walletBalance";
 
 interface BalanceRevealSectionProps {
   children?: ReactNode;
@@ -36,7 +37,14 @@ export const BalanceRevealSection = ({
     isLoadingBalances,
     refreshBalances,
     assets,
+    balanceSource,
+    balanceError,
   } = useWalletStore();
+  const usd = splitUsd(totalUSDValue);
+  const primaryStable = assets.find((asset) => asset.symbol === "USDC");
+  // Nothing has ever been read and the last attempt failed: the zeros in the
+  // store are placeholders, and showing them would say "your wallet is empty".
+  const balanceUnavailable = balanceSource === null && !!balanceError && !isLoadingBalances;
 
   const [selectedAssetIndex, setSelectedAssetIndex] = useState(0);
 
@@ -170,6 +178,31 @@ export const BalanceRevealSection = ({
               </View>
             ) : isInitialLoad && isLoadingBalances ? (
               <BalanceSkeleton />
+            ) : balanceUnavailable ? (
+              <TouchableOpacity
+                onPress={() => refreshBalances()}
+                accessibilityRole="button"
+                className="items-center mb-3 px-6"
+              >
+                <Text className="text-2xl font-semibold text-white/80 text-center">
+                  Balance unavailable
+                </Text>
+                <Text className="text-xs text-white/45 text-center mt-2 leading-5">
+                  Your funds are on the Base network, not at ATARA. Neither ATARA&apos;s
+                  service nor the network answered. Tap to try again.
+                </Text>
+              </TouchableOpacity>
+            ) : balanceSource === "chain" && !isBalanceRevealed ? (
+              <View className="items-center mb-3 px-6">
+                <Text className="text-5xl font-bold text-white text-center">
+                  {primaryStable?.balance ?? "0"}
+                  <Text className="text-2xl text-white/40"> USDC</Text>
+                </Text>
+                <Text className="text-xs text-white/45 text-center mt-2 leading-5">
+                  Read directly from the Base network. ATARA&apos;s price service is
+                  unavailable, so no USD value is shown.
+                </Text>
+              </View>
             ) : isBalanceRevealed ? (
               <View className="items-center mb-3 w-full">
                 <AssetBalanceCarousel
@@ -178,13 +211,15 @@ export const BalanceRevealSection = ({
                   onSelect={setSelectedAssetIndex}
                 />
                 <Text className="text-xs text-white/35 mt-4">
-                  Total wallet value: ${totalUSDValue.toFixed(2)}
+                  {balanceSource === "chain"
+                    ? "Amounts read from the Base network · USD value unavailable"
+                    : `Total wallet value: $${usd.whole}.${usd.cents}`}
                 </Text>
               </View>
             ) : (
               <Text className="text-5xl font-bold text-white mb-3 text-center">
-                ${totalUSDValue.toLocaleString()}
-                <Text className="text-3xl text-white/40">.00</Text>
+                ${usd.whole}
+                <Text className="text-3xl text-white/40">.{usd.cents}</Text>
               </Text>
             )}
 

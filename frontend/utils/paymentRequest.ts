@@ -112,3 +112,11 @@ export const parsePaymentRequest = (value: string): ParsedPaymentRequest | null 
     return null;
   }
 };
+
+/**
+ * What the receive QR code carries: the address and the network (EIP-681),
+ * nothing else. No amount, no name, no ATARA link. A wallet that honours the
+ * chain id cannot send on the wrong network from it.
+ */
+export const buildReceiveUri = (address: string, chainId: number): string =>
+  `ethereum:${address}@${chainId}`;

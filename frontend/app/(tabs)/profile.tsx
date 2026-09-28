@@ -26,6 +26,7 @@ import { TermsOfServiceScreen } from "@/components/profile/TermsOfServiceScreen"
 import { PrivacyPolicyScreen } from "@/components/profile/PrivacyPolicyScreen";
 import { useAuth } from "@/providers/AuthProvider";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useAddressBookStore } from "@/stores/useAddressBookStore";
 import { getInitials } from "@/utils/format";
 import { UserService } from "@/services/user.service";
 
@@ -144,7 +145,10 @@ export default function ProfileTab() {
   };
 
   const deleteAccount = async () => {
+    const userId = useAuthStore.getState().user?.id;
     await UserService.deleteAccount();
+    // Nicknames live on this phone only; the server cannot delete them.
+    if (userId) useAddressBookStore.getState().forget(userId);
     await logout();
   };
 
@@ -223,8 +227,8 @@ export default function ProfileTab() {
 
           <SettingRow
             icon={Network}
-            label="Sovereignty & architecture"
-            subtitle="What is on-chain, what is not, and who controls what"
+            label="Control & privacy"
+            subtitle="Who can move your money, and who sees what"
             delay={420}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

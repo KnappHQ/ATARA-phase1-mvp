@@ -352,15 +352,18 @@ npm run ios            # Build and run on iOS simulator (macOS only)
 
 ### ERC-4337 transactions
 
-Transactions use Alchemy smart accounts. The beta first tries the configured Gas Manager policy; if sponsorship is unavailable, the user can explicitly continue with a self-funded network-fee transaction. The backend verifies completed receipts on-chain before recording them.
+Transactions use Alchemy smart accounts, and every transaction is sponsored by the configured Gas Manager policy. If sponsorship is unavailable, the payment is refused: there is no user-paid fallback in this build (it was removed in `66fc97c` until fees can be quoted before signing). The backend verifies completed receipts on-chain before recording them.
 
 ### On-ramp and merchant payments
 
 The beta keeps purchases on Base Sepolia. The authenticated backend creates a
 signed MoonPay widget URL that sends USDC directly to the user's smart account;
 the MoonPay secret stays server-side. The app also offers a merchant payment
-screen that sends USDC to a verified merchant address and resumes an in-flight
-smart-account bundle after an app restart.
+screen that sends USDC to the address the merchant gives (pasted or typed;
+ATARA does not verify merchants) after the same review screen as any payment,
+and resumes an in-flight smart-account bundle after an app restart. See
+[`docs/CONTROL_PRIVACY_AUDIT.md`](docs/CONTROL_PRIVACY_AUDIT.md) for what
+merchant payments do and do not cover.
 
 ### Collective Vault — later release
 

@@ -6,6 +6,7 @@ import { api } from "./api";
 import { useAlertStore } from "../stores/useAlertStore";
 import * as Sentry from "@sentry/react-native";
 import { parseUnits } from "viem";
+import { assessServiceNetwork } from "../utils/networkGuard";
 
 export interface SendTransactionRequest {
   transactionId?: string;
@@ -29,6 +30,8 @@ interface TransactionResponse {
   success: boolean;
   error?: string;
   isPaymasterFailure?: boolean;
+  /** Submitted, but neither confirmed nor refused. Never send it again blindly. */
+  isPendingVerification?: boolean;
 }
 
 export class TransactionService {
@@ -90,9 +93,18 @@ export class TransactionService {
     }
 
     try {
-      const network = await api.get("/health/backend");
       const expectedChain = process.env.EXPO_PUBLIC_NETWORK === "base-mainnet" ? 8453 : 84532;
-      if (network.data.chainId !== expectedChain) throw new Error("The app and service use different networks. No payment was sent.");
+      let reportedChain: unknown;
+      try {
+        const network = await api.get("/health/backend", { timeout: 4000 });
+        reportedChain = network.data?.chainId;
+      } catch {
+        // Unreachable is not a reason to refuse: see assessServiceNetwork.
+        reportedChain = undefined;
+      }
+      if (assessServiceNetwork(reportedChain, expectedChain) === "mismatch") {
+        throw new Error("The app and service use different networks. No payment was sent.");
+      }
       // SmartAccountService.sendTransaction now internally:
       // 1. Sends the UserOperation (gas-sponsored via policy)
       // 2. Waits for it to be bundled into a real transaction
@@ -158,6 +170,7 @@ export class TransactionService {
         success: false,
         error: failureMessage,
         isPaymasterFailure,
+        isPendingVerification: !!error?.isPendingVerification,
       };
     }
   }

@@ -11,10 +11,14 @@ import {
 } from "../utils/constants";
 import { ErrorHandler } from "../utils/errorHandler";
 
+/**
+ * Only what MoonPay needs to deliver the purchase: the address to send it to.
+ * Our account id and the user's email used to ride along in the URL. Nothing
+ * reads them back (there is no MoonPay webhook), and MoonPay collects its own
+ * identity details during checkout, from the user, with their consent.
+ */
 export type MoonPaySessionInput = {
   walletAddress: string;
-  userId: string;
-  email?: string | null;
   baseCurrencyAmount?: string | number | null;
 };
 
@@ -74,10 +78,8 @@ export const buildMoonPayWidgetUrl = (input: MoonPaySessionInput): string => {
     ["baseCurrencyCode", MOONPAY_BASE_CURRENCY_CODE],
     ["walletAddress", input.walletAddress],
     ["theme", "dark"],
-    ["externalCustomerId", input.userId],
   ];
 
-  if (input.email) params.push(["email", input.email]);
   if (isPositiveAmount(input.baseCurrencyAmount)) {
     params.push(["baseCurrencyAmount", String(input.baseCurrencyAmount)]);
     params.push(["lockAmount", "true"]);

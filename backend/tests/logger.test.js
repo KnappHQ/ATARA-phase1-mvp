@@ -98,3 +98,33 @@ test("redacts secrets carried in the request path", () => {
   assert.equal(redactPath("/api/v1/user/search"), "/api/v1/user/search");
   assert.equal(redactPath("/api/v1/health/db"), "/api/v1/health/db");
 });
+
+test("never writes an API key, bearer token, email or address from an error message", () => {
+  const { logError } = loadLogger("production");
+  const secret = "ALCHEMY-SECRET-KEY-123";
+  const address = "0x1111111111111111111111111111111111111111";
+  const written = capture(() =>
+    logError(
+      "wallet.portfolio",
+      new Error(
+        `missing response (url="https://base-sepolia.g.alchemy.com/v2/${secret}", ` +
+          `body={"params":["${address}"]}) Authorization: Bearer eyJhbGciOi.payload.sig ` +
+          `contact alice@example.com via https://api.example.com/x?apiKey=${secret}`,
+      ),
+    ),
+  );
+  const line = written.join("");
+  for (const leaked of [secret, address.slice(2), "eyJhbGciOi.payload.sig", "alice@example.com"]) {
+    assert.ok(!line.includes(leaked), `log line leaked ${leaked}: ${line}`);
+  }
+  assert.match(line, /\/v2\/\[redacted\]/);
+});
+
+test("redacts the stack too when stacks are written", () => {
+  const { logError } = loadLogger("development");
+  const secret = "ALCHEMY-SECRET-KEY-123";
+  const written = capture(() =>
+    logError("x", new Error(`url=https://base-sepolia.g.alchemy.com/v2/${secret}`)),
+  );
+  assert.ok(!written.join("").includes(secret));
+});

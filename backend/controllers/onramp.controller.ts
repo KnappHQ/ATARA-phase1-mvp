@@ -14,12 +14,7 @@ export const onrampController = {
     }
 
     const baseCurrencyAmount = req.body?.baseCurrencyAmount;
-    const session = createMoonPaySession({
-      walletAddress,
-      userId: req.user.id,
-      email: req.user.email,
-      baseCurrencyAmount,
-    });
+    const session = createMoonPaySession({ walletAddress, baseCurrencyAmount });
 
     res.status(200).json({ success: true, session });
   }),
