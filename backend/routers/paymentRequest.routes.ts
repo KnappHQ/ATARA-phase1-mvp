@@ -4,6 +4,7 @@ import QRCode from "qrcode";
 import { rateLimit } from "express-rate-limit";
 import { authentication } from "../middleware/auth.middleware";
 import { catchAsync } from "../utils/catchAsync";
+import { ErrorHandler } from "../utils/errorHandler";
 import { paymentRequestService as service, validateRequestToken } from "../services/paymentRequest.service";
 
 const router = Router();
@@ -23,6 +24,7 @@ router.delete("/:id", authentication, catchAsync(async (req, res) => {
 }));
 router.get("/:token/qr", catchAsync(async (req, res) => {
   const details = await service.publicDetails(req.params.token);
+  if (details.status !== "OPEN" || !("uri" in details)) throw new ErrorHandler("This request can no longer be paid", 410);
   // QR is rendered locally: no third-party service receives the request or address.
   res.type("svg").send(await QRCode.toString(details.uri, { type: "svg", margin: 2, errorCorrectionLevel: "M" }));
 }));

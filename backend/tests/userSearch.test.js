@@ -27,25 +27,12 @@ test("searches handle and display name, not the address", () => {
   assert.equal(filter.OR[0].handle.contains, "alice");
 });
 
-test("searches the address only when the query is one", () => {
-  // A plain word matching an address fragment is how a handle got linked to a
-  // wallet without anyone asking for it.
-  assert.deepEqual(fields(buildSearchFilter("dead")), [
-    "handle",
-    "displayName",
-  ]);
-
-  const filter = buildSearchFilter("0xdEaD");
-  assert.deepEqual(fields(filter), [
-    "handle",
-    "displayName",
-    "smartAccountAddress",
-  ]);
-  assert.equal(filter.OR[2].smartAccountAddress.contains, "0xdead");
-});
-
-test("0x alone is not an address lookup", () => {
-  assert.deepEqual(fields(buildSearchFilter("0x1")), ["handle", "displayName"]);
+test("never maps an address back to a handle", () => {
+  // An address is public on the chain. Answering "whose is this?" to any
+  // signed-in account would put a name on every transfer anyone can see.
+  for (const query of ["dead", "0xdEaD", "0x1111111111111111111111111111111111111111", "0x1"]) {
+    assert.deepEqual(fields(buildSearchFilter(query)), ["handle", "displayName"]);
+  }
 });
 
 test("never returns publicAddress", () => {

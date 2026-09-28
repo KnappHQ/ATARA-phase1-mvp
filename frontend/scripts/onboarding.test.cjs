@@ -456,6 +456,8 @@ test('a valid SecureStore backend session survives a normal app relaunch', async
     },
     '@/services/user.service': { UserService: {} },
     '@/utils/accountScope': load('utils/accountScope.ts'),
+    './useAddressBookStore': { useAddressBookStore: { getState: () => ({ openFor: () => {} }) } },
+    '@/utils/userProfile': load('utils/userProfile.ts'),
     '@sentry/react-native': {
       setUser: () => {},
       captureException: () => {},
@@ -504,6 +506,8 @@ test('logout wins over a login whose SecureStore write completes late', async ()
     },
     '@/services/user.service': { UserService: {} },
     '@/utils/accountScope': load('utils/accountScope.ts'),
+    './useAddressBookStore': { useAddressBookStore: { getState: () => ({ openFor: () => {} }) } },
+    '@/utils/userProfile': load('utils/userProfile.ts'),
     '@sentry/react-native': { setUser: () => {}, captureException: () => {} },
   });
 

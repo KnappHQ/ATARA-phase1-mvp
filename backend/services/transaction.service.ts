@@ -1,6 +1,7 @@
 import { ethers } from "ethers";
 import axios from "axios";
 import prisma from "../config/prisma";
+import { logError } from "../utils/logger";
 import { ErrorHandler } from "../utils/errorHandler";
 import {
   ALCHEMY_URL,
@@ -40,7 +41,7 @@ class TransactionService {
       select: {
         id: true,
         handle: true,
-        publicAddress: true,
+        // Only the address that receives payments. See getUserByHandle.
         smartAccountAddress: true,
         displayName: true,
         profilePicUrl: true,
@@ -357,6 +358,17 @@ class TransactionService {
       throw new ErrorHandler("Not authorized to edit this transaction", 403);
     }
 
+    // The note and category are stored once and shown to both people. Letting
+    // the receiver edit them meant rewriting what the sender wrote, and
+    // showing the sender how the receiver files the payment. Until each person
+    // has their own private copy, only the sender writes them.
+    if (existingTx.senderId !== userId) {
+      throw new ErrorHandler(
+        "Only the sender can change the note and category of a payment",
+        403,
+      );
+    }
+
     return prisma.transaction.update({
       where: { id: transactionId },
       data: {
@@ -411,12 +423,7 @@ class TransactionService {
               makeRequest({ ...internalParams, fromAddress: address }),
             )
             .catch((error) => {
-              console.warn(
-                "[Alchemy] Internal sent request unavailable:",
-                error?.response?.data?.error?.message ||
-                  error?.message ||
-                  error,
-              );
+              logError("transaction.history.internal-sent", error);
               return { data: { result: { transfers: [] } } };
             }),
           axios
@@ -425,12 +432,7 @@ class TransactionService {
               makeRequest({ ...internalParams, toAddress: address }),
             )
             .catch((error) => {
-              console.warn(
-                "[Alchemy] Internal received request unavailable:",
-                error?.response?.data?.error?.message ||
-                  error?.message ||
-                  error,
-              );
+              logError("transaction.history.internal-received", error);
               return { data: { result: { transfers: [] } } };
             }),
         ]);
@@ -440,14 +442,13 @@ class TransactionService {
       const sentInternal = sentInternalRes.data.result?.transfers || [];
       const receivedInternal = receivedInternalRes.data.result?.transfers || [];
 
+      // Logged through logError, which redacts: a JSON-RPC error can echo the
+      // request, and the request carries the user's address.
       if (sentRes.data.error) {
-        console.error("[Alchemy] Sent request error:", sentRes.data.error);
+        logError("transaction.history.sent", new Error(String(sentRes.data.error?.message ?? "provider error")));
       }
       if (receivedRes.data.error) {
-        console.error(
-          "[Alchemy] Received request error:",
-          receivedRes.data.error,
-        );
+        logError("transaction.history.received", new Error(String(receivedRes.data.error?.message ?? "provider error")));
       }
 
       const seen = new Set<string>();
@@ -467,7 +468,7 @@ class TransactionService {
 
       return all;
     } catch (error) {
-      console.error("[Alchemy] Fetch Error:", error);
+      logError("transaction.history", error);
       return [];
     }
   }

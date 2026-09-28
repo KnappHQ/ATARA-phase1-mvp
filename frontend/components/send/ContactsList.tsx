@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { MotiView } from "moti";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { Contact, useContactStore } from "@/stores/useContactStore";
 import { ContactEmptyStates } from "./ContactEmptyStates";
 import { ContactsLoading } from "./ContactsLoading";
@@ -59,31 +59,12 @@ export const ContactsList = ({
     getRecentContacts,
   } = useContactStore();
 
-  const [clipboardAddress, setClipboardAddress] = useState<string | null>(null);
-
   const sortContactsAlphabetically = (contacts: Contact[]) =>
     [...contacts].sort((a, b) => {
       const labelA = (a.name || a.handle).replace(/^@/, "").toLocaleLowerCase();
       const labelB = (b.name || b.handle).replace(/^@/, "").toLocaleLowerCase();
       return labelA.localeCompare(labelB, undefined, { sensitivity: "base" });
     });
-
-  useEffect(() => {
-    Clipboard.getStringAsync().then((text) => {
-      if (text && isEthAddress(text.trim())) {
-        setClipboardAddress(text.trim());
-      }
-    });
-  }, []);
-
-  const refreshClipboard = async () => {
-    const text = await Clipboard.getStringAsync();
-    if (text && isEthAddress(text.trim())) {
-      setClipboardAddress(text.trim());
-    } else {
-      setClipboardAddress(null);
-    }
-  };
 
   const debouncedSearch = useMemo(
     () =>
@@ -190,14 +171,19 @@ export const ContactsList = ({
     }
   };
 
+  // The clipboard is read only when the person taps Paste. Reading it when
+  // the screen opens, or on every focus, saw whatever they had copied last —
+  // a password, a message — without them asking.
   const handlePasteAddress = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    await refreshClipboard();
-    const text = await Clipboard.getStringAsync();
-    if (text && isEthAddress(text.trim())) {
-      const nickname = addressBook[text.trim().toLowerCase()];
-      onSelectContact(buildAddressContact(text.trim(), nickname));
+    const text = (await Clipboard.getStringAsync())?.trim();
+    if (text && isEthAddress(text)) {
+      onSelectContact(buildAddressContact(text, addressBook[text.toLowerCase()]));
+      return;
     }
+    useAlertStore
+      .getState()
+      .error("No address to paste", "Copy a Base wallet address (0x…) first.");
   };
 
   return (
@@ -215,7 +201,6 @@ export const ContactsList = ({
           <TextInput
             value={searchQuery}
             onChangeText={onSearchChange}
-            onFocus={refreshClipboard}
             placeholder="Search name, @handle or address..."
             placeholderTextColor="rgba(255, 255, 255, 0.4)"
             className="flex-1 text-base text-white"
@@ -242,29 +227,12 @@ export const ContactsList = ({
             <Wallet size={20} color={COLORS.primary} />
           </View>
           <View className="flex-1">
-            {clipboardAddress ? (
-              <>
-                <Text className="text-base font-medium text-white">
-                  {addressBook[clipboardAddress.toLowerCase()]
-                    ? addressBook[clipboardAddress.toLowerCase()]
-                    : clipboardAddress.slice(0, 10) +
-                      "…" +
-                      clipboardAddress.slice(-6)}
-                </Text>
-                <Text className="text-sm text-muted">
-                  Tap to send to clipboard address
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text className="text-base font-medium text-white">
-                  Paste Wallet Address
-                </Text>
-                <Text className="text-sm text-muted">
-                  Send to any external address
-                </Text>
-              </>
-            )}
+            <Text className="text-base font-medium text-white">
+              Paste Wallet Address
+            </Text>
+            <Text className="text-sm text-muted">
+              Send to any external address
+            </Text>
           </View>
           <ClipboardPaste size={18} color="rgba(255,255,255,0.4)" />
         </Pressable>

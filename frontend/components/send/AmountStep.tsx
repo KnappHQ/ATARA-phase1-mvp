@@ -451,7 +451,7 @@ export const AmountStep = ({
         <TextInput
           value={note}
           onChangeText={setNote}
-          placeholder="Add a note (optional)"
+          placeholder="Message to the recipient (optional)"
           placeholderTextColor={COLORS.muted}
           editable={!isTransactionInProgress}
           className="w-full px-4 py-4 rounded-2xl text-base text-primary border border-muted/40"
@@ -460,6 +460,11 @@ export const AmountStep = ({
             opacity: isTransactionInProgress ? 0.55 : 1,
           }}
         />
+        {/* Say who reads it: the note is not a private memo. */}
+        <Text className="text-xs text-muted mt-2 px-1">
+          Stored by ATARA and shown to the recipient if they use ATARA. Not
+          written on the blockchain.
+        </Text>
       </MotiView>
 
       {transactionError && (

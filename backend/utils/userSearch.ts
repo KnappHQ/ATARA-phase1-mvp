@@ -18,9 +18,6 @@ import { Prisma } from "@prisma/client";
  */
 export const SEARCH_MIN_LENGTH = 3;
 
-/** Long enough to be a deliberate address lookup rather than an accident. */
-const ADDRESS_PREFIX = /^0x[0-9a-f]{4,}$/;
-
 /** `publicAddress` is deliberately absent: nothing in the app reads it. */
 export const USER_SEARCH_SELECT = {
   id: true,
@@ -46,18 +43,14 @@ export const buildSearchFilter = (
     return null;
   }
 
-  const conditions: Prisma.UserWhereInput[] = [
-    { handle: { contains: cleanQuery, mode: "insensitive" } },
-    { displayName: { contains: cleanQuery, mode: "insensitive" } },
-  ];
-
-  // Only when the caller clearly typed an address. Matching every query
-  // against the address column is what let a plain word reveal a wallet.
-  if (ADDRESS_PREFIX.test(cleanQuery)) {
-    conditions.push({
-      smartAccountAddress: { contains: cleanQuery, mode: "insensitive" },
-    });
-  }
-
-  return { OR: conditions };
+  // Never the address column, even for a query that is an address. Anyone can
+  // read an address off the chain; answering "whose is this?" would turn every
+  // public transfer into a named one. Paying a pasted address does not need
+  // this lookup: the app sends to the address as typed.
+  return {
+    OR: [
+      { handle: { contains: cleanQuery, mode: "insensitive" } },
+      { displayName: { contains: cleanQuery, mode: "insensitive" } },
+    ],
+  };
 };

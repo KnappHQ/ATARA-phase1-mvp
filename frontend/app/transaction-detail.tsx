@@ -69,12 +69,17 @@ export default function TransactionDetail() {
     }
   }, [transaction]);
 
+  // One note and one category are stored per payment and both people see
+  // them. Only the sender may change them; see the backend's updateTransaction.
+  const canEdit =
+    !!transaction && transaction.isInApp && transaction.type === "send";
+
   const handleBack = () => {
     router.back();
   };
 
   const handleSave = async () => {
-    if (!transaction) return;
+    if (!transaction || !canEdit) return;
 
     setIsSaving(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -283,7 +288,7 @@ export default function TransactionDetail() {
                   <TouchableOpacity
                     key={category.id}
                     onPress={() => {
-                      if (!transaction.isInApp) return;
+                      if (!canEdit) return;
                       setSelectedCategory(category.id);
                       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     }}
@@ -344,7 +349,7 @@ export default function TransactionDetail() {
               className="text-xs uppercase text-platinum/80 mb-3"
               style={{ letterSpacing: 2.5 }}
             >
-              Note
+              {transaction.type === "send" ? "Message to recipient" : "Message from sender"}
             </Text>
             <View
               className="px-4 py-2 rounded-2xl"
@@ -358,16 +363,26 @@ export default function TransactionDetail() {
               <TextInput
                 value={note}
                 onChangeText={setNote}
-                placeholder="Add a personal memo..."
+                placeholder={canEdit ? "Add a message for the recipient..." : "No message"}
                 placeholderTextColor="rgba(255, 255, 255, 0.3)"
                 className="text-lg text-white"
                 multiline
-                editable={transaction.isInApp}
+                editable={canEdit}
               />
             </View>
           </MotiView>
 
           <View className="px-6">
+            {transaction.isInApp && (
+              <Text
+                className="text-xs text-white/40 leading-5 mb-4"
+                style={{ letterSpacing: 0.3 }}
+              >
+                {canEdit
+                  ? "The message and category are shown to the recipient too, and stored by ATARA. Only you can change them."
+                  : "The message and category were set by the sender, who alone can change them. Private notes are not available yet."}
+              </Text>
+            )}
             {!transaction.isInApp && (
               <View
                 className="flex-row items-start gap-2.5 mb-4 px-4 py-3 rounded-xl"
@@ -393,12 +408,12 @@ export default function TransactionDetail() {
             )}
             <TouchableOpacity
               onPress={handleSave}
-              disabled={isSaving || !transaction.isInApp}
+              disabled={isSaving || !canEdit}
               activeOpacity={0.8}
               className="w-full py-5 rounded-2xl items-center"
               style={{
                 backgroundColor: COLORS.accent,
-                opacity: isSaving || !transaction.isInApp ? 0.7 : 1,
+                opacity: isSaving || !canEdit ? 0.7 : 1,
               }}
             >
               <Text

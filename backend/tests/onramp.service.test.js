@@ -22,8 +22,6 @@ test("trims dashboard copy/paste whitespace and signs the complete MoonPay query
   const unsignedAddress = "0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae";
   const signedUrl = buildMoonPayWidgetUrl({
     walletAddress: unsignedAddress,
-    userId: "user-123",
-    email: "demo@example.com",
     baseCurrencyAmount: "50.00",
   });
   const signatureMarker = "&signature=";
@@ -46,8 +44,23 @@ test("rejects a non-wallet destination", () => {
     () =>
       buildMoonPayWidgetUrl({
         walletAddress: "not-an-address",
-        userId: "user",
       }),
     /valid smart account address/,
   );
+});
+
+test("MoonPay receives the destination address, not who the user is", () => {
+  const signedUrl = buildMoonPayWidgetUrl({
+    walletAddress: "0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae",
+    // A caller passing more than the type allows must not leak it either.
+    userId: "user-123",
+    email: "demo@example.com",
+  });
+  const params = new URL(signedUrl).searchParams;
+  assert.equal(params.get("walletAddress"), "0xde0b295669a9fd93d5f28d9ec85e40f4cb697bae");
+  for (const key of ["email", "externalCustomerId"]) {
+    assert.equal(params.has(key), false, `${key} sent to MoonPay`);
+  }
+  assert.equal(signedUrl.includes("demo@example.com"), false);
+  assert.equal(signedUrl.includes("user-123"), false);
 });

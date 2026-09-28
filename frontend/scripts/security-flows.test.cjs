@@ -34,6 +34,8 @@ function authStoreHarness(storage = {}, userService = {}) {
     './useWalletStore': { useWalletStore: { getState: () => ({ setWalletAddress() {}, reset() {} }) } },
     '@/services/user.service': { UserService: userService },
     '@/utils/accountScope': load('utils/accountScope.ts'),
+    './useAddressBookStore': { useAddressBookStore: { getState: () => ({ openFor() {} }) } },
+    '@/utils/userProfile': load('utils/userProfile.ts'),
     '@sentry/react-native': { setUser() {}, captureException() {} },
   });
   return { store: useAuthStore, values };

@@ -2,9 +2,11 @@ import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 import { jwtDecode } from "jwt-decode";
 import { useWalletStore } from "./useWalletStore";
+import { useAddressBookStore } from "./useAddressBookStore";
 import { UserService } from "@/services/user.service";
 import * as Sentry from "@sentry/react-native";
 import { resetAccountScope } from "@/utils/accountScope";
+import { toUserProfile, type UserProfile } from "@/utils/userProfile";
 
 let authMutationRevision = 0;
 let authStorageQueue: Promise<unknown> = Promise.resolve();
@@ -39,16 +41,6 @@ const isJwtExpired = (token: string): boolean => {
   }
 };
 
-interface UserProfile {
-  id: string;
-  handle: string;
-  smartAccountAddress: string;
-  displayName?: string;
-  email?: string;
-  profilePicUrl?: string;
-  authProvider?: string;
-}
-
 interface AuthState {
   user: UserProfile | null;
   token: string | null;
@@ -75,8 +67,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: true,
   justLoggedOut: false,
 
-  setAuth: async (user, token, signal) => {
+  setAuth: async (received, token, signal) => {
     const revision = ++authMutationRevision;
+    const user = toUserProfile(received as unknown as Record<string, unknown>);
     await queueAuthStorageMutation(async () => {
       assertCurrentAuthMutation(revision, signal);
       await SecureStore.setItemAsync("auth_token", token);
@@ -91,13 +84,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       assertCurrentAuthMutation(revision, signal);
       if (get().user?.id !== user.id) resetAccountScope();
       set({ user, token, isAuthenticated: true, justLoggedOut: false });
+      useAddressBookStore.getState().openFor(user.id);
 
       try {
-        Sentry.setUser({
-          id: user.id,
-          email: user.email || undefined,
-          username: user.handle || undefined,
-        });
+        // The opaque account id is enough to group a user's crashes. Email and
+        // handle would tell Sentry who the person is and whom they pay.
+        Sentry.setUser({ id: user.id });
       } catch (e) {
         // Non-fatal: ensure Sentry calls don't break auth flow
         console.error("Sentry.setUser failed:", e);
@@ -157,8 +149,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       if (token && userStr && !isJwtExpired(token)) {
-        const user = JSON.parse(userStr);
+        const user = toUserProfile(JSON.parse(userStr));
         set({ token, user, isAuthenticated: true });
+        useAddressBookStore.getState().openFor(user.id);
+
+        // Earlier builds saved the full account row. Rewrite it with the
+        // profile alone.
+        const minimal = JSON.stringify(user);
+        if (minimal !== userStr) {
+          void queueAuthStorageMutation(async () => {
+            if (revision !== authMutationRevision) return;
+            await SecureStore.setItemAsync("user_profile", minimal);
+          }).catch(() => undefined);
+        }
 
         if (user.smartAccountAddress) {
           useWalletStore.getState().setWalletAddress(user.smartAccountAddress);
@@ -197,7 +200,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const updatedUserFromApi = await UserService.updateProfile(data);
       assertCurrentAuthMutation(revision);
-      const updatedUser = { ...currentUser, ...updatedUserFromApi };
+      const updatedUser = toUserProfile({ ...currentUser, ...updatedUserFromApi });
       await queueAuthStorageMutation(async () => {
         assertCurrentAuthMutation(revision);
         await SecureStore.setItemAsync("user_profile", JSON.stringify(updatedUser));
@@ -215,7 +218,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const revision = authMutationRevision;
     const currentUser = get().user;
     if (currentUser) {
-      const updatedUser = { ...currentUser, ...updates };
+      const updatedUser = toUserProfile({ ...currentUser, ...updates });
       set({ user: updatedUser });
       void queueAuthStorageMutation(async () => {
         if (revision !== authMutationRevision) return;

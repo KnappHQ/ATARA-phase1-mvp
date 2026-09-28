@@ -233,7 +233,7 @@ class WalletService {
             prices[symbol] = symbol === "ETH" ? 3000 : 1;
           }
         } catch (error) {
-          console.error(`Failed to get price for ${symbol}:`, error);
+          logError("wallet.price", error, { symbol });
           prices[symbol] = symbol === "ETH" ? 3000 : 1;
         }
       });
@@ -241,7 +241,7 @@ class WalletService {
       await Promise.all(pricePromises);
       return prices;
     } catch (error) {
-      console.error("Failed to get current prices:", error);
+      logError("wallet.prices", error);
       return { ETH: 3000, USDT: 1, USDC: 1 };
     }
   }
@@ -284,7 +284,7 @@ class WalletService {
             prices[symbol] = symbol === "ETH" ? 3000 : 1;
           }
         } catch (error) {
-          console.error(`Failed to get historical price for ${symbol}:`, error);
+          logError("wallet.historical-price", error, { symbol });
           prices[symbol] = symbol === "ETH" ? 3000 : 1;
         }
       });
@@ -292,7 +292,7 @@ class WalletService {
       await Promise.all(pricePromises);
       return prices;
     } catch (error) {
-      console.error("Failed to get historical prices:", error);
+      logError("wallet.historical-prices", error);
       return { ETH: 3000, USDT: 1, USDC: 1 };
     }
   }
