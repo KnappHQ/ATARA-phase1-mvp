@@ -73,7 +73,7 @@ export const ActivityList = ({
                   activeOpacity={0.8}
                   className="flex-row items-center justify-between py-4 border-b border-white/5"
                 >
-                  <View className="flex-row items-center gap-3">
+                  <View className="flex-1 flex-row items-center gap-3 mr-3">
                     <View className="w-8 h-8 items-center justify-center">
                       {tx.type === "receive" ? (
                         <ArrowDownLeft size={16} color={COLORS.accent} />
@@ -84,13 +84,21 @@ export const ActivityList = ({
                         />
                       )}
                     </View>
-                    <View>
-                      <View className="flex-row items-center gap-2">
-                        <Text className="text-base font-medium text-white/80">
+                    <View className="flex-1">
+                      <View className="flex-row items-center gap-2 overflow-hidden">
+                        <Text
+                          className="text-base font-medium text-white/80"
+                          numberOfLines={1}
+                          style={{ flexShrink: 1 }}
+                        >
                           {tx.counterparty.name}
                         </Text>
                         {tx.counterparty.showAddress && (
-                          <Text className="text-xs text-platinum-muted/40">
+                          <Text
+                            className="text-xs text-platinum-muted/40"
+                            numberOfLines={1}
+                            style={{ flexShrink: 100 }}
+                          >
                             {truncateAddress(tx.counterparty.address)}
                           </Text>
                         )}
@@ -102,7 +110,9 @@ export const ActivityList = ({
                   </View>
                   <Text
                     className="text-sm font-medium"
+                    numberOfLines={1}
                     style={{
+                      flexShrink: 0,
                       color:
                         tx.type === "receive"
                           ? COLORS.accent

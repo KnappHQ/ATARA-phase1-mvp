@@ -26,6 +26,11 @@ import { APP_NETWORK, CHAIN_ID } from "@/utils/constants";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useAddressVerificationStore } from "@/stores/useAddressVerificationStore";
 import {
+  isStale,
+  parseStoredOperation,
+  type StoredPendingOperation,
+} from "@/utils/pendingOperation";
+import {
   compareDerivedAddress,
   type AddressVerification,
 } from "@/utils/addressVerification";
@@ -288,15 +293,33 @@ export class SmartAccountService {
     return `atara.pending-call-bundle.${CHAIN_ID}.${this.smartAccountAddress.toLowerCase()}`;
   }
 
-  /** Read-only chain status. Never resubmits the call or guesses that a timeout failed. */
-  async checkPendingOperation(): Promise<{ status: "none" | "pending" | "confirmed" | "failed"; hash?: string }> {
+  /** The payment this phone is still waiting on, if any. Reads storage only. */
+  async readPendingOperation(): Promise<StoredPendingOperation | null> {
+    const stored = await AsyncStorage.getItem(this.pendingKey());
+    return stored ? parseStoredOperation(stored) : null;
+  }
+
+  /**
+   * Read-only chain status. Never resubmits the call or guesses that a timeout
+   * failed. "unavailable" means the provider could not report on it — for an
+   * old operation, usually because it no longer knows the id.
+   */
+  async checkPendingOperation(): Promise<{
+    status: "none" | "pending" | "confirmed" | "failed" | "unavailable";
+    hash?: string;
+    stale?: boolean;
+  }> {
     return runExclusiveOperation(`${CHAIN_ID}:${this.smartAccountAddress.toLowerCase()}`, async () => {
-      const stored = await AsyncStorage.getItem(this.pendingKey());
-      if (!stored) return { status: "none" };
-      let id: string;
-      try { id = JSON.parse(stored).id; } catch { id = stored; }
-      if (!id) return { status: "pending" };
-      const result = await this.client.getCallsStatus({ id });
+      const operation = await this.readPendingOperation();
+      if (!operation) return { status: "none" };
+      const stale = isStale(operation, Date.now());
+      let result: any;
+      try {
+        result = await this.client.getCallsStatus({ id: operation.id });
+      } catch (error) {
+        Sentry.captureException(error);
+        return { status: "unavailable", stale };
+      }
       if (result.status === "failure") {
         await AsyncStorage.removeItem(this.pendingKey());
         return { status: "failed" };
@@ -306,7 +329,24 @@ export class SmartAccountService {
         await AsyncStorage.removeItem(this.pendingKey());
         return { status: "confirmed", hash };
       }
-      return { status: "pending" };
+      return { status: "pending", stale };
+    });
+  }
+
+  /**
+   * Lets the owner pay again after an operation no one can report on any more.
+   * Only on their explicit request, once they have been told that it may have
+   * gone through: the phone cannot prove it did not.
+   */
+  async releasePendingOperation(): Promise<void> {
+    await runExclusiveOperation(`${CHAIN_ID}:${this.smartAccountAddress.toLowerCase()}`, async () => {
+      const operation = await this.readPendingOperation();
+      if (operation) {
+        Sentry.captureMessage("Owner released an unverifiable pending operation", {
+          extra: { stale: isStale(operation, Date.now()) },
+        });
+      }
+      await AsyncStorage.removeItem(this.pendingKey());
     });
   }
 
@@ -356,8 +396,7 @@ export class SmartAccountService {
     };
     const stored = await AsyncStorage.getItem(pendingKey);
     if (stored) {
-      let pending: { id: string; fingerprint?: string };
-      try { pending = JSON.parse(stored); } catch { pending = { id: stored }; }
+      const pending = parseStoredOperation(stored) ?? { id: stored };
       let result: TransactionResult | undefined;
       try { result = await waitForBundle(pending.id); }
       catch (error: any) {
@@ -374,7 +413,7 @@ export class SmartAccountService {
       calls: calls.map(call => ({ to: call.target, value: call.value ?? 0n, data: call.data })),
       ...(overrides ? { capabilities: overrides } : {}),
     });
-    await AsyncStorage.setItem(pendingKey, JSON.stringify({ id, fingerprint }));
+    await AsyncStorage.setItem(pendingKey, JSON.stringify({ id, fingerprint, createdAt: Date.now() }));
     try {
       const result = await waitForBundle(id); await AsyncStorage.removeItem(pendingKey); return result;
     } catch (error: any) {
