@@ -54,22 +54,31 @@ export const TransactionItem = ({
 
           <View className="flex-1">
             <View className="flex-row items-center justify-between mb-0.5">
-              <View className="flex-1 flex-row items-center">
+              {/* The name and address give way to the amount, never the
+                  reverse: on a narrow phone they used to run under it. */}
+              <View className="flex-1 flex-row items-center overflow-hidden">
                 <Text
                   className="text-base font-medium text-white"
                   numberOfLines={1}
+                  style={{ flexShrink: 1 }}
                 >
                   {transaction.counterparty.name}
                 </Text>
                 {transaction.counterparty.showAddress && (
-                  <Text className="text-xs font-mono ml-2 text-white/30">
+                  <Text
+                    className="text-xs font-mono ml-2 text-white/30"
+                    numberOfLines={1}
+                    style={{ flexShrink: 100 }}
+                  >
                     {truncateAddress(transaction.counterparty.address)}
                   </Text>
                 )}
               </View>
               <Text
                 className="font-mono text-base ml-2"
+                numberOfLines={1}
                 style={{
+                  flexShrink: 0,
                   color: isReceive ? COLORS.accent : "rgba(255, 255, 255, 0.6)",
                 }}
               >
