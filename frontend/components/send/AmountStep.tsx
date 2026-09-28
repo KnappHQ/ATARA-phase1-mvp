@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import {
-  Modal,
   Pressable,
   ScrollView,
   Text,
@@ -13,6 +12,7 @@ import { AlertCircle } from "lucide-react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { SwipeToSend } from "./SwipeToSend";
 import { BalanceLoader } from "./BalanceLoader";
+import { PaymentReview } from "./PaymentReview";
 import { Contact } from "@/stores/useContactStore";
 import { useWalletStore, Token } from "@/stores/useWalletStore";
 import { useTransactionStore } from "@/stores/useTransactionStore";
@@ -90,6 +90,9 @@ export const AmountStep = ({
   const [isSending, setIsSending] = useState(false);
   const [isTakingLonger, setIsTakingLonger] = useState(false);
   const [isAddressReviewOpen, setIsAddressReviewOpen] = useState(false);
+  // Set when a payment was submitted but its outcome could not be confirmed.
+  // It stays until the person leaves: sending again could pay twice.
+  const [statusUnknown, setStatusUnknown] = useState(false);
   const [swipeResetKey, setSwipeResetKey] = useState(0);
   const isTransactionInProgress = isSending || isTransactionLoading;
 
@@ -179,8 +182,31 @@ export const AmountStep = ({
   const canSend =
     isValidAmount &&
     !isTransactionInProgress &&
+    !statusUnknown &&
     smartAccountService &&
     transactionService;
+
+  const recipientLabel = recipient.isLocalContact
+    ? recipient.name
+      ? `${recipient.name} (your nickname)`
+      : "External address"
+    : `@${recipient.handle}`;
+  const approxUsd =
+    selectedToken.usdPrice > 0
+      ? `$${(amountValue * selectedToken.usdPrice).toFixed(2)}`
+      : null;
+
+  // A group quote is valid for a limited time. Checked when the review opens
+  // and again when it is confirmed: the review can stay open past expiry.
+  const settlementNeedsUpdate = () =>
+    !!settlementGroupId &&
+    (!settlementIntentId ||
+      selectedToken.symbol !== "USDC" ||
+      !(Date.now() < Date.parse(String(params.settlementExpiresAt))));
+  const warnSettlementNeedsUpdate = () =>
+    useAlertStore
+      .getState()
+      .error("Amount needs updating", "Return to the group and review the updated proposal before paying.");
 
   const buildTransactionRequest = (): SendTransactionRequest => ({
     recipientAddress: recipient.smartAccountAddress,
@@ -201,8 +227,8 @@ export const AmountStep = ({
   });
 
   const handleSendComplete = () => {
-    if (settlementGroupId && (!settlementIntentId || selectedToken.symbol !== "USDC" || Date.now() >= Date.parse(String(params.settlementExpiresAt)))) {
-      useAlertStore.getState().error("Amount needs updating", "Return to the group and review the updated proposal before paying."); return;
+    if (settlementNeedsUpdate()) {
+      warnSettlementNeedsUpdate(); setSwipeResetKey((key) => key + 1); return;
     }
     if (!canSend || isTransactionInProgress) return;
 
@@ -219,6 +245,11 @@ export const AmountStep = ({
 
   const handleConfirmAddressAndSend = async () => {
     if (!canSend || isTransactionInProgress) return;
+    if (settlementNeedsUpdate()) {
+      closeAddressReview();
+      warnSettlementNeedsUpdate();
+      return;
+    }
 
     setIsAddressReviewOpen(false);
     clearError();
@@ -242,6 +273,7 @@ export const AmountStep = ({
           },
         });
       } else {
+        if (result.isPendingVerification) setStatusUnknown(true);
         throw new Error(result.error || "Transaction failed");
       }
     } catch {
@@ -482,88 +514,18 @@ export const AmountStep = ({
         </MotiView>
       )}
 
-      <Modal
+      <PaymentReview
         visible={isAddressReviewOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {
-          if (!isTransactionInProgress) {
-            closeAddressReview();
-          }
-        }}
-      >
-        <View className="flex-1 bg-black/75 items-center justify-center px-6">
-          <View className="w-full max-w-[360px] rounded-3xl border border-white/10 bg-[#111111] p-5">
-            <View className="mb-4 h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/5">
-              <AlertCircle size={18} color={COLORS.white} />
-            </View>
-
-            <Text className="text-xl font-semibold text-white mb-2">
-              Review recipient
-            </Text>
-            <Text className="text-sm leading-6 text-white/65 mb-4">
-              Check this address carefully before transferring any funds.
-              Transfers cannot be reversed after signing.
-            </Text>
-
-            <View className="rounded-2xl border border-white/10 bg-white/[0.04] p-4 mb-4">
-              <Text className="text-xs uppercase tracking-widest text-muted mb-2">
-                Recipient
-              </Text>
-              <Text className="text-base font-semibold text-white mb-2">
-                @{recipient.handle}
-              </Text>
-              <Text
-                className="font-mono text-sm text-white/70"
-                selectable
-                numberOfLines={1}
-              >
-                {recipient.smartAccountAddress}
-              </Text>
-            </View>
-
-            <View className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 mb-5">
-              <View className="flex-row justify-between gap-4">
-                <Text className="text-sm text-muted">Amount</Text>
-                <Text className="text-sm font-semibold text-white">
-                  {amountValue.toString()} {selectedToken.symbol}
-                </Text>
-              </View>
-              {selectedToken.usdPrice > 0 && (
-                <View className="mt-2 flex-row justify-between gap-4">
-                  <Text className="text-sm text-muted">Approx. value</Text>
-                  <Text className="text-sm font-semibold text-white">
-                    ${(amountValue * selectedToken.usdPrice).toFixed(2)}
-                  </Text>
-                </View>
-              )}
-            </View>
-
-            <View className="flex-row gap-3">
-              <Pressable
-                onPress={closeAddressReview}
-                disabled={isTransactionInProgress}
-                className="flex-1 items-center justify-center rounded-2xl border border-white/15 py-3"
-                style={{ opacity: isTransactionInProgress ? 0.6 : 1 }}
-              >
-                <Text className="text-sm font-semibold text-white">
-                  Review again
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={handleConfirmAddressAndSend}
-                disabled={isTransactionInProgress}
-                className="flex-1 items-center justify-center rounded-2xl bg-white py-3"
-                style={{ opacity: isTransactionInProgress ? 0.7 : 1 }}
-              >
-                <Text className="text-sm font-semibold text-black">
-                  Confirm send
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
+        recipientLabel={recipientLabel}
+        recipientAddress={recipient.smartAccountAddress}
+        amount={amountValue.toString()}
+        tokenSymbol={selectedToken.symbol}
+        approxUsd={approxUsd}
+        note={note || undefined}
+        busy={isTransactionInProgress}
+        onCancel={closeAddressReview}
+        onConfirm={handleConfirmAddressAndSend}
+      />
 
       {!balanceValidation.isValid && amountValue > 0 && (
         <MotiView
@@ -593,7 +555,29 @@ export const AmountStep = ({
         </View>
       </MotiView>
 
-      {isTakingLonger && (
+      {statusUnknown && (
+        <View
+          accessibilityRole="alert"
+          className="mb-4 rounded-2xl border border-bitcoin/40 bg-bitcoin/10 p-4"
+        >
+          <Text className="text-sm font-semibold text-white">
+            Status unknown. Do not send again.
+          </Text>
+          <Text className="mt-2 text-sm leading-5 text-white/70">
+            This payment may still go through. Check Activity: it can take a
+            few minutes to appear. ATARA will not send a new payment from this
+            phone until this one is settled.
+          </Text>
+          <Pressable
+            onPress={() => router.push("/(tabs)/activity")}
+            className="mt-3 self-start rounded-xl border border-white/20 px-4 py-2"
+          >
+            <Text className="text-sm font-semibold text-white">Open Activity</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {isTakingLonger && !statusUnknown && (
         <View className="mb-4 rounded-2xl border border-white/20 bg-white/5 p-4">
           <Text className="text-sm font-semibold text-white">
             Still verifying your transfer
@@ -617,7 +601,9 @@ export const AmountStep = ({
           label={
             isSending
               ? "Sending Transaction..."
-              : !smartAccountService
+              : statusUnknown
+                ? "Check Activity first"
+                : !smartAccountService
                 ? "Wallet Not Connected"
                 : isLoadingBalances
                   ? "Loading Balances..."

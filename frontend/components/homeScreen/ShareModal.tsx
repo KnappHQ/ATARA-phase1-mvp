@@ -2,11 +2,13 @@ import { useState } from "react";
 import { Modal, Pressable, Share, Text, TextInput, ScrollView, View } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import { SvgUri } from "react-native-svg";
+import QRCodeStyled from "react-native-qrcode-styled";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useWalletStore } from "@/stores/useWalletStore";
 import { useAddressVerificationStore } from "@/stores/useAddressVerificationStore";
 import { api } from "@/services/api";
-import { COLORS } from "@/utils/constants";
+import { CHAIN_ID, COLORS } from "@/utils/constants";
+import { buildReceiveUri } from "@/utils/paymentRequest";
 
 type Request = { id: string; url: string; amount: string; chainId: number; expiresAt: string };
 export function ShareModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
@@ -37,6 +39,11 @@ export function ShareModal({ isOpen, onClose }: { isOpen: boolean; onClose: () =
       ) : verification === "verified" ? (
         <Text className="text-white/40 text-xs mt-2">Checked on this phone: this address is derived from your own key.</Text>
       ) : null}
+      {/* Drawn on the phone: no service sees the address to render it. Not shown when the address failed its check. */}
+      {!!address && verification !== "mismatch" && <View className="items-center mt-5">
+        <View className="rounded-2xl bg-white p-3"><QRCodeStyled data={buildReceiveUri(address, CHAIN_ID)} pieceSize={5} accessibilityLabel="QR code of your receiving address" /></View>
+        <Text className="text-white/40 text-xs text-center mt-2">Scan with a Base-compatible wallet. The code holds this address and the network, nothing else.</Text>
+      </View>}
       <Pressable disabled={!address} onPress={() => run(async () => { await Clipboard.setStringAsync(address!); setMessage("Address copied. Use only the network shown."); })}><Text style={{ color: COLORS.accent }} className="my-4">Copy my Base address</Text></Pressable>
       <Text className="text-white/50 text-xs mb-6">This address receives supported assets on Base. Do not send native BTC, SOL, or XMR to this address.</Text>
       {!!message && <Text accessibilityRole="alert" className="text-white/70 my-3">{message}</Text>}

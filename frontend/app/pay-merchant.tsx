@@ -16,6 +16,7 @@ import { CHAIN_ID, COLORS, NETWORK_NAME } from "@/utils/constants";
 import { DEMO_MODE } from "@/utils/demoMode";
 import { useSmartAccountService } from "@/services/smartAccount.service";
 import { useTransactionService } from "@/services/transaction.service";
+import { PaymentReview } from "@/components/send/PaymentReview";
 import { useWalletStore } from "@/stores/useWalletStore";
 import { useAuthStore } from "@/stores/useAuthStore";
 import {
@@ -35,7 +36,11 @@ export default function PayMerchantScreen() {
   const { assets, refreshBalances } = useWalletStore();
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("Groceries");
+  // Empty by default: a note is shared with the recipient, so it is written
+  // by the person paying, never pre-filled for them.
+  const [note, setNote] = useState("");
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
+  const [statusUnknown, setStatusUnknown] = useState(false);
   const [selectedTokenSymbol, setSelectedTokenSymbol] = useState("USDC");
   const [isPaying, setIsPaying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -117,10 +122,20 @@ export default function PayMerchantScreen() {
     isValidAmount &&
     hasValidDecimals &&
     hasBalance &&
+    !statusUnknown &&
     !isPaying;
+
+  const openReview = () => {
+    if (!canPay) return;
+    if (DEMO_MODE) return void pay();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setMessage(null);
+    setIsReviewOpen(true);
+  };
 
   const pay = async () => {
     if (!canPay) return;
+    setIsReviewOpen(false);
     setIsPaying(true);
     setMessage(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -142,9 +157,14 @@ export default function PayMerchantScreen() {
           selectedToken.usdPrice > 0
             ? (Number(normalizedAmount) * selectedToken.usdPrice).toFixed(2)
             : selectedToken.usdValue,
-        note,
+        note: note.trim() || undefined,
       });
       if (!result.success) {
+        if (result.isPendingVerification) {
+          setStatusUnknown(true);
+          setMessage("Status unknown. Do not pay again: this payment may still go through. Check Activity before trying again.");
+          return;
+        }
         setMessage(result.error || "Payment failed.");
         return;
       }
@@ -278,7 +298,7 @@ export default function PayMerchantScreen() {
           <TextInput
             value={note}
             onChangeText={setNote}
-            placeholder="Note (optional)"
+            placeholder="Message to the merchant (optional)"
             placeholderTextColor="rgba(255,255,255,0.25)"
             className="mt-4 rounded-2xl border border-white/15 bg-black/40 px-4 py-4 text-sm text-white"
           />
@@ -292,17 +312,38 @@ export default function PayMerchantScreen() {
 
           {message ? <Text className="mt-4 text-sm leading-5 text-white/75">{message}</Text> : null}
           <Pressable
-            onPress={pay}
+            onPress={openReview}
             disabled={!canPay}
             className="mt-5 h-14 rounded-2xl items-center justify-center"
             style={{ backgroundColor: COLORS.white, opacity: canPay ? 1 : 0.4 }}
           >
-            {isPaying ? <ActivityIndicator color={COLORS.black} /> : <Text className="font-semibold" style={{ color: COLORS.black }}>{DEMO_MODE ? "Simulate payment" : `Pay in ${selectedToken?.symbol ?? "crypto"}`}</Text>}
+            {isPaying ? <ActivityIndicator color={COLORS.black} /> : <Text className="font-semibold" style={{ color: COLORS.black }}>{DEMO_MODE ? "Simulate payment" : `Review payment in ${selectedToken?.symbol ?? "crypto"}`}</Text>}
           </Pressable>
           {!DEMO_MODE && !service ? <Text className="text-center text-xs text-white/40 mt-3">Connecting to wallet…</Text> : null}
           {!DEMO_MODE && !user?.smartAccountAddress ? <Text className="text-center text-xs text-white/40 mt-3">Your ATARA wallet is not ready yet.</Text> : null}
+          {statusUnknown ? (
+            <Pressable onPress={() => router.push("/(tabs)/activity")} className="mt-3 items-center">
+              <Text style={{ color: COLORS.accent }}>Open Activity</Text>
+            </Pressable>
+          ) : null}
         </View>
       </ScrollView>
+      <PaymentReview
+        visible={isReviewOpen}
+        recipientLabel="Merchant"
+        recipientAddress={rawAddress}
+        amount={normalizedAmount ?? ""}
+        tokenSymbol={selectedToken?.symbol ?? ""}
+        approxUsd={
+          selectedToken?.usdPrice > 0 && normalizedAmount
+            ? `$${(Number(normalizedAmount) * selectedToken.usdPrice).toFixed(2)}`
+            : null
+        }
+        note={note.trim() || undefined}
+        busy={isPaying}
+        onCancel={() => setIsReviewOpen(false)}
+        onConfirm={pay}
+      />
     </SafeAreaView>
   );
 }

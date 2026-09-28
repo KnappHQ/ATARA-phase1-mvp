@@ -30,6 +30,8 @@ interface TransactionResponse {
   success: boolean;
   error?: string;
   isPaymasterFailure?: boolean;
+  /** Submitted, but neither confirmed nor refused. Never send it again blindly. */
+  isPendingVerification?: boolean;
 }
 
 export class TransactionService {
@@ -168,6 +170,7 @@ export class TransactionService {
         success: false,
         error: failureMessage,
         isPaymasterFailure,
+        isPendingVerification: !!error?.isPendingVerification,
       };
     }
   }

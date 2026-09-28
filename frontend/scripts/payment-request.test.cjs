@@ -51,3 +51,14 @@ test("rejects excess decimals and malformed base-unit values", () => {
   assert.equal(paymentRequest.baseUnitsToDecimal("1e6", 6), null);
   assert.equal(paymentRequest.normalizeDecimalAmount("1,25"), "1.25");
 });
+
+test("the receive QR carries the address and network, and reads back as a request", () => {
+  const address = "0x2222222222222222222222222222222222222222";
+  const uri = paymentRequest.buildReceiveUri(address, 84532);
+  assert.equal(uri, `ethereum:${address}@84532`);
+  const parsed = paymentRequest.parsePaymentRequest(uri);
+  assert.equal(parsed.address, address);
+  assert.equal(parsed.chainId, 84532);
+  assert.equal(parsed.amount, undefined);
+  assert.equal(parsed.amountInBaseUnits, undefined);
+});
