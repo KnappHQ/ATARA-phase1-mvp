@@ -103,6 +103,23 @@ test("the liveness probe stays public", async () => {
   assert.equal(response.body.status, "success");
 });
 
+test("the liveness probe says which commit is deployed", async () => {
+  // verify-render-deploy.yml compares this with the commit merged to main.
+  const previous = process.env.RENDER_GIT_COMMIT;
+  try {
+    delete process.env.RENDER_GIT_COMMIT;
+    let response = await request(app).get("/api/v1/health/backend");
+    assert.equal(response.body.commit, null);
+
+    process.env.RENDER_GIT_COMMIT = "2e81e3007bc0d274062b2d8c69543622ffffe872";
+    response = await request(app).get("/api/v1/health/backend");
+    assert.equal(response.body.commit, "2e81e3007bc0");
+  } finally {
+    if (previous === undefined) delete process.env.RENDER_GIT_COMMIT;
+    else process.env.RENDER_GIT_COMMIT = previous;
+  }
+});
+
 test("the legal pages stay public", async () => {
   for (const path of ["/privacy", "/terms", "/account-deletion"]) {
     const response = await request(app).get(`/api/v1/legal${path}`);

@@ -12,6 +12,10 @@ export const healthController = {
         message: "Backend is healthy",
         chainId: NETWORK === "base-mainnet" ? 8453 : 84532,
         network: NETWORK,
+        // The commit Render deployed (it sets RENDER_GIT_COMMIT on every
+        // deploy), so .github/workflows/verify-render-deploy.yml can confirm
+        // that a merge to main is actually live. null outside Render.
+        commit: process.env.RENDER_GIT_COMMIT?.slice(0, 12) ?? null,
       });
     },
   ),
