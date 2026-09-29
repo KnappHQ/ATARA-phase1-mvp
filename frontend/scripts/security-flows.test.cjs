@@ -214,7 +214,7 @@ test('Weekly Flow is absent and logout/change account are discoverable before de
   assert.doesNotMatch(fs.readFileSync(path.join(__dirname, '../app/(tabs)/index.tsx'), 'utf8'), /WeeklyInsights/);
   const profile = fs.readFileSync(path.join(__dirname, '../app/(tabs)/profile.tsx'), 'utf8');
   assert.match(profile, /label="Log out"/);
-  assert.match(profile, /label="Use another account"/);
+  assert.match(profile, /label="Manage accounts"/);
 });
 
 test('account switching clears private cached contacts and rejects their late responses', async () => {

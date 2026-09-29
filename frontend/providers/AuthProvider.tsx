@@ -13,11 +13,9 @@ import {
   useEmbeddedEthereumWallet,
   useLoginWithOAuth,
   usePrivy,
+  usePrivyClient,
 } from "@privy-io/expo";
-import {
-  useLoginWithPasskey,
-  useSignupWithPasskey,
-} from "@privy-io/expo/passkey";
+import { useLoginWithPasskey } from "@privy-io/expo/passkey";
 import * as Haptics from "expo-haptics";
 import { stringToHex } from "viem";
 
@@ -36,6 +34,19 @@ import {
   formatAuthFailure,
   probeDomainAssociation,
 } from "@/utils/authDiagnostics";
+import {
+  PasskeyFlowError,
+  createNamedPasskey,
+  signInWithPasskey,
+} from "@/services/passkey.service";
+import { createPasskeyDeps, randomBytes } from "@/services/passkeyRuntime";
+import { checkAccountLabel, LABEL_ERROR_TEXT, suggestAccountLabel } from "@/utils/accountLabels";
+import { labelsInUse, newAccountKey, passkeyNamesInUse } from "@/utils/accountRegistry";
+import { checkLanding } from "@/services/accountActions";
+import { listPasskeys, type UserLike } from "@/utils/loginMethods";
+import { embeddedWalletConfig } from "@/utils/privyConfig";
+import { useAccountRegistryStore, registryReady } from "@/stores/useAccountRegistryStore";
+import { useAccountSwitchStore } from "@/stores/useAccountSwitchStore";
 import { useAlertStore } from "@/stores/useAlertStore";
 import { useAuthStore } from "@/stores/useAuthStore";
 import {
@@ -53,6 +64,16 @@ type RegisterWithHandleParams = {
   displayName?: string;
 };
 
+export type StartPasskeyOptions = {
+  /**
+   * Sign-up: the private name of the new account. iOS lists the passkey under
+   * it, so several accounts on one phone can be told apart in its picker.
+   */
+  label?: string;
+  /** Sign-in: offer this one credential only, instead of every passkey for ATARA. */
+  credentialId?: string;
+};
+
 type AuthContextValue = {
   isReady: boolean;
   isPrivyReady: boolean;
@@ -63,7 +84,7 @@ type AuthContextValue = {
   isStartingOAuth: boolean;
   oauthError: string | null;
   isExternalWalletEnabled: boolean;
-  startPasskey: (mode: "login" | "signup") => Promise<void>;
+  startPasskey: (mode: "login" | "signup", options?: StartPasskeyOptions) => Promise<void>;
   startExternalWallet: () => Promise<void>;
   startOAuth: (provider: OAuthProvider) => Promise<void>;
   registerWithHandle: (params: RegisterWithHandleParams) => Promise<void>;
@@ -74,6 +95,9 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 const ONBOARDING_TRANSITION_MS = 600;
+
+/** The chosen name cannot be used. A sentence for the person, not a sign-in fault. */
+class AccountNameRefused extends Error {}
 
 const signPersonalMessage = async (
   wallet: EthereumSignerWallet,
@@ -104,7 +128,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const { wallets, create } = useEmbeddedEthereumWallet();
   const { login: loginWithOAuth, state: oauthState } = useLoginWithOAuth();
   const { loginWithPasskey } = useLoginWithPasskey();
-  const { signupWithPasskey } = useSignupWithPasskey();
+  const privyClient = usePrivyClient();
+  const passkeyDeps = useMemo(() => createPasskeyDeps(privyClient), [privyClient]);
   const externalWallet = useExternalWallet();
   const { isAuthenticated, isLoading: isAuthLoading } = useAuthStore();
 
@@ -257,7 +282,44 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [isPrivyReady, loginWithOAuth, prepareSignIn],
   );
 
-  const startPasskey = useCallback(async (mode: "login" | "signup") => {
+  /**
+   * What this phone learns from a passkey sign-in, before the ATARA profile is
+   * loaded. The entry is found by the Privy user id, never by a name.
+   */
+  const rememberPasskeySignIn = useCallback(
+    async (privyUser: UserLike & { id: string }, credentialId: string | null) => {
+      try {
+        const registry = useAccountRegistryStore.getState();
+        const passkeys = listPasskeys(privyUser);
+        // The picker does not say which credential was chosen. When the account
+        // has exactly one passkey, that is the one that just worked.
+        const used = credentialId ?? (passkeys.length === 1 ? passkeys[0].credentialId : null);
+        await registry.recordSignIn({
+          key: newAccountKey(randomBytes(12)),
+          bytes: randomBytes(4),
+          privyUserId: privyUser.id,
+          userId: null,
+          passkeys,
+          usedCredentialId: used,
+          now: Date.now(),
+        });
+
+        // A switch aimed at one account, answered by a passkey Privy files under
+        // another: the list was wrong about that credential. Stop offering it.
+        const intent = useAccountSwitchStore.getState().intent;
+        const landed = useAccountRegistryStore.getState().find({ privyUserId: privyUser.id });
+        if (credentialId && intent?.kind === "switch" && landed && landed.key !== intent.target.accountKey) {
+          await registry.removePasskey(intent.target.accountKey, credentialId);
+        }
+      } catch {
+        // The list of accounts is a convenience. Failing to save it must never
+        // fail a sign-in that succeeded.
+      }
+    },
+    [],
+  );
+
+  const startPasskey = useCallback(async (mode: "login" | "signup", options: StartPasskeyOptions = {}) => {
     if (entryBusyRef.current) return;
     const relyingParty = process.env.EXPO_PUBLIC_PASSKEY_RP_ID;
     if (!relyingParty) { setOauthError("Passkey sign-in requires domain configuration."); return; }
@@ -267,23 +329,70 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       await prepareSignIn("privy");
       const input = { relyingParty: `https://${relyingParty}` };
-      if (mode === "signup") await signupWithPasskey(input);
-      else await loginWithPasskey(input);
+      if (mode === "signup") {
+        // The name iOS shows for this passkey. Chosen here, before the passkey
+        // exists: it cannot be changed afterwards from inside an app.
+        await registryReady();
+        const registry = useAccountRegistryStore.getState();
+        const taken = [...labelsInUse(registry), ...passkeyNamesInUse(registry)];
+        const chosen = options.label ? checkAccountLabel(options.label, taken) : null;
+        if (chosen && !chosen.ok) throw new AccountNameRefused(LABEL_ERROR_TEXT[chosen.reason]);
+        const label = chosen?.ok ? chosen.label : suggestAccountLabel({ taken, bytes: randomBytes(4) });
+
+        const created = await createNamedPasskey(passkeyDeps, {
+          mode: "signup",
+          relyingParty: input.relyingParty,
+          label,
+        });
+        try {
+          await registry.beginPending({
+            key: newAccountKey(randomBytes(12)),
+            privyUserId: created.user.id,
+            label: created.label,
+            credentialId: created.credentialId,
+            now: Date.now(),
+          });
+        } catch {
+          // Same as above: the sign-up itself succeeded.
+        }
+      } else if (options.credentialId) {
+        const signed = await signInWithPasskey(passkeyDeps, {
+          relyingParty: input.relyingParty,
+          credentialId: options.credentialId,
+          embedded: embeddedWalletConfig,
+        });
+        await rememberPasskeySignIn(signed.user, signed.credentialId);
+      } else {
+        const privyUser = await loginWithPasskey(input);
+        if (privyUser) await rememberPasskeySignIn(privyUser as UserLike & { id: string }, null);
+      }
     }
     catch (error) {
+      if (error instanceof AccountNameRefused) {
+        setOauthError(error.message);
+        return;
+      }
       // A bare provider string ("Signup with passkey not allowed") says nothing
       // about which system refused or what to change, and a store build has no
       // console to dig further.
-      const failure = describeAuthFailure(error, { method: "passkey" });
+      const cause = error instanceof PasskeyFlowError ? error.original : error;
+      // iOS words a cancellation in several ways; the service knows them all.
+      const failure = error instanceof PasskeyFlowError && error.cancelled
+        ? { layer: "unknown" as const, message: "Sign-in canceled.", raw: error.message }
+        : describeAuthFailure(cause, { method: "passkey" });
       // Privy's wording rarely says whether the missing domain association is
       // the real reason. Ask the association file directly rather than send
       // someone into the Privy dashboard for a server-side problem.
       const association = failure.layer === "api"
         ? await probeDomainAssociation(relyingParty) : undefined;
-      setOauthError(formatAuthFailure(association ?? failure));
+      const text = formatAuthFailure(association ?? failure);
+      const orphan = error instanceof PasskeyFlowError ? error.orphanedPasskeyName : undefined;
+      setOauthError(orphan
+        ? `${text} A passkey named “${orphan}” was created on this iPhone but linked to no account. It does nothing: you can delete it in Settings > Passwords.`
+        : text);
     }
     finally { entryBusyRef.current = false; setIsStartingOAuth(false); }
-  }, [isPrivyReady, loginWithPasskey, signupWithPasskey, prepareSignIn]);
+  }, [isPrivyReady, loginWithPasskey, passkeyDeps, prepareSignIn, rememberPasskeySignIn]);
 
   const startExternalWallet = useCallback(async () => {
     if (entryBusyRef.current) return;
@@ -471,9 +580,97 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         onAuthenticated={handleAuthenticated}
         logout={logout}
       />
+      <AccountRegistrySync />
       {children}
     </AuthContext.Provider>
   );
+};
+
+/**
+ * Keeps this phone's list of accounts (stores/useAccountRegistryStore.ts) in line
+ * with whoever is signed in. It only writes to that local list: nothing it does
+ * reaches the API.
+ *
+ * Runs once ATARA has authenticated, because that is when the @handle, the
+ * address and the ATARA user id are known. The entry is found by the Privy user
+ * id and the ATARA user id; a name plays no part in it.
+ */
+const AccountRegistrySync = () => {
+  const { user: privyUser, isReady: isPrivyReady } = usePrivy();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const profile = useAuthStore((state) => state.user);
+  const isExternalWallet = profile?.authProvider === "external_wallet";
+  const privyUserId = privyUser?.id ?? null;
+  const passkeys = useMemo(() => listPasskeys(privyUser), [privyUser]);
+  const passkeyIds = passkeys.map((passkey) => passkey.credentialId).sort().join(",");
+
+  useEffect(() => {
+    if (!isAuthenticated || !profile?.id) return;
+    // Wait for Privy so the entry is bound to its user id from the start.
+    if (!isPrivyReady && !isExternalWallet) return;
+
+    let cancelled = false;
+    (async () => {
+      const registry = useAccountRegistryStore.getState();
+      await registry.recordSignIn({
+        key: newAccountKey(randomBytes(12)),
+        bytes: randomBytes(4),
+        privyUserId,
+        userId: profile.id,
+        handle: profile.handle || null,
+        smartAccountAddress: profile.smartAccountAddress || null,
+        authProvider: profile.authProvider ?? null,
+        // With no Privy user, the list of passkeys is unknown, not empty.
+        passkeys: privyUser ? passkeys : undefined,
+        now: Date.now(),
+      });
+      if (cancelled) return;
+
+      // The sign-in is complete. If it was a switch, say so when it did not reach
+      // the account the person asked for. That is decided by the Privy user id.
+      const { intent, clear } = useAccountSwitchStore.getState();
+      const landing = checkLanding(useAccountRegistryStore.getState(), intent, {
+        privyUserId,
+        userId: profile.id,
+      });
+      if (!landing.matched) {
+        useAlertStore.getState().show(
+          {
+            type: "warning",
+            title: "Signed in to a different account",
+            message: `You are signed in to “${landing.landed.label}”${
+              landing.expected ? `, not “${landing.expected.label}”` : ""
+            }.${
+              intent?.kind === "switch" && intent.target.plan.method === "passkey" && landing.expected
+                ? ` ATARA no longer offers that passkey for “${landing.expected.label}”.`
+                : ""
+            }`,
+          },
+          9000,
+        );
+      }
+      if (intent) clear();
+    })().catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+    // `passkeys` and `privyUser` are represented by the ids below: a new object
+    // with the same content must not write again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    isAuthenticated,
+    isExternalWallet,
+    isPrivyReady,
+    passkeyIds,
+    privyUserId,
+    profile?.authProvider,
+    profile?.handle,
+    profile?.id,
+    profile?.smartAccountAddress,
+  ]);
+
+  return null;
 };
 
 type AuthenticationManagerProps = {

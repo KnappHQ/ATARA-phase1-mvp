@@ -3,6 +3,8 @@ import Constants from "expo-constants";
 import { base, baseSepolia } from "viem/chains";
 import { PrivyProvider as ExpoPrivyProvider } from "@privy-io/expo";
 
+import { embeddedWalletConfig } from "@/utils/privyConfig";
+
 const readPublicValue = (value?: string) => value?.trim() || undefined;
 
 // Keep the Privy application and its native client selected by the EAS build
@@ -35,13 +37,9 @@ if (privyAppId === privyClientId) {
 const selectedChain =
   process.env.EXPO_PUBLIC_NETWORK === "base-mainnet" ? base : baseSepolia;
 
-const privyConfig = {
-  embedded: {
-    ethereum: {
-      createOnLogin: "users-without-wallets",
-    },
-  },
-};
+// Shared with the passkey sign-in in services/passkey.service.ts, which must
+// hand Privy the same embedded-wallet setting the SDK's own hook would.
+const privyConfig = { embedded: embeddedWalletConfig };
 
 export const PrivyProvider = ({ children }: { children: React.ReactNode }) => {
   return (

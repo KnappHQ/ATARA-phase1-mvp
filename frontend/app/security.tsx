@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import { usePrivy, useLinkSMS, useMfaEnrollment, useEmbeddedEthereumWallet } from "@privy-io/expo";
-import { useLinkWithPasskey } from "@privy-io/expo/passkey";
 import { ActivityIndicator, Linking, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, KeyRound, LogOut, ShieldCheck, Smartphone, WalletCards } from "lucide-react-native";
@@ -12,9 +11,7 @@ import { AuthService } from "@/services/auth.service";
 import { useAuth } from "@/providers/AuthProvider";
 import { withTimeout } from "@/utils/asyncOperation";
 import { runExclusiveOperation } from "@/utils/exclusiveOperation";
-import { describeAuthFailure, formatAuthFailure, probeDomainAssociation } from "@/utils/authDiagnostics";
 
-const PASSKEY_RP = process.env.EXPO_PUBLIC_PASSKEY_RP_ID || "";
 const SMS_ENABLED = process.env.EXPO_PUBLIC_ENABLE_SMS_BACKUP === "true";
 const Card = ({ children }: { children: React.ReactNode }) => <View className="rounded-3xl border border-white/10 bg-white/5 p-5 mb-4">{children}</View>;
 const Button = ({ label, onPress, disabled }: { label: string; onPress: () => void; disabled?: boolean }) => <Pressable disabled={disabled} onPress={onPress} className="mt-4 p-4 rounded-2xl" style={{ backgroundColor: COLORS.accent, opacity: disabled ? .4 : 1 }}><Text className="text-black text-center font-semibold">{label}</Text></Pressable>;
@@ -26,7 +23,6 @@ export default function SecurityScreen() {
   const { logout } = useAuth();
   const profile = useAuthStore((state) => state.user);
   const externalWallet = useExternalWallet();
-  const { linkWithPasskey } = useLinkWithPasskey();
   const { initMfaEnrollment, submitMfaEnrollment } = useMfaEnrollment();
   const { sendCode, linkWithCode } = useLinkSMS();
   const [busy, setBusy] = useState(false);
@@ -93,19 +89,10 @@ export default function SecurityScreen() {
       </Card>
       <Card>
         <KeyRound color={COLORS.accent} /><Text className="text-white text-lg font-semibold mt-3">Passkeys · {passkeys.length} linked</Text>
-        <Text className="text-white/60 leading-5 mt-2">Link a passkey to your existing account. The authentication provider verifies it so you can sign in again.</Text>
-        <Button label="Add a passkey" disabled={busy || !PASSKEY_RP || !canManagePrivy} onPress={() => run(async () => {
-          try {
-            const result = await linkWithPasskey({ relyingParty: `https://${PASSKEY_RP}` });
-            if (!result?.linked_accounts.some(a => a.type === "passkey")) throw new Error("Passkey linking was not confirmed. Try again.");
-          } catch (error) {
-            const failure = describeAuthFailure(error, { method: "passkey" });
-            const association = failure.layer === "api" ? await probeDomainAssociation(PASSKEY_RP) : undefined;
-            throw new Error(formatAuthFailure(association ?? failure));
-          }
-        }, "Passkey linked to your account.", "Confirm the passkey in the iOS prompt…")} />
-        {!PASSKEY_RP && <Text className="text-white/40 text-xs mt-3">Passkeys require the secure domain to be configured.</Text>}
-        {!!PASSKEY_RP && !user && <Text className="text-white/40 text-xs mt-3">Your external wallet already signs for you. You can create a passkey in a separate account, but ATARA cannot silently add one to this wallet.</Text>}
+        <Text className="text-white/60 leading-5 mt-2">See, test, name and remove the passkeys and sign-in methods of this account. Passkeys are kept by iOS; ATARA lists and unlinks them, and never sees the name you give one.</Text>
+        <Button label="Passkeys & sign-in methods" disabled={busy || !canManagePrivy} onPress={() => router.push("/sign-in-methods" as never)} />
+        <Pressable onPress={() => router.push("/manage-accounts" as never)} accessibilityRole="button" className="min-h-12 items-center justify-center mt-2"><Text className="text-white/70">Manage the accounts on this iPhone</Text></Pressable>
+        {!user && <Text className="text-white/40 text-xs mt-3">Your external wallet already signs for you. You can create a passkey in a separate account, but ATARA cannot silently add one to this wallet.</Text>}
       </Card>
       <Card>
         <ShieldCheck color={COLORS.accent} /><Text className="text-white text-lg font-semibold mt-3">Authenticator · {hasTotp ? "enabled" : "not set up"}</Text>
