@@ -40,7 +40,10 @@ Chaîne complète d'un passkey créé avant ce correctif :
 4. Le `user.name` vient **tel quel** de la réponse du serveur Privy. Toutes les
    entrées portent « ATARA », donc Privy propose une valeur constante.
    **[déduit]** — `auth.privy.io` est injoignable depuis l'environnement où ce
-   travail a été fait : la valeur exacte renvoyée n'a pas été observée.
+   travail a été fait : la valeur exacte renvoyée n'a pas été observée. Si, sur
+   l'iPhone, un passkey créé avec un nom choisi apparaissait encore comme
+   « ATARA », l'hypothèse serait fausse (le libellé viendrait d'ailleurs) : le
+   test 1 du §7.3 la tranche.
 5. Ce nom n'est **pas signé** et **n'est pas renvoyé à Privy** :
    `signupWithPasskey` (`@privy-io/js-sdk-core` 0.73.0) ne poste que
    l'attestation, le `clientDataJSON` et l'identifiant du credential. **[code]**
@@ -55,7 +58,7 @@ au lieu de se remplacer. **[déduit]**
 
 | Besoin | Réponse | Conséquence dans ATARA |
 |---|---|---|
-| Nommer un passkey à la création | Pas avec le hook `useSignupWithPasskey` (voir §1.2). Oui en appelant les mêmes méthodes du client Privy soi-même. **[code]** | `services/passkey.service.ts` reproduit les appels du SDK, dans le même ordre ; seul `user.name` / `displayName` change. `user.id`, `rp`, `challenge`, `excludeCredentials` sont copiés tels quels. |
+| Nommer un passkey à la création | Pas avec le hook `useSignupWithPasskey` (voir §1, point 2). Oui en appelant les mêmes méthodes du client Privy soi-même. **[code]** | `services/passkey.service.ts` reproduit les appels du SDK, dans le même ordre ; seul `user.name` / `displayName` change. `user.id`, `rp`, `challenge`, `excludeCredentials` sont copiés tels quels. |
 | Renommer un passkey **existant** | Aucune API dans Privy, dans `react-native-passkeys`, ni pour une app tierce sous iOS. **[code]** | Impossible depuis ATARA. Voir §6. |
 | Savoir **quel** passkey a servi à se connecter | Le hook ne le dit pas. **[code]** | ATARA exécute lui-même la connexion ciblée : il connaît l'identifiant du credential utilisé. |
 | Ne proposer qu'**un** passkey à la connexion | `allowCredentials` est transmis à iOS (`allowedCredentials`, l. 422-428). **[code]** | « Switch » n'affiche que le passkey du compte visé. |
