@@ -72,8 +72,11 @@ export const usePasskeyManagement = () => {
 
   const add = useCallback(
     async (label: string): Promise<AddPasskeyResult> => {
-      if (!relyingParty || !account) {
+      if (!relyingParty) {
         return { ok: false, cancelled: false, message: "Passkeys need the secure domain to be configured." };
+      }
+      if (!account) {
+        return { ok: false, cancelled: false, message: "This account is not ready yet. Try again in a moment." };
       }
       try {
         const created = await createNamedPasskey(deps, { mode: "link", relyingParty, label });
@@ -92,7 +95,8 @@ export const usePasskeyManagement = () => {
 
   const test = useCallback(
     async (credentialId: string) => {
-      if (!rpId || !account) return { ok: false as const, reason: "unavailable" as const, message: "Passkeys need the secure domain to be configured." };
+      if (!rpId) return { ok: false as const, reason: "unavailable" as const, message: "Passkeys need the secure domain to be configured." };
+      if (!account) return { ok: false as const, reason: "unavailable" as const, message: "This account is not ready yet. Try again in a moment." };
       const result = await testPasskey({ passkeys: deps.passkeys, randomBytes }, { rpId, credentialId });
       if (result.ok) await useAccountRegistryStore.getState().markVerified(account.key, credentialId, Date.now());
       return result;

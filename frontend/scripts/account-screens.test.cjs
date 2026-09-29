@@ -718,3 +718,154 @@ test("testing a passkey and adding a named one go through the account's own acti
   await sheet.props.onConfirm("Tanguy — Tests · 2");
   assert.equal(events.at(-1), "add:Tanguy — Tests · 2");
 });
+
+// ------------------------------------------------------- passkey management hook
+
+const passkeyHook = ({ user, createFails, linkFails, unlinkFails, refreshedUser, testResult } = {}) => {
+  const log = [];
+  const current = account({
+    passkeys: [{ credentialId: "cred-a", name: "Tanguy — Tests", createdAt: 1, verifiedAt: 2, origin: "atara" }],
+  });
+  const registryState = {
+    accounts: [current],
+    addPasskey: async (key, input) => log.push(["addPasskey", key, input.credentialId, input.name]),
+    markVerified: async (key, id) => log.push(["markVerified", key, id]),
+    removePasskey: async (key, id) => log.push(["removePasskey", key, id]),
+  };
+  const useAccountRegistryStore = (selector) => selector(registryState);
+  useAccountRegistryStore.getState = () => registryState;
+
+  const client = {
+    auth: {
+      passkey: {
+        generateRegistrationOptions: async () => ({
+          options: {
+            challenge: "chal",
+            rp: { id: "api.atara.finance", name: "ATARA" },
+            pub_key_cred_params: [{ type: "public-key", alg: -7 }],
+            user: { id: "handle-1", name: "ATARA", display_name: "ATARA" },
+            exclude_credentials: [{ id: "cred-a", type: "public-key" }],
+          },
+        }),
+        linkWithPasskey: async () => {
+          if (linkFails) throw new Error("Link failed");
+          return { user: {} };
+        },
+      },
+    },
+  };
+  const passkeys = {
+    create: async (request) => {
+      log.push(["create", request.user.name, request.user.id]);
+      if (createFails) throw new Error(createFails);
+      return { id: "cred-new", type: "public-key" };
+    },
+    get: async (request) => {
+      log.push(["get", request.allowCredentials[0].id]);
+      if (testResult === "cancelled") throw new Error("The user cancelled the request");
+      return { id: request.allowCredentials[0].id };
+    },
+  };
+  const privyUser = user ?? { id: "did:privy:1", linked_accounts: [{ type: "passkey", credential_id: "cred-a" }, { type: "google_oauth" }] };
+  const mocks = {
+    ...commonMocks,
+    react: { ...react, useMemo: (compute) => compute(), useCallback: (fn) => fn },
+    "@privy-io/expo": {
+      usePrivy: () => ({
+        user: privyUser,
+        isReady: true,
+        refreshUser: async () => {
+          log.push(["refreshUser"]);
+          return { user: refreshedUser ?? privyUser };
+        },
+      }),
+      usePrivyClient: () => client,
+      useUnlinkPasskey: () => ({
+        unlink: async (input) => {
+          log.push(["unlink", input.credentialId]);
+          if (unlinkFails) throw new Error(unlinkFails);
+        },
+      }),
+    },
+    "@/services/passkeyRuntime": {
+      createPasskeyDeps: () => ({ client, passkeys, randomBytes: (n) => new Uint8Array(n).fill(3) }),
+      passkeyRelyingParty: () => "api.atara.finance",
+      passkeyRelyingPartyUrl: () => "https://api.atara.finance",
+      randomBytes: (n) => new Uint8Array(n).fill(3),
+    },
+    "@/stores/useAccountRegistryStore": { useAccountRegistryStore },
+    "@/stores/useAuthStore": { useAuthStore: (selector) => selector({ user: { id: "u1", authProvider: "passkey" } }) },
+  };
+  return { hook: load("hooks/usePasskeyManagement.ts", mocks).usePasskeyManagement(), log, current };
+};
+
+test("adding a passkey creates it under the chosen name, links it, and records it on the account", async () => {
+  const { hook, log, current } = passkeyHook();
+  const result = await hook.add("Tanguy — Tests · 2");
+  assert.deepEqual(result, { ok: true, label: "Tanguy — Tests · 2" });
+  // The name handed to iOS is the chosen one, on Privy's own user handle.
+  assert.deepEqual(log[0], ["create", "Tanguy — Tests · 2", "handle-1"]);
+  assert.ok(log.some((entry) => entry[0] === "addPasskey" && entry[1] === current.key && entry[2] === "cred-new" && entry[3] === "Tanguy — Tests · 2"));
+  assert.ok(log.some((entry) => entry[0] === "refreshUser"));
+});
+
+test("when iOS refuses a second passkey, nothing is recorded and the person is told why", async () => {
+  const { hook, log } = passkeyHook({ createFails: "The operation couldn't be completed. matchedExcludedCredential" });
+  const result = await hook.add("Tanguy — Tests · 2");
+  assert.equal(result.ok, false);
+  assert.equal(result.cancelled, false);
+  assert.match(result.message, /iOS did not create the passkey/);
+  assert.match(result.message, /Nothing was changed/);
+  assert.equal(log.some((entry) => entry[0] === "addPasskey"), false);
+});
+
+test("cancelling the iOS sheet adds nothing and is not reported as a failure", async () => {
+  const { hook, log } = passkeyHook({ createFails: "The user cancelled the request" });
+  const result = await hook.add("Tanguy — Tests · 2");
+  assert.deepEqual(result, { ok: false, cancelled: true, message: "Canceled. Nothing was added." });
+  assert.equal(log.some((entry) => entry[0] === "addPasskey"), false);
+});
+
+test("a passkey created but not linked is reported by name and never recorded on the account", async () => {
+  const { hook, log } = passkeyHook({ linkFails: true });
+  const result = await hook.add("Tanguy — Tests · 2");
+  assert.equal(result.ok, false);
+  assert.match(result.message, /“Tanguy — Tests · 2” was created on this iPhone but could not be linked/);
+  assert.equal(log.some((entry) => entry[0] === "addPasskey"), false);
+});
+
+test("a passkey that works on this iPhone is recorded as proven, and a cancelled test proves nothing", async () => {
+  const ok = passkeyHook();
+  assert.deepEqual(await ok.hook.test("cred-a"), { ok: true });
+  assert.ok(ok.log.some((entry) => entry[0] === "markVerified" && entry[2] === "cred-a"));
+  // Only that credential was asked of iOS.
+  assert.deepEqual(ok.log.find((entry) => entry[0] === "get"), ["get", "cred-a"]);
+
+  const cancelled = passkeyHook({ testResult: "cancelled" });
+  const result = await cancelled.hook.test("cred-a");
+  assert.equal(result.ok, false);
+  assert.equal(cancelled.log.some((entry) => entry[0] === "markVerified"), false);
+});
+
+test("the registry forgets a passkey only after Privy confirms it is gone", async () => {
+  const gone = passkeyHook({ refreshedUser: { id: "did:privy:1", linked_accounts: [{ type: "google_oauth" }] } });
+  assert.deepEqual(await gone.hook.remove("cred-a"), { ok: true });
+  assert.deepEqual(gone.log.filter((entry) => entry[0] === "unlink"), [["unlink", "cred-a"]]);
+  assert.ok(gone.log.some((entry) => entry[0] === "removePasskey" && entry[2] === "cred-a"));
+
+  const still = passkeyHook();
+  assert.equal((await still.hook.remove("cred-a")).reason, "not-confirmed");
+  assert.equal(still.log.some((entry) => entry[0] === "removePasskey"), false);
+
+  const refused = passkeyHook({ unlinkFails: "MFA verification required" });
+  assert.equal((await refused.hook.remove("cred-a")).reason, "failed");
+  assert.equal(refused.log.some((entry) => entry[0] === "removePasskey"), false);
+});
+
+test("the last way to sign in is refused before Privy is contacted", async () => {
+  const { hook, log } = passkeyHook({ user: { id: "did:privy:1", linked_accounts: [{ type: "passkey", credential_id: "cred-a" }, { type: "wallet" }] } });
+  const outcome = await hook.remove("cred-a");
+  assert.equal(outcome.ok, false);
+  assert.equal(outcome.reason, "refused");
+  assert.equal(log.some((entry) => entry[0] === "unlink"), false);
+});
