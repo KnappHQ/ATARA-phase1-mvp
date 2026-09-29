@@ -66,6 +66,24 @@ export default function SignInMethodsScreen() {
     (passkey) => !account?.passkeys.find((record) => record.credentialId === passkey.credentialId)?.name,
   );
 
+  // What would be left after removing the passkey being asked about.
+  const remaining = useMemo(() => {
+    if (!removing || !account) return "";
+    const assessment = assessPasskeyRemoval({
+      user: privyUser,
+      credentialId: removing.credentialId,
+      verifiedCredentialIds: verifiedCredentialIds(account),
+    });
+    if (!assessment.allowed) return "";
+    return assessment.usable
+      .map((method) => {
+        if (method.kind !== "passkey") return method.label;
+        const known = account.passkeys.find((record) => record.credentialId === method.id)?.name;
+        return known ? `passkey “${known}”` : "a passkey checked on this iPhone";
+      })
+      .join(", ");
+  }, [account, privyUser, removing]);
+
   const nameOf = (passkey: PasskeySummary) =>
     account?.passkeys.find((record) => record.credentialId === passkey.credentialId)?.name ?? null;
 
@@ -291,6 +309,12 @@ export default function SignInMethodsScreen() {
           Your account, your wallet and your funds are not touched. iOS keeps its copy of the passkey until you delete
           it yourself in Settings › Passwords, and ATARA cannot do that for you.
         </Body>
+        {remaining ? (
+          <Body>
+            You will still be able to sign in with: {remaining}. ATARA cannot try a Google or Apple sign-in without
+            signing you out, so make sure you can use it.
+          </Body>
+        ) : null}
       </ConfirmSheet>
     </SafeAreaView>
   );

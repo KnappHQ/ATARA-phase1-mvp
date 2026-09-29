@@ -962,6 +962,8 @@ test("Manage accounts offers each action, and each removal is a separate, explai
   assert.match(signIn, /Settings › Passwords/);
   assert.match(signIn, /cannot rename or delete what iOS stores/);
   assert.match(signIn, /assessPasskeyRemoval/);
+  // Before removing, the person is told what they will still be able to sign in with.
+  assert.match(signIn, /You will still be able to sign in with/);
 
   const remove = read("components/profile/DeleteAccountModal.tsx");
   assert.match(remove, /typedConfirmation="DELETE"/);

@@ -192,6 +192,11 @@ passe. Privy seul se contenterait d'« au moins un autre compte lié », ce qui
 inclut le portefeuille embarqué et laisserait retirer la dernière vraie façon de
 se connecter (`utils/loginMethods.ts`, `assessPasskeyRemoval`).
 
+Limite assumée : ATARA ne peut pas essayer une connexion Google ou Apple sans
+déconnecter la personne. Un compte Google/Apple lié est donc accepté tel quel, et
+la confirmation dit précisément avec quoi on pourra encore se connecter, en
+demandant de s'assurer qu'on peut l'utiliser.
+
 Après `unlink`, ATARA **relit l'utilisateur chez Privy** et ne dit « supprimé »
 que si le passkey a disparu de sa liste. Puis l'écran explique l'étape iOS :
 « iOS garde sa copie ; pour la supprimer, ouvrez Réglages › Mots de passe,
