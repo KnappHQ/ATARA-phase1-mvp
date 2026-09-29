@@ -284,7 +284,10 @@ elle n'est ni utilisée ni promise.
 ### 7.1 Ce qui marche dans ATARA (vérifié par des tests de code)
 
 `cd frontend && node --test scripts/*.test.cjs` — tests ajoutés ou étendus dans
-`accounts.test.cjs`, `onboarding.test.cjs` et `security-flows.test.cjs`.
+`accounts.test.cjs` (logique, registre, persistance), `account-screens.test.cjs`
+(écrans rendus avec les frontières React Native simulées : ce n'est pas un
+iPhone), `onboarding.test.cjs` (création et connexion, avec un faux Privy et un
+faux iOS) et `security-flows.test.cjs`.
 
 - Le nom donné à iOS est celui que la personne a choisi ; tout le reste de la
   requête de création (`user.id`, `rp`, `challenge`, `excludeCredentials`,
