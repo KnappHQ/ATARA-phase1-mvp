@@ -42,8 +42,8 @@ const bytes = (...values) => Uint8Array.from(values);
 test("a name is printable, single-spaced and bounded", () => {
   assert.equal(labels.normalizeAccountLabel("  Tanguy \n  —\tPersonnel  "), "Tanguy — Personnel");
   // A bidirectional override could make one label read as another in a list.
-  assert.equal(labels.normalizeAccountLabel("Test‮gnirps"), "Testgnirps");
-  assert.equal(labels.normalizeAccountLabel("a​b\u0000c"), "abc");
+  assert.equal(labels.normalizeAccountLabel("Test\u202Egnirps"), "Testgnirps");
+  assert.equal(labels.normalizeAccountLabel("a\u200Bb\u0000c"), "abc");
   assert.equal(labels.normalizeAccountLabel("x".repeat(80)).length, labels.MAX_ACCOUNT_LABEL_LENGTH);
 });
 
@@ -109,7 +109,7 @@ test("only the name shown by iOS differs from what Privy asked for", () => {
   });
   assert.equal(built.timeout, 120_000);
   assert.equal(built.attestation, undefined);
-  assert.throws(() => options.buildCreationOptions(given, "  ​ "), /needs a name/);
+  assert.throws(() => options.buildCreationOptions(given, "  \u200B "), /needs a name/);
 });
 
 test("a targeted sign-in offers only the chosen credential", () => {
@@ -1053,4 +1053,23 @@ test("two entries for one person, made before the Privy user was known, become o
   assert.equal(cred.verifiedAt, NOW);
   // Another person's entry is never touched.
   assert.equal(after.accounts.find((entry) => entry.key === "someone-else").label, "Bob");
+});
+
+test("no source file hides a bidirectional or zero-width character in plain sight", () => {
+  // Such characters can make code read differently from what it does, and the
+  // ones this feature must filter out of names are written as escapes instead.
+  const hidden = /[\u202A-\u202E\u2066-\u2069\u200B-\u200F\u2060\uFEFF]/;
+  const roots = ["app", "components", "hooks", "providers", "scripts", "services", "stores", "utils"];
+  const offenders = [];
+  const visit = (directory) => {
+    for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+      const full = path.join(directory, entry.name);
+      if (entry.isDirectory()) visit(full);
+      else if (/\.(ts|tsx|js|cjs|mjs)$/.test(entry.name) && hidden.test(fs.readFileSync(full, "utf8"))) {
+        offenders.push(path.relative(path.join(__dirname, ".."), full));
+      }
+    }
+  };
+  for (const root of roots) visit(path.join(__dirname, "..", root));
+  assert.deepEqual(offenders, []);
 });

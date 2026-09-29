@@ -23,12 +23,23 @@ export const ACCOUNT_CODE_LENGTH = 4;
 // Control characters, zero-width characters and bidirectional overrides. An
 // override such as U+202E can make one label read as another in a list.
 const INVISIBLE =
-  /[\u0000-\u001F\u007F-\u009F​-‏‪-‮⁠-⁩﻿]/g;
+  /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u2069\uFEFF]/g;
+
+/**
+ * Unicode normalization where the JavaScript engine has it. Without it the text
+ * is left as it is: names are then compared less leniently, never refused.
+ */
+const normalizeText = (input: string, form: "NFC" | "NFD"): string => {
+  try {
+    return typeof input.normalize === "function" ? input.normalize(form) : input;
+  } catch {
+    return input;
+  }
+};
 
 /** Printable and single-spaced. A tab or a newline becomes a space, not nothing. */
 const clean = (input: string): string =>
-  input
-    .normalize("NFC")
+  normalizeText(input, "NFC")
     .replace(/\s+/g, " ")
     .replace(INVISIBLE, "")
     .replace(/\s+/g, " ")
@@ -40,9 +51,8 @@ export const normalizeAccountLabel = (input: string): string =>
 
 /** What two labels are compared on: "Tanguy — Tests" equals "tanguy — tests". */
 export const comparableLabel = (input: string): string =>
-  normalizeAccountLabel(input)
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+  normalizeText(normalizeAccountLabel(input), "NFD")
+    .replace(/[\u0300-\u036F]/g, "")
     .toLowerCase();
 
 /**
