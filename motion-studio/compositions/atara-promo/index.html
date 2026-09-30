@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>ATARA — film de lancement</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="logo" viewBox="0 0 24 24"><rect x="4" y="4" width="3" height="16" fill="currentColor"/><rect x="10.5" y="2" width="3" height="18" fill="currentColor"/><rect x="17" y="4" width="3" height="16" fill="currentColor"/></symbol>
+    <symbol id="i-cart" viewBox="0 0 24 24"><path d="M3 4h2.2l2.3 10.5h10l2-7.5H6.2"/><circle cx="9.5" cy="19" r="1.4"/><circle cx="16.5" cy="19" r="1.4"/></symbol>
+    <symbol id="i-coin" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M14.6 9.3c-.5-.8-1.5-1.3-2.6-1.3-1.5 0-2.5.7-2.5 1.9 0 2.7 5.1 1.3 5.1 4 0 1.1-1.1 1.9-2.6 1.9-1.3 0-2.3-.5-2.8-1.4M12 6.3V8M12 16v1.7"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></symbol>
+    <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 8-8M16 6l2 2M14 8l2 2"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 20 6v5c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-3Z"/><path d="m8.5 12 2.2 2.2 4.8-5"/></symbol>
+    <symbol id="i-bank" viewBox="0 0 24 24"><path d="m3 10 9-6 9 6M5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 20h18"/></symbol>
+    <symbol id="i-gov" viewBox="0 0 24 24"><path d="M8 8a4 4 0 0 1 8 0M12 3v1.5M5 11h14M6 11v8M10 11v8M14 11v8M18 11v8M4 20h16"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.6 4.6L19 7.4"/></symbol>
+  </defs>
+</svg>
+
+<div id="stage">
+  <div id="bg"><div class="glow g1"></div><div class="glow g2"></div></div>
+  <div id="vp"><div id="cubewrap">
+
+    <!-- S0 · Logo -->
+    <section class="scene" id="s0"><div class="world">
+      <div class="abs" id="grid"></div>
+      <div class="logo-lock" id="s0logo"><svg><use href="#logo"/></svg><b>ATARA</b></div>
+      <div class="sub" id="s0tag" style="left:0;top:0;white-space:nowrap">Ton argent. Tes clés.</div>
+    </div></section>
+
+    <!-- S1 · Payer ses courses -->
+    <section class="scene" id="s1">
+      <svg class="abs" id="store" width="1920" height="1080" viewBox="0 0 1920 1080">
+        <defs>
+          <linearGradient id="shade" x1="0" x2="1"><stop offset="0" stop-color="#05070a" stop-opacity=".92"/><stop offset=".55" stop-color="#05070a" stop-opacity=".35"/><stop offset="1" stop-color="#05070a" stop-opacity=".1"/></linearGradient>
+        </defs>
+        <g id="shelves" filter="url(#blur6)"></g>
+        <filter id="blur6"><feGaussianBlur stdDeviation="5"/></filter>
+        <rect width="1920" height="1080" fill="url(#shade)"/>
+        
+      </svg>
+      <div class="abs" id="counter" style="left:800px;top:830px;right:0;bottom:0;background:linear-gradient(#2b3941 0,#2b3941 3px,#182026 4px,#0f151a 14%,#0b1014 100%)"></div>
+      <div class="abs" style="left:800px;top:870px;right:0;height:4px;background:var(--green);opacity:.55;box-shadow:0 0 24px var(--green)"></div>
+      <svg class="abs" id="items" width="1920" height="1080" viewBox="0 0 1920 1080" style="left:0;top:0">
+        <g transform="translate(0,0)">
+          <rect x="1330" y="706" width="74" height="124" rx="6" fill="#f0f1ee"/><rect x="1330" y="706" width="74" height="34" rx="6" fill="#4a86d8"/><path d="M1330 706 1367 688 1404 706Z" fill="#dde1e2"/>
+          <rect x="1430" y="690" width="110" height="140" rx="6" fill="#e8b84a"/><circle cx="1485" cy="752" r="26" fill="#f6e2a6"/><rect x="1446" y="706" width="78" height="10" rx="4" fill="#b98716"/>
+          <circle cx="1592" cy="806" r="24" fill="#e5533d"/><circle cx="1640" cy="810" r="22" fill="#d4422e"/><circle cx="1618" cy="780" r="22" fill="#ef6a54"/><path d="M1612 758q6-10 14 0" stroke="#22a55a" stroke-width="5" fill="none"/>
+          <rect x="1690" y="742" width="140" height="88" rx="44" fill="#d8a960"/><path d="M1722 752l10 22M1752 748l10 26M1782 750l10 24" stroke="#b07f3a" stroke-width="5" stroke-linecap="round"/>
+        </g>
+      </svg>
+      <div class="kicker" id="k1" style="left:124px;top:84px">Payer</div>
+      <div class="title" id="t1" style="left:120px;top:126px;font-size:104px"></div>
+      <svg class="abs" id="body" width="1920" height="1080" viewBox="0 0 1920 1080" style="left:0;top:0">
+        <g id="fig" transform="translate(60,36)">
+          <ellipse cx="450" cy="1044" rx="270" ry="26" fill="#000" opacity=".55"/>
+          <rect x="396" y="690" width="78" height="344" rx="34" fill="#202838"/>
+          <rect x="496" y="690" width="78" height="344" rx="34" fill="#171d2b"/>
+          <ellipse cx="438" cy="1032" rx="64" ry="22" fill="#eeeeea"/>
+          <ellipse cx="552" cy="1032" rx="64" ry="22" fill="#d4d4ce"/>
+          <g id="bag">
+            <path d="M176 744 L372 744 L384 1016 L168 1016 Z" fill="#c49a63"/>
+            <path d="M372 744 L404 758 L412 1004 L384 1016 Z" fill="#a27845"/>
+            <path d="M176 744 L372 744 L404 758 L208 758 Z" fill="#dcb47c"/>
+            <rect x="0" y="0" width="46" height="250" rx="23" transform="translate(222 556) rotate(-13 23 125)" fill="#d8a960"/>
+            <path d="M232 620l22-6M238 668l22-6M244 716l22-6" stroke="#b07f3a" stroke-width="6" stroke-linecap="round" transform="rotate(-13 250 680)"/>
+            <ellipse cx="322" cy="700" rx="48" ry="70" fill="#1f9a52" transform="rotate(16 322 700)"/>
+            <ellipse cx="348" cy="716" rx="38" ry="60" fill="#34c26d" transform="rotate(34 348 716)"/>
+            <ellipse cx="296" cy="716" rx="34" ry="56" fill="#27b061" transform="rotate(-8 296 716)"/>
+            <circle cx="274" cy="748" r="24" fill="#e5533d"/><circle cx="332" cy="752" r="22" fill="#d4422e"/>
+            <rect x="228" y="850" width="112" height="84" rx="12" fill="#f6f5f4" opacity=".92"/>
+            <text x="284" y="906" text-anchor="middle" font-family="Inter,sans-serif" font-weight="700" font-size="34" fill="#16a34a">BIO</text>
+          </g>
+          <path d="M352 484 Q352 424 420 414 L540 414 Q608 424 608 484 L598 736 L362 736 Z" fill="#2d4a3c"/>
+          <path d="M480 452 L480 736" stroke="#203629" stroke-width="4"/>
+          <path d="M422 414 L480 458 L538 414 Q480 388 422 414Z" fill="#3a5d4d"/>
+          <rect x="454" y="366" width="52" height="60" rx="20" fill="#bf875f"/>
+          <path d="M404 316 Q392 214 486 210 Q576 210 568 316 Q560 262 512 252 Q446 246 404 316Z" fill="#1a1512"/>
+          <ellipse cx="486" cy="314" rx="66" ry="76" fill="#d9a77e"/>
+          <path d="M408 312 Q400 214 486 212 Q574 214 566 300 Q552 252 500 244 Q440 242 408 312Z" fill="#1a1512"/>
+          <ellipse cx="424" cy="322" rx="12" ry="19" fill="#c48d66"/>
+          <circle cx="528" cy="312" r="5.5" fill="#1a1512"/><path d="M510 296 Q528 288 544 298" stroke="#1a1512" stroke-width="5" fill="none" stroke-linecap="round"/>
+          <path d="M546 320 q12 16 -4 22" stroke="#b9805a" stroke-width="5" fill="none" stroke-linecap="round"/>
+          <path d="M506 356 q18 12 36 -2" stroke="#8a5a3c" stroke-width="5" fill="none" stroke-linecap="round"/>
+          <path d="M370 484 Q318 620 302 748" stroke="#2d4a3c" stroke-width="62" fill="none" stroke-linecap="round"/>
+          <circle cx="300" cy="752" r="31" fill="#d9a77e"/>
+        </g>
+        <path id="arm" d="" stroke="#2d4a3c" stroke-width="60" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        <path id="cuff" d="" stroke="#3a5d4d" stroke-width="64" fill="none" stroke-linecap="butt"/>
+      </svg>
+      <div class="world" id="w1">
+        <div id="term"></div>
+        <div class="phone" id="ph1" data-screen="pay"></div>
+      </div>
+      <svg class="abs" id="handsvg" width="1920" height="1080" viewBox="0 0 1920 1080" style="left:0;top:0">
+        <g id="hand"><ellipse cx="0" cy="2" rx="36" ry="32" fill="#d9a77e"/><ellipse cx="30" cy="-30" rx="13" ry="30" fill="#e0b088" transform="rotate(16 30 -30)"/></g>
+      </svg>
+      <div class="ring" id="r1"></div><div class="ring" id="r2"></div><div class="ring" id="r3"></div>
+      <div class="glass" id="okcard">
+        <div class="ok-badge"><svg viewBox="0 0 24 24"><path id="okpath" d="m5 12.5 4.6 4.6L19 7.4" pathLength="1"/></svg></div>
+        <div class="ok-title">Paiement confirmé</div>
+        <div class="ok-amt"><span id="okamt">18,40</span><small>USDC</small></div>
+        <div class="ok-rows">
+          <div><span>Commerçant</span><b>Marché Bio</b></div>
+          <div><span>Frais réseau</span><b class="g">&lt; 0,01 $</b></div>
+          <div><span>Réseau</span><b>Base</b></div>
+          <div><span>Statut</span><b class="g">Confirmé en ~2 s</b></div>
+        </div>
+      </div>
+      <div class="abs" id="confetti" style="left:0;top:0"></div>
+    </section>
+
+    <!-- S2 · Envoyer -->
+    <section class="scene" id="s2"><div class="world" id="w2">
+      <div class="abs" id="floor2" style="left:160px;top:820px;width:1600px;height:300px;border-radius:50%;background:radial-gradient(ellipse,rgba(74,222,128,.20),transparent 68%)"></div>
+      <div class="kicker" id="k2" style="left:124px;top:84px">Envoyer</div>
+      <div class="title" id="t2" style="left:120px;top:126px;font-size:104px"></div>
+      <div class="sub" id="s2sub" style="left:124px;top:262px;width:520px;font-size:34px">Un @handle suffit. Pas d’adresse de 42 caractères.</div>
+      <div class="glass" id="sendcard" style="left:124px;top:520px;width:560px;padding:38px 44px 30px">
+        <div style="font-size:22px;letter-spacing:5px;font-weight:600;color:var(--green);text-transform:uppercase">Envoyé</div>
+        <div class="ok-amt" style="font-size:84px"><span>25,00</span><small>USDC</small></div>
+        <div class="ok-rows" style="margin-top:18px">
+          <div><span>À</span><b>@lea</b></div>
+          <div><span>Frais réseau</span><b class="g">&lt; 0,01 $</b></div>
+          <div><span>Réseau</span><b>Base</b></div>
+        </div></div>
+      <div class="phone" id="ph2" data-screen="send"></div>
+      <div class="phone" id="ph3" data-custom="recv"></div>
+      <div id="ghosts"></div>
+      <div class="coin" id="coin"></div>
+      <div class="abs" id="lab2a" style="left:0;top:0;font-size:30px;font-weight:600;color:var(--mute)">Toi</div>
+      <div class="abs" id="lab2b" style="left:0;top:0;font-size:30px;font-weight:600;color:var(--green)">@lea</div>
+    </div></section>
+
+    <!-- S3 · Base -->
+    <section class="scene" id="s3"><div class="world" id="w3">
+      <div class="kicker" id="k3" style="left:124px;top:84px">Sur la blockchain</div>
+      <div class="title" id="t3" style="left:120px;top:126px;font-size:100px"></div>
+      <div class="abs" id="chain" style="left:0;top:0;transform-style:preserve-3d"></div>
+      <div class="chip" id="c1" style="left:120px;top:846px"><b>&lt; 0,01&nbsp;$</b><span>de frais typiques par transfert</span></div>
+      <div class="chip" id="c2" style="left:725px;top:846px"><b>~2&nbsp;s</b><span>entre deux blocs sur Base</span></div>
+      <div class="chip" id="c3" style="left:1330px;top:846px"><b>24 / 7</b><span>sans horaires, sans jours fériés</span></div>
+    </div></section>
+
+    <!-- S4 · Tes clés -->
+    <section class="scene" id="s4"><div class="world" id="w4">
+      <div class="kicker" id="k4" style="left:124px;top:84px">Liberté</div>
+      <div class="title" id="t4a" style="left:120px;top:126px;font-size:104px"></div>
+      <div class="title" id="t4b" style="left:120px;top:126px;font-size:104px"></div>
+      <div id="holders"></div>
+      <div class="sub" id="s4sub" style="left:0;top:0;width:1500px;text-align:center;font-size:40px">Ni la banque, ni l’État, ni ATARA&nbsp;: personne d’autre ne détient tes clés.</div>
+      <div class="phone" id="ph4" data-screen="security"></div>
+      <div class="key3d" id="key"></div>
+      <div class="scan" id="scan"></div>
+      <div class="check" id="ck1" style="left:124px;top:440px"><i><svg viewBox="0 0 24 24"><use href="#i-check"/></svg></i>Tes clés restent sur ton appareil</div>
+      <div class="check" id="ck2" style="left:124px;top:538px"><i><svg viewBox="0 0 24 24"><use href="#i-check"/></svg></i>Toi seul signes chaque paiement</div>
+      <div class="check" id="ck3" style="left:124px;top:636px"><i><svg viewBox="0 0 24 24"><use href="#i-check"/></svg></i>Tes fonds vivent sur la blockchain</div>
+      <div class="pill" id="txpill">Transaction signée</div>
+      <div class="abs" id="miniblock" style="left:0;top:0"></div>
+    </div></section>
+
+    <!-- S5 · Fin -->
+    <section class="scene" id="s5"><div class="world" id="w5">
+      <div class="phone" id="ph5a" data-screen="home"></div>
+      <div class="phone" id="ph5b" data-screen="send"></div>
+      <div class="phone" id="ph5c" data-screen="card"></div>
+      <div class="logo-lock" id="s5logo"><svg><use href="#logo"/></svg><b>ATARA</b></div>
+      <div class="title" id="t5" style="left:0;top:0;width:1920px;text-align:center;font-size:84px"></div>
+      <div class="tag" id="g1" style="left:0;top:0">Self-custodial</div>
+      <div class="tag" id="g2" style="left:0;top:0">Construit sur Base</div>
+      <div class="tag" id="g3" style="left:0;top:0">Frais minuscules</div>
+      <div class="foot" id="foot">Bêta · Base Sepolia (réseau de test) · démonstration illustrative, paiement en magasin simulé</div>
+    </div></section>
+
+  </div></div>
+  <div id="fx">
+    <div id="sweep"></div>
+    <div id="blinds" class="abs"></div>
+    <div id="flash"></div>
+    <div id="bug"><svg><use href="#logo"/></svg><b>ATARA</b></div>
+  </div>
+  <div id="vignette"></div>
+</div>
+<script src="script.js"></script>
+</body>
+</html>
