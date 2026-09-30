@@ -75,10 +75,13 @@ test("an operation can be released only once it is old enough to be stale", () =
 });
 
 test("the provider not knowing an old operation no longer locks the phone for good", () => {
+  // Behaviour is covered in payment-operations.test.cjs; this pins the wiring.
   const service = fs.readFileSync(path.join(__dirname, "../services/smartAccount.service.ts"), "utf8");
-  assert.match(service, /return \{ status: "unavailable", stale \}/);
   assert.match(service, /async releasePendingOperation\(\)/);
-  assert.match(service, /JSON\.stringify\(\{ id, fingerprint, createdAt: Date\.now\(\) \}\)/);
+  assert.match(service, /submitAndConfirm\(/);
+  const submission = fs.readFileSync(path.join(__dirname, "../services/paymentSubmission.ts"), "utf8");
+  // The intent is written before the request that could move money is sent.
+  assert.ok(submission.indexOf("ops.inLock.begin(") < submission.indexOf("client.sendPreparedCalls("));
   const activity = fs.readFileSync(path.join(__dirname, "../app/(tabs)/activity.tsx"), "utf8");
   // Released only from the owner's explicit choice, after the warning.
   assert.match(activity, /text: "Release",\s*style: "destructive"/);
