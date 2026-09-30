@@ -423,7 +423,7 @@ const account = (over = {}) => ({
   ...over,
 });
 
-const manageScreen = (accounts, { renameResult } = {}) => {
+const manageScreen = (accounts, { renameResult, unsettled = {} } = {}) => {
   events.length = 0;
   const registryState = {
     accounts,
@@ -454,6 +454,8 @@ const manageScreen = (accounts, { renameResult } = {}) => {
     "@/stores/useAccountSwitchStore": { useAccountSwitchStore },
     "@/stores/useAddressBookStore": { useAddressBookStore },
     "@/stores/useAuthStore": { useAuthStore: (selector) => selector({ user: { id: "u1", handle: "tanguy41" } }) },
+    "@/stores/useWalletStore": { useWalletStore: (selector) => selector({ assets: [{ symbol: "USDC", decimals: 6, contractAddress: "0x036cbd53842c5426634e7929541ec2318f3dcf7e" }] }) },
+    "@/hooks/useUnsettledPayments": { useUnsettledPayments: () => ({ byAccount: unsettled, refresh: async () => {} }) },
   };
   const screen = load("app/manage-accounts.tsx", mocks).default;
   return { screen, DeleteAccountModal };
@@ -868,4 +870,58 @@ test("the last way to sign in is refused before Privy is contacted", async () =>
   assert.equal(outcome.ok, false);
   assert.equal(outcome.reason, "refused");
   assert.equal(log.some((entry) => entry[0] === "unlink"), false);
+});
+
+
+// ------------------------------------------------- unsettled payments and accounts
+
+const PENDING_FINGERPRINT = JSON.stringify([[
+  "0x036cbd53842c5426634e7929541ec2318f3dcf7e",
+  "0",
+  `0xa9059cbb${"5999000000000000000000000000000000c0204c".padStart(64, "0")}${(10_000_000n).toString(16).padStart(64, "0")}`,
+]]);
+const pendingRecord = { v: 2, phase: "submitted", id: "0x1", fingerprint: PENDING_FINGERPRINT, checks: [] };
+const unsettledFor = (address) => ({ [address.toLowerCase()]: { account: address.toLowerCase(), pending: pendingRecord, recordings: [] } });
+const twoAccounts = () => [
+  account({ key: "a" }),
+  account({ key: "b", privyUserId: "did:privy:2", userId: "u2", handle: "demo", label: "Tanguy — Démo", smartAccountAddress: "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd" }),
+];
+
+test("an account with a payment waiting says so in the list, and only that account", () => {
+  fresh();
+  const { screen } = manageScreen(twoAccounts(), { unsettled: unsettledFor("0xabcdefabcdefabcdefabcdefabcdefabcdefabcd") });
+  const tree = render(screen, {});
+  assert.equal(textOf(tree).match(/A payment is waiting to be verified/g).length, 1);
+});
+
+test("removing an account with a waiting payment says it is kept and must not be sent again, and asks for a firmer confirmation", async () => {
+  fresh();
+  const { screen } = manageScreen(twoAccounts(), { unsettled: unsettledFor("0xabcdefabcdefabcdefabcdefabcdefabcdefabcd") });
+  buttons(render(screen, {}), "Remove from this iPhone")[1].props.onPress();
+  const confirm = elements(render(screen, {})).filter((node) => node.type === ConfirmSheet).find((node) => node.props.isOpen);
+  const text = textOf(confirm);
+  assert.match(text, /10 USDC to 0x5999…204c has not been verified yet/);
+  assert.match(text, /kept on this iPhone under this wallet/);
+  assert.match(text, /do not send the same payment from another account/);
+  assert.equal(confirm.props.confirmLabel, "Remove anyway");
+  await confirm.props.onConfirm();
+  // Removing forgets the entry and the nicknames, and nothing else: the payment record is untouched.
+  assert.deepEqual(events, ["forget-entry:b", "forget-nicknames:u2"]);
+});
+
+test("switching away from an account with a waiting payment tells the person it stays waiting", () => {
+  fresh();
+  const { screen } = manageScreen(twoAccounts(), { unsettled: unsettledFor("0x1234567890abcdef1234567890abcdef12345678") });
+  buttons(render(screen, {}), "Switch")[0].props.onPress();
+  const confirm = elements(render(screen, {})).filter((node) => node.type === ConfirmSheet).find((node) => node.props.isOpen);
+  assert.match(textOf(confirm), /has not been verified yet/);
+});
+
+test("an account with nothing waiting is removed exactly as before", () => {
+  fresh();
+  const { screen } = manageScreen(twoAccounts());
+  buttons(render(screen, {}), "Remove from this iPhone")[1].props.onPress();
+  const confirm = elements(render(screen, {})).filter((node) => node.type === ConfirmSheet).find((node) => node.props.isOpen);
+  assert.equal(confirm.props.confirmLabel, "Remove from this iPhone");
+  assert.doesNotMatch(textOf(confirm), /not been verified/);
 });

@@ -682,6 +682,29 @@ export const createPaymentOperations = (deps: OperationsDeps) => {
     return { action: "proceed" };
   };
 
+  /**
+   * Every account on this phone that has a payment still unproven, or proven and
+   * not yet recorded. What the account screens warn about before an account is
+   * switched away from, removed or deleted: nothing here is ever deleted by them.
+   */
+  const unsettled = async (): Promise<{ account: string; pending: OperationRecord | null; recordings: OutboxEntry[] }[]> => {
+    const byAccount = new Map<string, { account: string; pending: OperationRecord | null; recordings: OutboxEntry[] }>();
+    const slot = (account: string) => {
+      const key = account.toLowerCase();
+      const existing = byAccount.get(key) ?? { account: key, pending: null, recordings: [] };
+      byAccount.set(key, existing);
+      return existing;
+    };
+    for (const item of await listUnresolved()) slot(item.account).pending = item.record;
+    const outboxPrefix = `${OUTBOX_PREFIX}${deps.chainId}.`;
+    for (const key of await deps.storage.getAllKeys()) {
+      if (!key.startsWith(outboxPrefix)) continue;
+      const entry = parseOutboxEntry(await deps.storage.getItem(key));
+      if (entry && entry.chainId === deps.chainId && entry.state !== "recorded") slot(entry.account).recordings.push(entry);
+    }
+    return [...byAccount.values()];
+  };
+
   const describeFingerprint = (fingerprint: string): PendingPayment | null =>
     paymentOf({ v: 2, phase: "submitting", fingerprint, checks: [] });
 
@@ -739,6 +762,7 @@ export const createPaymentOperations = (deps: OperationsDeps) => {
     checkReleased,
     dismissFailure,
     listUnresolved,
+    unsettled,
     // The pieces the send path uses while it already holds the lock:
     inLock: { check: checkUnlocked, beforeSend, begin, markSubmitted, abandon, addEvidence, reconcile, settle },
     outbox: { list: listOutbox, queue: queueRecording, enrich: enrichRecording, flush: flushRecordings },

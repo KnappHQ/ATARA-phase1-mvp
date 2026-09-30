@@ -19,6 +19,9 @@ import { useAccountRegistryStore } from "@/stores/useAccountRegistryStore";
 import { useAccountSwitchStore } from "@/stores/useAccountSwitchStore";
 import { useAddressBookStore } from "@/stores/useAddressBookStore";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useWalletStore } from "@/stores/useWalletStore";
+import { useUnsettledPayments } from "@/hooks/useUnsettledPayments";
+import { badgeFor, summarize, warningFor, type UnsettledAction } from "@/utils/unsettledPayments";
 import { COLORS } from "@/utils/constants";
 import { LABEL_ERROR_TEXT, shortAddress } from "@/utils/accountLabels";
 import { accountAccessLines, accountHeadline, describeSwitchMethod } from "@/utils/accountDisplay";
@@ -64,6 +67,15 @@ export default function ManageAccountsScreen() {
   const { user: privyUser } = usePrivy();
   const profile = useAuthStore((state) => state.user);
   const accounts = useAccountRegistryStore((state) => state.accounts);
+  const assets = useWalletStore((state) => state.assets);
+  const { byAccount: unsettled } = useUnsettledPayments();
+  // A payment belongs to the wallet, so it is found by the account's wallet address.
+  const summaryOf = (account: LocalAccount | null | undefined) =>
+    account?.smartAccountAddress ? summarize(unsettled[account.smartAccountAddress.toLowerCase()], assets) : null;
+  const warningsFor = (account: LocalAccount | null | undefined, action: UnsettledAction) => {
+    const summary = summaryOf(account);
+    return summary ? warningFor(action, summary) : [];
+  };
 
   const [renaming, setRenaming] = useState<LocalAccount | null>(null);
   const [switching, setSwitching] = useState<LocalAccount | null>(null);
@@ -189,6 +201,11 @@ export default function ManageAccountsScreen() {
                   {line}
                 </Text>
               ))}
+              {summaryOf(account) ? (
+                <Text className="mt-2 text-xs font-semibold leading-4" style={{ color: "#fbbf24" }}>
+                  {badgeFor(summaryOf(account) as NonNullable<ReturnType<typeof summaryOf>>)}
+                </Text>
+              ) : null}
               {account.profileDeletedAt ? (
                 <Text className="mt-2 text-xs leading-4 text-white/50">
                   The wallet and the passkey still exist. Sign in to set up a new profile for the same wallet.
@@ -249,6 +266,9 @@ export default function ManageAccountsScreen() {
           You will be signed out of {active ? `“${nameOf(active)}”` : "this account"} on this iPhone. Its funds and data
           are not touched, and unfinished payments stay with it until you sign back in.
         </Body>
+        {warningsFor(active, "switch").map((line) => (
+          <Body key={line}>{line}</Body>
+        ))}
         <Body>
           Then you will sign in to {switching ? `“${nameOf(switching)}”` : "the other account"} with{" "}
           {switching ? describeSwitchMethod(buildSwitchTarget(switching, accounts).plan) : "its sign-in method"}.
@@ -275,7 +295,7 @@ export default function ManageAccountsScreen() {
         isOpen={!!removing}
         title={removing ? `Remove “${nameOf(removing)}” from this iPhone?` : "Remove account"}
         destructive
-        confirmLabel="Remove from this iPhone"
+        confirmLabel={warningsFor(removing, "remove").length ? "Remove anyway" : "Remove from this iPhone"}
         onCancel={() => setRemoving(null)}
         onConfirm={confirmRemove}
       >
@@ -284,6 +304,9 @@ export default function ManageAccountsScreen() {
           iPhone, and the contact nicknames you saved for it here are deleted. Unfinished payments are kept until they
           complete.
         </Body>
+        {warningsFor(removing, "remove").map((line) => (
+          <Body key={line}>{line}</Body>
+        ))}
         <Body>
           Nothing is deleted from ATARA or from the blockchain: the account, its wallet and its funds are untouched. Its
           passkey stays in iOS (Settings › Passwords) and can still sign you in.

@@ -4,6 +4,9 @@ import { ConfirmSheet } from "@/components/accounts/ConfirmSheet";
 import { useAccountDeletion } from "@/hooks/useAccountDeletion";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { shortAddress } from "@/utils/accountLabels";
+import { useUnsettledPayments } from "@/hooks/useUnsettledPayments";
+import { useWalletStore } from "@/stores/useWalletStore";
+import { summarize, warningFor } from "@/utils/unsettledPayments";
 
 interface DeleteAccountModalProps {
   isOpen: boolean;
@@ -29,13 +32,23 @@ export const DeleteAccountModal = ({ isOpen, onClose }: DeleteAccountModalProps)
   const { funds, deleteAccount } = useAccountDeletion();
   const address = useAuthStore((state) => state.user?.smartAccountAddress);
   const where = address ? shortAddress(address) : "your wallet address";
+  const assets = useWalletStore((state) => state.assets);
+  const { byAccount } = useUnsettledPayments();
+  const unsettled = summarize(address ? byAccount[address.toLowerCase()] : undefined, assets);
+  const unsettledLines = unsettled ? warningFor("delete", unsettled) : [];
 
-  const acknowledgement =
+  const fundsAcknowledgement =
     funds.status === "funds"
       ? `I hold ${funds.summary}. It stays at ${where}, and I need my passkey or my Google/Apple sign-in to reach it again.`
       : funds.status === "unknown"
         ? `ATARA cannot read my balance right now. Any funds stay at ${where}, and I need my passkey or my Google/Apple sign-in to reach them again.`
         : undefined;
+  // A payment still unproven, or not yet recorded, is a reason to stop and check first.
+  const acknowledgement = unsettled
+    ? [fundsAcknowledgement, "I have a payment that is not settled, and I understand it stays on the network whatever happens to this profile."]
+        .filter(Boolean)
+        .join(" ")
+    : fundsAcknowledgement;
 
   return (
     <ConfirmSheet
@@ -51,6 +64,15 @@ export const DeleteAccountModal = ({ isOpen, onClose }: DeleteAccountModalProps)
         onClose();
       }}
     >
+      {unsettledLines.length > 0 ? (
+        <>
+          <Heading>A payment is not settled</Heading>
+          {unsettledLines.map((line) => (
+            <Point key={line}>{line}</Point>
+          ))}
+        </>
+      ) : null}
+
       <Heading>What is deleted</Heading>
       <Point>Your profile: your @handle is released and your name, email and picture are removed from ATARA.</Point>
       <Point>Payment requests you created that nobody paid, and settlements not yet completed, are cancelled.</Point>
