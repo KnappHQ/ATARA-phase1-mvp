@@ -1,0 +1,11 @@
+# Renders, stills, contact sheets, cue files
+out/
+
+# Python virtualenv created by setup.sh
+.venv/
+__pycache__/
+
+# Third-party framework skills: restored by setup.sh, not vendored (~22 MB)
+.claude/skills/
+.agents/
+skills-lock.json

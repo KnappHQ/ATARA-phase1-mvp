@@ -1,0 +1,15 @@
+{
+  "model": "claude-opus-5-5",
+  "enabledPlugins": {
+    "claude-animation@claude-animation-skill": true
+  },
+  "extraKnownMarketplaces": {
+    "claude-animation-skill": {
+      "source": {
+        "source": "github",
+        "repo": "buildwithhanif/claude-animation-skill"
+      }
+    }
+  },
+  "effortLevel": "xhigh"
+}

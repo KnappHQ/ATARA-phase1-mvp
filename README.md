@@ -67,6 +67,8 @@ knapp-phase1-mvp/
 │   ├── prisma/       Schema + migrations
 │   └── utils/        Constants, error helpers
 │
+├── motion-studio/    Promo/motion video workspace (not shipped; see its README)
+│
 └── frontend/         React Native app
     ├── app/          expo-router screens
     │   └── (tabs)/   Home, Activity, Profile (Vault is feature-gated off in beta)

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ATARA hello</title>
+  <style>
+    /* Everything is sized in 1920-wide design pixels, so any 16:9 viewport renders the same frame. */
+    :root { --u: calc(100vw / 1920); }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #000; }
+    body { color: #f6f5f4; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif; }
+    .stage { width: 100vw; height: 56.25vw; display: grid; place-items: center; }
+    .lockup { display: grid; justify-items: center; }
+    .word { display: flex; gap: calc(40 * var(--u)); font-size: calc(200 * var(--u)); font-weight: 650; line-height: 1; }
+    .word span { display: inline-block; }
+    .rule { width: calc(760 * var(--u)); height: calc(4 * var(--u)); margin: calc(56 * var(--u)) 0 calc(44 * var(--u)); border-radius: 999px; background: #4ade80; }
+    p { margin: 0; }
+    .tagline { font-size: calc(44 * var(--u)); color: rgba(255, 255, 255, .5); }
+    .amount { margin-top: calc(28 * var(--u)); font-size: calc(72 * var(--u)); font-weight: 500; letter-spacing: calc(-2 * var(--u)); font-variant-numeric: tabular-nums; }
+    .amount small { margin-left: calc(16 * var(--u)); font-size: calc(28 * var(--u)); font-weight: 400; letter-spacing: 0; color: #929292; }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <div class="lockup">
+      <div class="word" aria-label="ATARA"><span>A</span><span>T</span><span>A</span><span>R</span><span>A</span></div>
+      <div class="rule"></div>
+      <p class="tagline">Pay anyone by handle.</p>
+      <p class="amount"><span class="value">0.00</span><small>USDC</small></p>
+    </div>
+  </main>
+  <script>
+    const clamp01 = (x) => Math.min(1, Math.max(0, x));
+    const progress = (t, start, end) => clamp01((t - start) / (end - start));
+    const easeOut = (x) => 1 - (1 - x) ** 3;
+    const easeInOut = (x) => (x < 0.5 ? 4 * x ** 3 : 1 - (-2 * x + 2) ** 3 / 2);
+
+    const lockup = document.querySelector('.lockup');
+    const letters = [...document.querySelectorAll('.word span')];
+    const rule = document.querySelector('.rule');
+    const tagline = document.querySelector('.tagline');
+    const amount = document.querySelector('.amount');
+    const value = document.querySelector('.value');
+
+    // 1 on a beat from window.cues (injected by render.mjs --cues), decaying to ~0 within 0.4 s.
+    function beatPulse(t) {
+      let last = -Infinity;
+      for (const beat of window.cues?.beats ?? []) {
+        if (beat > t) break;
+        last = beat;
+      }
+      return Math.exp(-(t - last) * 8);
+    }
+
+    function rise(el, p, distance) {
+      el.style.opacity = p;
+      el.style.transform = `translateY(${(1 - p) * distance}em)`;
+    }
+
+    window.composition = {
+      width: 1920,
+      height: 1080,
+      fps: 30,
+      duration: 4,
+      seek(t) {
+        letters.forEach((el, i) => rise(el, easeOut(progress(t, 0.35 + i * 0.08, 1.05 + i * 0.08)), 0.35));
+        rule.style.transform = `scaleX(${easeInOut(progress(t, 0.15, 0.95))})`;
+        const pulse = beatPulse(t);
+        rule.style.boxShadow = `0 0 calc(${12 + 36 * pulse} * var(--u)) rgba(74, 222, 128, ${0.25 + 0.55 * pulse})`;
+        rise(tagline, easeOut(progress(t, 1.3, 2.0)), 0.4);
+        rise(amount, easeOut(progress(t, 1.7, 2.3)), 0.3);
+        value.textContent = (12.5 * easeInOut(progress(t, 1.8, 3.0))).toFixed(2);
+        lockup.style.opacity = 1 - progress(t, 3.6, 4.0);
+      },
+    };
+
+    // Opened directly in a browser, loop it for preview; under the renderer (webdriver) stay put.
+    window.composition.seek(0);
+    if (!navigator.webdriver) {
+      const start = performance.now();
+      const tick = (now) => {
+        window.composition.seek(((now - start) / 1000) % window.composition.duration);
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }
+  </script>
+</body>
+</html>
