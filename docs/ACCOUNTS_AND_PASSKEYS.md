@@ -174,6 +174,9 @@ carnet **par compte**. Les paiements non terminés restent attachés à leur com
 (file de règlement par utilisateur, opération en cours par adresse de smart
 account) et reprennent à la reconnexion : un changement de compte ne les efface
 pas.
+Le détail (identifiants, règles, avertissements dans Manage accounts, refus du
+même paiement depuis un autre compte) est dans
+[PAYMENT_VERIFICATION.md](PAYMENT_VERIFICATION.md).
 
 ## 5. Trois suppressions, trois choses différentes
 

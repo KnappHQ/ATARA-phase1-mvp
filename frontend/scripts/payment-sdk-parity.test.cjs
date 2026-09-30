@@ -125,3 +125,44 @@ test("the provider's own status action reads a call id the way the verifier expe
   assert.equal(status.statusCode, 200);
   assert.match(status.receipts[0].transactionHash, /^0x[0-9a-f]{64}$/);
 });
+
+test("the read-only status source the app uses answers over the real wallet transport, with no signer", async () => {
+  const load2 = createLoader({ mocks: {} });
+  const { createProviderStatusSource } = load2("services/providerStatus.ts");
+  const { interpretCallsStatus, classifyProviderError } = load2("utils/operationStatus.ts");
+  const { alchemyWalletTransport } = await import("@alchemy/wallet-apis");
+  const { createClient } = await import("viem");
+  const { getCallsStatus } = await import("viem/actions");
+  const { baseSepolia } = await import("viem/chains");
+
+  const seen = [];
+  let answer;
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const body = JSON.parse(init.body);
+    seen.push({ method: body.method, params: body.params });
+    return new Response(JSON.stringify({ jsonrpc: "2.0", id: body.id, ...answer }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  try {
+    const source = createProviderStatusSource({ chain: baseSepolia, transport: alchemyWalletTransport({ apiKey: "test-key" }), createClient, getCallsStatus });
+    const receipt = { transactionHash: `0x${"7a".repeat(32)}`, status: "0x1", logs: [], blockHash: `0x${"1".repeat(64)}`, blockNumber: "0x1", gasUsed: "0x1" };
+
+    answer = { result: { id: CALL_ID, chainId: "0x14a34", atomic: true, version: "2.0.0", status: 200, receipts: [receipt] } };
+    const confirmed = interpretCallsStatus(await source.getCallsStatus({ id: CALL_ID }));
+    assert.equal(confirmed.kind, "confirmed");
+    assert.equal(confirmed.transactionHash, `0x${"7a".repeat(32)}`);
+    assert.deepEqual(seen.at(-1), { method: "wallet_getCallsStatus", params: [CALL_ID] });
+
+    answer = { result: { id: CALL_ID, chainId: "0x14a34", atomic: true, version: "2.0.0", status: 100 } };
+    assert.equal(interpretCallsStatus(await source.getCallsStatus({ id: CALL_ID })).kind, "pending");
+
+    answer = { result: { id: CALL_ID, chainId: "0x14a34", atomic: true, version: "2.0.0", status: 500, receipts: [receipt] } };
+    assert.equal(interpretCallsStatus(await source.getCallsStatus({ id: CALL_ID })).kind, "failed");
+
+    // The provider not knowing the id is an error answer, which the verifier reads as "no trace", not "failed".
+    answer = { error: { code: 5730, message: "Unknown bundle id" } };
+    await assert.rejects(source.getCallsStatus({ id: CALL_ID }), (error) => classifyProviderError(error).kind === "unknown-call-id");
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

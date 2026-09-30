@@ -7,6 +7,7 @@ import { getCallsStatus } from "viem/actions";
 import { base, baseSepolia } from "viem/chains";
 
 import { api } from "./api";
+import { createProviderStatusSource } from "./providerStatus";
 import { createChainReader, type ChainClientLike } from "./userOperationChain";
 import { createPaymentOperations, type PaymentOperations } from "./paymentOperations";
 import { useAuthStore } from "@/stores/useAuthStore";
@@ -43,10 +44,12 @@ const PUBLIC_RPC =
 const providerSource = () => {
   const apiKey = alchemyKey();
   if (!apiKey) return null;
-  const client = createClient({ chain, transport: alchemyWalletTransport({ apiKey }) });
-  return {
-    getCallsStatus: (input: { id: string }) => getCallsStatus(client, { id: input.id as `0x${string}` }),
-  };
+  return createProviderStatusSource({
+    chain,
+    transport: alchemyWalletTransport({ apiKey }),
+    createClient,
+    getCallsStatus,
+  });
 };
 
 const chainReader = () => {

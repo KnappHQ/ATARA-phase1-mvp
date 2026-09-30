@@ -159,3 +159,34 @@ test("the search starts near the payment's own time instead of scanning weeks", 
   const lowest = client.calls.reduce((low, call) => (call.fromBlock < low ? call.fromBlock : low), 10n ** 9n);
   assert.ok(1_000_000n - lowest < 5_000n, `searched back ${1_000_000n - lowest} blocks`);
 });
+
+test("against a real viem client the search sends the right eth_getLogs filter and reads the real log shape", async () => {
+  const { createPublicClient, custom } = await import("viem");
+  const { baseSepolia } = await import("viem/chains");
+  const eventLog = userOpLog({ hash: HASH_A, logIndex: 2, block: 4990 });
+  const transfer = transferLog({ logIndex: 1 });
+  const wire = (log) => ({ ...log, blockNumber: `0x${log.blockNumber.toString(16)}`, logIndex: `0x${log.logIndex.toString(16)}`, blockHash: `0x${"1".repeat(64)}`, transactionIndex: "0x0", removed: false });
+  const requests = [];
+  const client = createPublicClient({
+    chain: baseSepolia,
+    transport: custom({
+      request: async ({ method, params }) => {
+        requests.push({ method, params });
+        if (method === "eth_blockNumber") return "0x1388";
+        if (method === "eth_getLogs") return [wire(eventLog)];
+        if (method === "eth_getTransactionReceipt") {
+          return { status: "0x1", transactionHash: TX, blockNumber: "0x136e", blockHash: `0x${"1".repeat(64)}`, transactionIndex: "0x0", from: ACCOUNT, to: ENTRY, cumulativeGasUsed: "0x1", gasUsed: "0x1", effectiveGasPrice: "0x1", contractAddress: null, logsBloom: `0x${"0".repeat(512)}`, type: "0x2", logs: [wire(transfer), wire(eventLog)] };
+        }
+        throw new Error(`unexpected ${method}`);
+      },
+    }),
+  });
+  const answer = await createChainReader({ client }).findUserOperation(search());
+  assert.equal(answer.status, "found");
+  assert.deepEqual(answer.transfer, { kind: "matched", token: USDC, recipient: RECIPIENT, amount: "10000000" });
+
+  const getLogs = requests.find((request) => request.method === "eth_getLogs").params[0];
+  assert.deepEqual(getLogs.address.map((a) => a.toLowerCase()), ENTRY_POINTS.map((a) => a.toLowerCase()));
+  assert.equal(getLogs.topics[0], encodeEventTopics({ abi: [USER_OPERATION_EVENT], eventName: "UserOperationEvent" })[0]);
+  assert.equal(getLogs.topics[1], HASH_A, "the operation hash is the indexed filter");
+});
