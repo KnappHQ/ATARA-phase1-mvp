@@ -197,3 +197,95 @@ test("only an answer from the provider counts as a refusal", () => {
   assert.equal(wasRefused(rpcError("x", { status: 503 })), false);
   assert.equal(wasRefused(new Error("something unexpected")), false);
 });
+
+// ------------------------------------------------------------ whole stories
+
+test("story: the send times out, the app is closed, the network is down, then back, and the service is down after that", async () => {
+  const storage = fakeStorage();
+  let sends = 0;
+  const first = setup({
+    storage,
+    send: () => {
+      sends++;
+      return Promise.reject(rpcError("Request timed out", { name: "TimeoutError" }));
+    },
+  });
+  await assert.rejects(first.run(), (error) => error.isPendingVerification === true);
+
+  // The app is closed and reopened: nothing but the storage survives. No network.
+  let online = false;
+  const reopened = createPaymentOperations({
+    storage,
+    chainId: CHAIN,
+    provider: { getCallsStatus: async () => { if (!online) throw rpcError("Network request failed", { name: "HttpRequestError" }); return CONFIRMED; } },
+    chain: {
+      findUserOperation: async () => {
+        if (!online) return { status: "unreadable", error: { kind: "network", summary: "this phone could not reach the provider" } };
+        return { status: "found", success: true, transactionHash: TX, blockNumber: 9, sender: ACCOUNT, transfer: { kind: "matched", token: USDC, recipient: RECIPIENT, amount: "10000000" } };
+      },
+    },
+    now: () => T0 + 60_000,
+    symbolForToken: () => "USDC",
+    lock: runExclusiveOperation,
+  });
+  const offline = await reopened.check(ACCOUNT);
+  assert.equal(offline.status, "unknown");
+  assert.equal(offline.reason, "unreachable");
+  assert.equal(offline.ids.userOpHash, OP_HASH, "the proof survived the restart");
+
+  // Asking again and again while offline changes nothing and pays nothing.
+  for (let i = 0; i < 5; i++) assert.equal((await reopened.check(ACCOUNT)).status, "unknown");
+  await assert.rejects(
+    submitAndConfirm({ client: first.client, ops: reopened, account: ACCOUNT, calls: calls(), overrides: {}, sleep: async () => {} }),
+    (error) => error.notSent === true,
+  );
+  assert.equal(sends, 1, "the payment was sent once");
+
+  // The network returns. The chain proves it, the service is still down.
+  online = true;
+  const proven = await reopened.check(ACCOUNT);
+  assert.equal(proven.status, "confirmed");
+  assert.equal(proven.ids.transactionHash, TX);
+  assert.equal(stored(storage), null);
+  const down = async () => ({ kind: "retry", status: 503, reason: "The service had an error." });
+  assert.equal((await reopened.outbox.flush(ACCOUNT, down, { force: true })).waiting, 1);
+  assert.equal((await reopened.outbox.list(ACCOUNT)).length, 1, "kept for the next try");
+
+  // Days later, the service is back. Only the recording is done.
+  const posted = [];
+  const summary = await reopened.outbox.flush(ACCOUNT, async (entry) => { posted.push(entry.transactionHash); return { kind: "recorded", backendTransactionId: "srv-1" }; }, { force: true });
+  assert.equal(summary.recorded, 1);
+  assert.deepEqual(posted, [TX]);
+  assert.equal(sends, 1, "and the payment was still sent only once");
+
+  // The account is free again, and the same payment is a new one.
+  assert.deepEqual(await reopened.inLock.beforeSend(ACCOUNT, fingerprintOf(calls())), { action: "proceed" });
+});
+
+test("story: two accounts on one phone never see or block each other's payments, except to stop the same payment twice", async () => {
+  const storage = fakeStorage();
+  const a = setup({ storage, statuses: [{ statusCode: 100 }] });
+  await a.ops.inLock.begin(ACCOUNT, { fingerprint: fingerprintOf(calls()) });
+  await a.ops.inLock.markSubmitted(ACCOUNT, { id: CALL_ID });
+
+  // B can pay someone else.
+  const other = setup({ storage });
+  const bClient = { ...other.client, prepareCalls: async () => ({ type: "user-operation-v070", details: { data: { hash: `0x${"e5".repeat(32)}` } } }), sendPreparedCalls: async () => ({ id: buildCallId(CHAIN, `0x${"e5".repeat(32)}`) }) };
+  const bOps = createPaymentOperations({ storage, chainId: CHAIN, provider: { getCallsStatus: async () => CONFIRMED }, now: () => T0, symbolForToken: () => "USDC", lock: runExclusiveOperation });
+  const result = await submitAndConfirm({ client: bClient, ops: bOps, account: OTHER, calls: calls(5_000_000n), overrides: {}, sleep: async () => {} });
+  assert.equal(result.hash, TX);
+  // A's payment is still A's, untouched.
+  assert.equal(stored(storage, ACCOUNT).id, CALL_ID);
+  assert.equal(stored(storage, OTHER), null);
+
+  // But B cannot send what A has waiting.
+  await assert.rejects(
+    submitAndConfirm({ client: bClient, ops: bOps, account: OTHER, calls: calls(), overrides: {}, sleep: async () => {} }),
+    /Another account on this iPhone/,
+  );
+
+  // Once A's payment is settled, the same payment is allowed again from anywhere.
+  const settled = createPaymentOperations({ storage, chainId: CHAIN, provider: { getCallsStatus: async () => CONFIRMED }, now: () => T0, lock: runExclusiveOperation });
+  await settled.check(ACCOUNT);
+  assert.deepEqual(await bOps.inLock.beforeSend(OTHER, fingerprintOf(calls())), { action: "proceed" });
+});

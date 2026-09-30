@@ -147,6 +147,8 @@ function harness(options = {}) {
     '@/stores/useAccountSwitchStore': { useAccountSwitchStore: { getState: () => intentStore } },
     'expo-haptics': { impactAsync: async () => {}, ImpactFeedbackStyle: {} },
     '@/services/settlementRecovery.service': {}, '@/services/api': {},
+    '@/services/paymentOperations.runtime': { flushRecordings: async () => ({ recorded: 0, waiting: 0, rejected: 0, recordedIds: {} }) },
+    '@/stores/useTransactionHistoryStore': { useTransactionHistoryStore: { getState: () => ({ fetchHistory: async () => {} }) } },
     '@/services/auth.service': { AuthService }, '@/utils/walletReadiness': readiness,
     '@/utils/asyncOperation': load('utils/asyncOperation.ts'),
     viem: { stringToHex: value => '0x' + Buffer.from(value).toString('hex') },

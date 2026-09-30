@@ -13,6 +13,7 @@ import {
   type OperationCard,
 } from "@/utils/operationPresentation";
 import { useTransactionHistoryStore } from "@/stores/useTransactionHistoryStore";
+import { hideRecorded } from "@/utils/historyMerge";
 
 type Assets = Parameters<typeof cardForReport>[1]["assets"];
 
@@ -28,6 +29,8 @@ export const usePaymentOperations = (account: string | null | undefined, assets:
   const [landed, setLanded] = useState<OperationReport[]>([]);
   const [checking, setChecking] = useState(false);
   const [releasedNote, setReleasedNote] = useState<string | null>(null);
+  // A payment the service already lists is not shown as still waiting to be recorded.
+  const listed = useTransactionHistoryStore((state) => state.rawHistory);
   const currentAccount = useRef(account);
   currentAccount.current = account;
 
@@ -137,7 +140,7 @@ export const usePaymentOperations = (account: string | null | undefined, assets:
       const card = cardForReport(report, options);
       // Its own card says the same thing as the confirmed report, with a way to retry.
       const shownBelow =
-        report.status === "confirmed" && outbox.some((entry) => entry.transactionHash === report.ids.transactionHash);
+        report.status === "confirmed" && hideRecorded(outbox, listed).some((entry) => entry.transactionHash === report.ids.transactionHash);
       if (card && !shownBelow) result.push(card);
     } else if (record) {
       result.push(cardForRecord(record, options));
@@ -156,9 +159,9 @@ export const usePaymentOperations = (account: string | null | undefined, assets:
         });
       }
     }
-    for (const entry of outbox) result.push(cardForOutbox(entry, { assets }));
+    for (const entry of hideRecorded(outbox, listed)) result.push(cardForOutbox(entry, { assets }));
     return result;
-  }, [report, record, outbox, landed, assets, checking]);
+  }, [report, record, outbox, landed, assets, checking, listed]);
 
   return { cards, checking, run, refresh, releasedNote, dismissReleasedNote: () => setReleasedNote(null) };
 };

@@ -163,6 +163,10 @@ export default function TransactionDetail() {
           >
             <Text
               className="text-5xl font-bold mb-3"
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.5}
+              maxFontSizeMultiplier={1.4}
               style={{
                 color:
                   transaction.type === "receive"

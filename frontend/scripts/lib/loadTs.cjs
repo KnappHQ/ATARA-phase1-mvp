@@ -20,6 +20,10 @@ const createLoader = ({ allow = [], mocks = {} } = {}) => {
     cache[file] = module.exports;
     new Function("exports", "require", "module", code)(module.exports, (specifier) => {
       if (specifier in mocks) return mocks[specifier];
+      if (specifier.startsWith("@/")) {
+        const target = specifier.slice(2);
+        return load(fs.existsSync(path.join(__dirname, "..", "..", `${target}.ts`)) ? `${target}.ts` : `${target}.tsx`);
+      }
       if (!specifier.startsWith(".")) {
         if (allow.includes(specifier)) return require(specifier);
         throw new Error(`Unexpected import ${specifier} from ${relativePath}`);

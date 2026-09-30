@@ -189,6 +189,7 @@ export const cardForRecord = (record: OperationRecord, options: { assets: Assets
   if (failed) return card;
   return {
     ...card,
+    actions: card.actions.map((action) => (action.id === "check" && !options.checking ? { ...action, label: "Check now" } : action)),
     tone: "waiting",
     title: record.phase === "submitting" ? "Payment being sent" : "Payment awaiting verification",
     body:

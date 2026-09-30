@@ -20,6 +20,7 @@ import * as Haptics from "expo-haptics";
 import { stringToHex } from "viem";
 
 import { retryPendingSettlements } from "@/services/settlementRecovery.service";
+import { flushRecordings } from "@/services/paymentOperations.runtime";
 import { registerUnauthorizedHandler } from "@/services/api";
 import { AuthService } from "@/services/auth.service";
 import { assertActive, waitForWallet } from "@/utils/walletReadiness";
@@ -49,6 +50,7 @@ import { useAccountRegistryStore, registryReady } from "@/stores/useAccountRegis
 import { useAccountSwitchStore } from "@/stores/useAccountSwitchStore";
 import { useAlertStore } from "@/stores/useAlertStore";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useTransactionHistoryStore } from "@/stores/useTransactionHistoryStore";
 import {
   getPrimaryEmailAddress,
   getPrimaryEmbeddedEthereumWalletAddress,
@@ -132,6 +134,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const passkeyDeps = useMemo(() => createPasskeyDeps(privyClient), [privyClient]);
   const externalWallet = useExternalWallet();
   const { isAuthenticated, isLoading: isAuthLoading } = useAuthStore();
+  const walletAddress = useAuthStore((state) => state.user?.smartAccountAddress);
 
   const [hasLoadedSession, setHasLoadedSession] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState<OnboardingStep>("gate");
@@ -169,6 +172,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [externalWallet.isConnected, user]);
 
   useEffect(() => { if (isFullyAuthenticated) void retryPendingSettlements().catch(() => {}); }, [isFullyAuthenticated]);
+
+  // A payment confirmed while the service could not be reached is recorded when
+  // this account signs in again. Only the recording is retried, never the payment.
+  useEffect(() => {
+    if (!isFullyAuthenticated || !walletAddress) return;
+    void flushRecordings(walletAddress)
+      .then((summary) => {
+        if (summary.recorded > 0) void useTransactionHistoryStore.getState().fetchHistory();
+      })
+      .catch(() => {});
+  }, [isFullyAuthenticated, walletAddress]);
 
   const handleSessionLoaded = useCallback(() => {
     setHasLoadedSession(true);

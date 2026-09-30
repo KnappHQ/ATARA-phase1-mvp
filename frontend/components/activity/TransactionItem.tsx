@@ -5,6 +5,8 @@ import { MotiView } from "moti";
 import { COLORS } from "@/utils/constants";
 import { DisplayTransaction } from "@/stores/useTransactionHistoryStore";
 import { truncateAddress } from "@/utils/format";
+import { RowHeader } from "./RowHeader";
+import { MAX_ROW_FONT_MULTIPLIER } from "@/utils/rowLayout";
 
 interface TransactionItemProps {
   transaction: DisplayTransaction;
@@ -52,44 +54,23 @@ export const TransactionItem = ({
             )}
           </View>
 
-          <View className="flex-1">
-            <View className="flex-row items-center justify-between mb-0.5">
-              {/* The name and address give way to the amount, never the
-                  reverse: on a narrow phone they used to run under it. */}
-              <View className="flex-1 flex-row items-center overflow-hidden">
-                <Text
-                  className="text-base font-medium text-white"
-                  numberOfLines={1}
-                  style={{ flexShrink: 1 }}
-                >
-                  {transaction.counterparty.name}
-                </Text>
-                {transaction.counterparty.showAddress && (
-                  <Text
-                    className="text-xs font-mono ml-2 text-white/30"
-                    numberOfLines={1}
-                    style={{ flexShrink: 100 }}
-                  >
-                    {truncateAddress(transaction.counterparty.address)}
-                  </Text>
-                )}
-              </View>
-              <Text
-                className="font-mono text-base ml-2"
-                numberOfLines={1}
-                style={{
-                  flexShrink: 0,
-                  color: isReceive ? COLORS.accent : "rgba(255, 255, 255, 0.6)",
-                }}
-              >
-                {transaction.formattedAmount}
-              </Text>
+          <View className="flex-1" style={{ minWidth: 0 }}>
+            <View className="mb-0.5">
+              <RowHeader
+                name={transaction.counterparty.name}
+                address={transaction.counterparty.showAddress ? truncateAddress(transaction.counterparty.address) : null}
+                amount={transaction.formattedAmount}
+                amountColor={isReceive ? COLORS.accent : "rgba(255, 255, 255, 0.6)"}
+                nameClassName="text-base font-medium text-white"
+                addressClassName="text-xs font-mono text-white/30"
+                amountClassName="font-mono text-base"
+              />
             </View>
             <View className="flex-row items-center justify-between">
-              <Text className="text-sm flex-1 text-white/40" numberOfLines={1}>
+              <Text className="text-sm flex-1 text-white/40" numberOfLines={1} maxFontSizeMultiplier={MAX_ROW_FONT_MULTIPLIER}>
                 {transaction.userNote || (isReceive ? "Received" : "Sent")}
               </Text>
-              <Text className="text-sm ml-2 text-white/30">
+              <Text className="text-sm ml-2 text-white/30" numberOfLines={1} maxFontSizeMultiplier={MAX_ROW_FONT_MULTIPLIER}>
                 {transaction.displayDateShort}
               </Text>
             </View>
