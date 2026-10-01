@@ -208,6 +208,17 @@ export default function ProfileTab() {
             right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
           />
 
+          <SettingRow
+            icon={Network}
+            label="Plans & Miles"
+            subtitle="Your plan, your miles, and what covers your network fees"
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/plans" as never);
+            }}
+            right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
+          />
+
           <SectionHeader title="Beta Program" delay={360} />
 
           <SettingRow

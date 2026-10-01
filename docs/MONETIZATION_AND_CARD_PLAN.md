@@ -122,7 +122,7 @@ Règles de comptabilité **[code]** (`backend/utils/miles.ts`,
 Ce qui n'est **pas** branché : le décideur n'est pas encore appelé par le chemin
 d'envoi (voir §2, sponsorisation), parce que le faire sans la règle côté Alchemy
 reviendrait à un contrôle que le client peut ignorer, et qu'un faux refus
-bloquerait un paiement. L'écran « Miles » affiche l'état ; il ne coupe rien.
+bloquerait un paiement. L'écran « Plans & Miles » affiche l'état (solde, dépense du mois, envois couverts) ; il ne coupe rien. Les envois « utilisés » sont ceux qu'ATARA a enregistrés ce mois-ci pour le compte.
 
 ---
 
@@ -142,14 +142,25 @@ l'écran « Pay a merchant » est inchangé et reste accessible.
   je n'y ai pas accès depuis cet environnement et je ne les connais pas avec
   certitude. L'implémentation réelle se branche sur l'interface en suivant leur
   documentation.
-- `POST /card/webhook/:provider` : reçoit les événements, **vérifie la
-  signature** (HMAC-SHA256 sur le corps brut, comparaison à temps constant — à
-  aligner sur le schéma exact de Rain), refuse sans signature valide, normalise
-  l'événement, crédite les miles de façon idempotente.
-- `GET /card/status`, `POST /card/waitlist` : l'écran « Carte » montre « bientôt
-  disponible » et mesure la demande tant que Rain n'est pas branché.
-- L'app : écran **Carte** (état, miles, frais affichés, « Ajouter à Apple Wallet »
-  quand la carte existe, lien vers le paiement par QR) et écran **Offres**.
+- `POST /api/v1/card/webhook/:provider` : reçoit les événements, **vérifie la
+  signature sur le corps brut avant toute lecture** (HMAC-SHA256, comparaison à
+  temps constant, en-tête `x-atara-signature` pour le bac à sable — le schéma de
+  Rain est à implémenter d'après leur documentation), refuse sans signature
+  valide, normalise l'événement en quelques champs (pas de numéro de carte, pas de
+  commerçant), crédite les miles de façon idempotente. La route est montée avant
+  le limiteur par IP (les webhooks viennent d'une infrastructure partagée) avec
+  son propre quota. Sans fournisseur configuré, ou si le fournisseur de l'URL
+  n'est pas le fournisseur configuré : 503. Le fournisseur `rain` refuse tout
+  tant qu'il n'est pas implémenté ; `sandbox` est refusé en production.
+- `GET /api/v1/card/status`, `POST /api/v1/card/waitlist` : l'écran « Carte » montre « bientôt
+  disponible » et mesure la demande (pays en code à deux lettres, jamais du texte
+  libre) tant que Rain n'est pas branché. Supprimé avec le compte.
+- L'app : écran **Carte** (état, frais de ton offre, mention « le solde de la carte
+  est détenu par l'émetteur », lien vers le paiement par QR), écran **Plans &
+  Miles** (offres, ton offre, solde de miles, allocation du mois), entrée « ATARA
+  Card » sur l'accueil à côté du paiement par QR, ligne dans Profile. Le bouton
+  « Ajouter à Apple Wallet » n'existe pas encore : il n'a de sens qu'avec le
+  provisionnement de l'émetteur.
 
 ### Ce qui change pour la promesse « non custodial » **[à décider]**
 Aujourd'hui, ATARA ne détient jamais les fonds. Avec une carte, l'argent dépensé
@@ -195,12 +206,13 @@ notifications serveur d'Apple). Le serveur ne fait confiance qu'à ces événeme
 `subscriptionStatus` de façon idempotente.
 
 Livré **[code]** : les droits sont calculés côté serveur à partir des champs
-existants (`resolveEntitlements`) : un abonnement `ACTIVE` ou `GRACE_PERIOD` non
+existants (`resolveEntitlement`) : un abonnement `ACTIVE` ou `GRACE_PERIOD` non
 expiré donne les droits de son offre ; tout le reste (expiré, annulé, en pause,
-inconnu) retombe sur Free. Aucune route client ne peut promouvoir un compte : la
-route `GET /subscription/me` est en lecture seule, et un test le garde.
+inconnu) retombe sur Free. Aucune route client ne peut promouvoir un compte : `/plans`,
+`/subscription/me` et `/card/status` sont en lecture seule, et un test
+d'intégration vérifie que ni `PATCH /user/me` ni un POST/PUT ne change l'offre.
 
-Non livré : l'achat lui-même. L'écran Offres affiche les offres, l'état courant et
+Non livré : l'achat lui-même. L'écran Plans & Miles affiche les offres, l'état courant et
 « Bientôt disponible » sur le bouton tant que `EXPO_PUBLIC_BILLING_ENABLED`
 n'est pas activé.
 
@@ -214,7 +226,7 @@ n'est pas activé.
 - **Ajouté** : barèmes et droits (purs, testés), registre de miles, adaptateur de
   carte, routes `/plans`, `/subscription/me`, `/card/*`, trois tables (registre
   de miles, événements de carte, liste d'attente), deux valeurs d'offre
-  (`PLUS`, `MAX`), écrans Offres et Carte, plafonds de Vault dans l'écran de
+  (`PLUS`, `MAX`), écrans Plans & Miles et Carte, plafonds de Vault dans l'écran de
   création.
 - **Compatibilité** : `PREMIUM` (l'ancienne valeur, jamais attribuée) est lue comme
   `PLUS`. Aucun utilisateur existant ne change d'offre.
@@ -231,10 +243,15 @@ commission sur les envois entre utilisateurs (je recommande **non**, §1).
 ## 8. Déploiement
 
 - **Render** : ce changement ajoute une migration Prisma (valeurs d'enum et
-  trois tables) exécutée par `prisma migrate deploy` au démarrage. Après la
-  fusion dans `main`, vérifie dans les logs de déploiement que la migration
+  trois tables) exécutée par `prisma migrate deploy` au démarrage ; elle a été
+  appliquée sur un Postgres 16 local et le schéma ne diverge pas des migrations.
+  Après la fusion dans `main`, vérifie dans les logs de déploiement que
   `20261001120000_plans_rewards_card` s'est appliquée. Variables **optionnelles**
-  (rien ne casse si absentes) : `CARD_PROVIDER` (`sandbox` par défaut),
-  `RAIN_API_KEY`, `RAIN_WEBHOOK_SECRET`, `PLANS_OVERRIDE_JSON`.
+  (rien ne casse si absentes) : `PLANS_OVERRIDE_JSON` (prix et plafonds sans
+  republier l'app). `CARD_PROVIDER` vaut `unavailable` par défaut (aucun webhook
+  accepté) ; `sandbox` (avec `CARD_WEBHOOK_SECRET`) sert aux tests et est refusé
+  en production ; `rain` n'est pas encore utilisable. Les variables `RAIN_*`
+  ne sont lues par aucun code pour l'instant.
 - **TestFlight** : la fusion dans `release/store-beta` déclenche « Store Beta ».
-  Les écrans Offres et Carte s'y trouvent derrière « Bientôt disponible ».
+  Les écrans Plans & Miles et Carte s'y trouvent ; les boutons d'achat et de carte
+  affichent « Available soon » / « Notify me ».
