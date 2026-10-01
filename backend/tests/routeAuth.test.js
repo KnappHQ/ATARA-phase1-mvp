@@ -58,6 +58,11 @@ const PROTECTED = [
 
   ["post", "/api/v1/requests"],
   ["delete", "/api/v1/requests/some-id"],
+
+  ["get", "/api/v1/plans"],
+  ["get", "/api/v1/subscription/me"],
+  ["get", "/api/v1/card/status"],
+  ["post", "/api/v1/card/waitlist"],
 ];
 
 test("every protected route refuses an anonymous caller", async () => {

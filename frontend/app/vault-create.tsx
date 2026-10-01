@@ -8,6 +8,8 @@ import { useAuthStore } from "@/stores/useAuthStore";
 import { useContactStore, type Contact } from "@/stores/useContactStore";
 import { useSmartAccountService } from "@/services/smartAccount.service";
 import { VaultService } from "@/services/vault.service";
+import { useEntitlements } from "@/hooks/useEntitlements";
+import { describeVaultGate, vaultCreationGate } from "@/utils/entitlements";
 import { DEMO_MODE, DEMO_MEMBER_ADDRESS, DEMO_VAULT_ADDRESS, DEMO_VAULT_CONTACTS } from "@/utils/demoMode";
 
 const VAULTS_ENABLED = process.env.EXPO_PUBLIC_ENABLE_VAULTS === "true";
@@ -23,6 +25,8 @@ function VaultCreateScreenEnabled() {
   const [days, setDays] = useState("30");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [overLimit, setOverLimit] = useState(false);
+  const { plans, mine } = useEntitlements();
 
   const recentContacts = useContactStore((state) => state.recentContacts);
   const favoriteContacts = useContactStore((state) => state.favoriteContacts);
@@ -76,6 +80,18 @@ function VaultCreateScreenEnabled() {
         return;
       }
       if (!smartAccount) return;
+      // A convenience for honest use: it stops someone walking into their plan's
+      // limit. It cannot stop a modified app, and it never blocks when the plan
+      // or the count cannot be read.
+      let vaultsOwned: number | null = null;
+      try { vaultsOwned = account ? (await VaultService.getVaults(account)).length : null; } catch { vaultsOwned = null; }
+      const gate = vaultCreationGate({ plans, plan: mine?.plan ?? null, vaultsOwned, members: members.length });
+      if (!gate.allowed && plans) {
+        setOverLimit(true);
+        setError(describeVaultGate(gate, plans));
+        return;
+      }
+      setOverLimit(false);
       const call = VaultService.createVaultCall(name.trim(), members, unlockAt);
       await smartAccount.sendContractCalls([{ target: call.target, data: call.data }]);
       router.replace("/vaults");
@@ -118,6 +134,11 @@ function VaultCreateScreenEnabled() {
           <TextInput value={days} onChangeText={(value) => setDays(value.replace(/[^0-9]/g, ""))} keyboardType="number-pad" placeholder="30" placeholderTextColor="rgba(255,255,255,0.25)" className="rounded-2xl border border-white/15 bg-black/40 px-4 py-4 text-white" />
           <Text className="text-white/55 text-sm mt-3">Funds locked until {new Date(unlockAt * 1000).toLocaleDateString("en-US", { dateStyle: "long" })}.</Text>
           {error ? <Text className="text-red-300 text-sm leading-5 mt-4">{error}</Text> : null}
+          {overLimit ? (
+            <Pressable onPress={() => router.push("/plans" as never)} accessibilityRole="button" className="mt-2">
+              <Text className="text-sm" style={{ color: COLORS.accent }}>See plans</Text>
+            </Pressable>
+          ) : null}
           <Pressable onPress={create} disabled={!valid || busy} className="mt-6 h-14 rounded-2xl items-center justify-center" style={{ backgroundColor: COLORS.white, opacity: valid && !busy ? 1 : 0.4 }}>{busy ? <ActivityIndicator color={COLORS.black} /> : <Text className="font-semibold" style={{ color: COLORS.black }}>Create Vault</Text>}</Pressable>
         </View>
       </ScrollView>

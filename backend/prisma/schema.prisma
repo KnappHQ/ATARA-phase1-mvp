@@ -39,6 +39,49 @@ model User {
   expenseSplits    GroupExpenseSplit[]
   feedbacks        Feedback[]
   recoveryCodes    RecoveryCode[]
+  milesEntries     MilesEntry[]
+  cardWaitlist     CardWaitlist?
+}
+
+// ATARA Miles: a ledger of signed entries. The balance is their sum, never a
+// stored number that something can overwrite. (source, sourceId, kind) is unique
+// so a replayed card event cannot credit twice.
+model MilesEntry {
+  id            String         @id @default(uuid())
+  userId        String
+  kind          MilesEntryKind
+  miles         Int
+  spendUsdCents Int?
+  source        String
+  sourceId      String
+  createdAt     DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([source, sourceId, kind])
+  @@index([userId, createdAt])
+}
+
+// Every card-provider event already handled, so a retried webhook does nothing
+// the second time. Holds no card data: only what is needed to recognise it.
+model CardEvent {
+  id         String   @id @default(uuid())
+  provider   String
+  eventId    String
+  type       String
+  userId     String?
+  receivedAt DateTime @default(now())
+
+  @@unique([provider, eventId])
+}
+
+// People who asked for the card before it is available: measures demand.
+model CardWaitlist {
+  userId    String   @id
+  country   String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model AuthChallenge {
@@ -163,7 +206,16 @@ enum SplitDecision {
 
 enum SubscriptionTier {
   FREE
+  // First-generation name of the paid offer, never granted; read as PLUS.
   PREMIUM
+  PLUS
+  MAX
+}
+
+enum MilesEntryKind {
+  EARN
+  REVERSAL
+  REDEEM
 }
 
 enum SubscriptionStatus {
