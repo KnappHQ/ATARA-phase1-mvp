@@ -18,12 +18,15 @@ test("the receipt says Sending while it waits, says nothing once confirmed, and 
   assert.match(failed.body, /No money was sent/);
 });
 
-test("the swipe hands over to the receipt as soon as the payment is accepted, and does not navigate twice", () => {
+test("the swipe goes straight home as soon as the payment is accepted, and does not navigate twice", () => {
   const step = read("components/send/AmountStep.tsx");
-  assert.match(step, /onAccepted: \(id: string\) => showSuccess\(id\)/);
+  assert.match(step, /onAccepted: \(\) => leaveSendFlow\(\)/);
   assert.match(step, /if \(movedOn\) return;\s*movedOn = true;/);
-  // The late result goes through the same guard, so the receipt opens once.
-  assert.match(step, /showSuccess\(result\.transactionId, result\.hash \|\| ""\)/);
+  assert.match(step, /useAlertStore\.getState\(\)\.success\("Payment sent"/);
+  assert.match(step, /router\.replace\("\/\(tabs\)"\)/);
+  // The late result goes through the same guard, so it happens once.
+  assert.match(step, /\} else \{\s*if \(movedOn\) return;/);
+  assert.doesNotMatch(step, /transaction-success/);
   const service = read("services/transaction.service.ts");
   assert.match(service, /onSubmitted: \(\) => \{\s*accepted = true;\s*request\.onAccepted\?\.\(transactionId\);/);
   // A failure after the screen moved on is raised as an alert.

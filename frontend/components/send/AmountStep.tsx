@@ -256,34 +256,27 @@ export const AmountStep = ({
     setIsSending(true);
 
     let movedOn = false;
-    const showSuccess = (transactionId: string, hash = "") => {
+    const leaveSendFlow = () => {
       if (movedOn) return;
       movedOn = true;
-      router.push({
-        pathname: "/transaction-success",
-        params: {
-          transactionId,
-          hash,
-          recipient: recipient.handle,
-          amount: amountValue.toString(),
-          token: selectedToken.symbol,
-          gasPaidDisplay: "Sponsored",
-        },
-      });
+      // Back to the home screen with a short toast: no receipt to dismiss. The
+      // payment keeps confirming in the background; a failure raises an alert
+      // and Activity always shows where it stands.
+      useAlertStore.getState().success("Payment sent", `${amountValue} ${selectedToken.symbol} to ${recipient.handle}`);
+      router.replace("/(tabs)");
     };
 
     try {
       // As soon as the payment is accepted and on record it cannot be sent
-      // twice, so the person goes straight to the receipt instead of watching a
-      // swipe wait for the network. The receipt shows "Sending…", then the
-      // result, and a later failure is raised as an alert.
-      const transactionRequest = { ...buildTransactionRequest(), onAccepted: (id: string) => showSuccess(id) };
+      // twice, so the person goes straight home instead of watching a swipe
+      // wait for the network.
+      const transactionRequest = { ...buildTransactionRequest(), onAccepted: () => leaveSendFlow() };
       const result =
         await transactionService.sendTransaction(transactionRequest);
 
       if (result.success) {
-        // Already on the receipt, except when the payment was answered from an earlier one.
-        showSuccess(result.transactionId, result.hash || "");
+        // Already home, except when the payment was answered from an earlier one.
+        leaveSendFlow();
       } else {
         if (movedOn) return;
         if (result.isPendingVerification) setStatusUnknown(true);
