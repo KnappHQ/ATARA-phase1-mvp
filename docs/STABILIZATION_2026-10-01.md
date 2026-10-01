@@ -119,7 +119,7 @@ failed » chez toi. Elles ne sont pas visibles depuis le code :
    **sans jamais afficher une clé**, pour chaque variable : présente oui/non, longueur,
    type de clé (préfixe public `pk_test` / `sk_test` / `wk` / autre), l'environnement, et
    la liste des problèmes avec leur correctif (`MP-SECRET-IS-PUBLISHABLE-KEY`, `MP-API-KEY-WRAPPED`,
-   `MP-SECRET-ENVIRONMENT`, …). Si tout est bon, il construit une vraie URL avec la vraie
+   `MP-SECRET-ENVIRONMENT`, …). Un `ONRAMP_REDIRECT_URL` non-https ou un code devise inhabituel sont des **avertissements**, jamais des blocages (le code d'avant les acceptait ; ils ne peuvent pas casser une configuration qui marche). Si tout est bon, il construit une vraie URL avec la vraie
    configuration et vérifie qu'elle **se vérifie contre son propre secret**. Il termine en disant
    ce qu'il ne peut pas prouver (l'appariement des deux clés).
 2. **Une ligne de log par session** (`moonpay-session-created`) : environnement, hôte, types

@@ -62,9 +62,6 @@ export const buildMoonPayWidgetUrl = (input: MoonPaySessionInput): string => {
     if (first === "widget-url-invalid" || first === "widget-host") {
       throw new ErrorHandler("The on-ramp URL does not match the configured network", 503, code);
     }
-    if (first === "redirect-not-https" || first === "currency-format") {
-      throw new ErrorHandler("The on-ramp is not configured correctly", 503, code);
-    }
     throw new ErrorHandler(`MoonPay keys do not match the configured ${report.mode} environment`, 503, code);
   }
 
@@ -101,6 +98,7 @@ export const buildMoonPayWidgetUrl = (input: MoonPaySessionInput): string => {
     apiKeyLength: report.apiKey.length,
     secretKeyLength: report.secretKey.length,
     queryParams: params.map(([name]) => name),
+    warnings: report.warnings,
   });
   return signed;
 };

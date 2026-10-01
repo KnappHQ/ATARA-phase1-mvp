@@ -31,11 +31,18 @@ export type MoonPayProblem =
   | "secret-is-webhook-key"
   | "keys-identical"
   | "widget-url-invalid"
-  | "widget-host"
+  | "widget-host";
+
+/**
+ * Worth knowing, never blocking: the server handles each one (it trims whitespace)
+ * or the code before this accepted it and MoonPay may too.
+ */
+export type MoonPayWarning =
+  | "api-key-edge-whitespace"
+  | "secret-edge-whitespace"
+  | "widget-url-has-query"
   | "redirect-not-https"
   | "currency-format";
-
-export type MoonPayWarning = "api-key-edge-whitespace" | "secret-edge-whitespace" | "widget-url-has-query";
 
 export interface MoonPayConfigInput {
   apiKey?: string;
@@ -128,11 +135,11 @@ export const inspectMoonPayConfig = (input: MoonPayConfigInput): MoonPayConfigRe
   }
 
   const redirect = (input.redirectUrl ?? "").trim();
-  if (redirect && !/^https:\/\//i.test(redirect)) problems.push("redirect-not-https");
+  if (redirect && !/^https:\/\//i.test(redirect)) warnings.push("redirect-not-https");
 
   for (const code of [input.currencyCode, input.baseCurrencyCode]) {
-    if (code !== undefined && !/^[a-z0-9_]{2,32}$/.test(code.trim())) {
-      if (!problems.includes("currency-format")) problems.push("currency-format");
+    if (code !== undefined && !/^[a-z0-9_]{2,32}$/i.test(code.trim())) {
+      if (!warnings.includes("currency-format")) warnings.push("currency-format");
     }
   }
 
@@ -168,8 +175,14 @@ export const PROBLEM_FIXES: Record<MoonPayProblem, string> = {
   "keys-identical": "MOONPAY_API_KEY and MOONPAY_SECRET_KEY hold the same value.",
   "widget-url-invalid": "MOONPAY_WIDGET_URL must be a plain https URL without credentials or port.",
   "widget-host": "MOONPAY_WIDGET_URL points at the other environment than ALCHEMY_NETWORK selects.",
-  "redirect-not-https": "ONRAMP_REDIRECT_URL must be an https URL, or empty.",
-  "currency-format": "MOONPAY_CURRENCY_CODE or MOONPAY_BASE_CURRENCY_CODE has an unexpected format.",
+};
+
+export const WARNING_FIXES: Record<MoonPayWarning, string> = {
+  "api-key-edge-whitespace": "MOONPAY_API_KEY has whitespace or a line break around it. The server trims it; clean it up anyway.",
+  "secret-edge-whitespace": "MOONPAY_SECRET_KEY has whitespace or a line break around it. The server trims it; clean it up anyway.",
+  "widget-url-has-query": "MOONPAY_WIDGET_URL carries a query string. The server replaces it; remove it.",
+  "redirect-not-https": "ONRAMP_REDIRECT_URL is not an https URL. MoonPay documents https or a Universal Link; it may refuse anything else.",
+  "currency-format": "MOONPAY_CURRENCY_CODE or MOONPAY_BASE_CURRENCY_CODE has an unexpected format (MoonPay codes look like usdc_base and eur).",
 };
 
 /** The raw environment, untrimmed, so copy-paste whitespace can be reported. */

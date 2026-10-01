@@ -6,7 +6,7 @@ process.env.JWT_SECRET = process.env.JWT_SECRET || "test-secret";
 process.env.NODE_ENV = "test";
 require("ts-node/register");
 
-const { inspectMoonPayConfig, readMoonPayEnv, problemCode, PROBLEM_FIXES, keyKind } = require("../utils/moonpayConfig.ts");
+const { inspectMoonPayConfig, readMoonPayEnv, problemCode, PROBLEM_FIXES, WARNING_FIXES, keyKind } = require("../utils/moonpayConfig.ts");
 const { errorMiddleware } = require("../middleware/error.middleware.ts");
 const { ErrorHandler } = require("../utils/errorHandler.ts");
 
@@ -78,17 +78,24 @@ test("the environment is chosen by ALCHEMY_NETWORK, and live needs live keys on 
   assert.deepEqual(inspectMoonPayConfig({ ...base, network: "base-mainnet" }).problems, ["api-key-environment", "secret-environment", "widget-host"]);
 });
 
-test("the widget URL, the redirect and the currency codes are checked too", () => {
+test("the widget URL is checked, and a redirect or currency code that looks odd is a warning, never a blocker", () => {
   const problems = (patch) => inspectMoonPayConfig({ ...base, ...patch }).problems;
+  const warnings = (patch) => inspectMoonPayConfig({ ...base, ...patch }).warnings;
   assert.deepEqual(problems({ widgetUrl: "https://evil.example/" }), ["widget-host"]);
   assert.deepEqual(problems({ widgetUrl: "http://buy-sandbox.moonpay.com/" }), ["widget-url-invalid"]);
   assert.deepEqual(problems({ widgetUrl: "https://user:pw@buy-sandbox.moonpay.com/" }), ["widget-url-invalid"]);
   assert.deepEqual(problems({ widgetUrl: "not a url" }), ["widget-url-invalid"]);
-  assert.deepEqual(problems({ redirectUrl: "http://atara.finance/done" }), ["redirect-not-https"]);
-  assert.deepEqual(problems({ redirectUrl: "atara://done" }), ["redirect-not-https"]);
-  assert.deepEqual(problems({ redirectUrl: "https://atara.finance/done" }), []);
-  assert.deepEqual(problems({ currencyCode: "USDC Base!" }), ["currency-format"]);
-  assert.deepEqual(problems({ redirectUrl: "" }), []);
+  // Configurations the code accepted before this check existed keep working.
+  for (const redirectUrl of ["http://atara.finance/done", "atara://done"]) {
+    assert.deepEqual(problems({ redirectUrl }), []);
+    assert.deepEqual(warnings({ redirectUrl }), ["redirect-not-https"]);
+  }
+  assert.deepEqual(warnings({ redirectUrl: "https://atara.finance/done" }), []);
+  assert.deepEqual(warnings({ redirectUrl: "" }), []);
+  assert.deepEqual(warnings({ currencyCode: "USDC Base!" }), ["currency-format"]);
+  assert.deepEqual(warnings({ baseCurrencyCode: "EUR" }), [], "upper case was accepted before and still is");
+  assert.deepEqual(problems({ currencyCode: "USDC Base!", redirectUrl: "atara://x" }), []);
+  assert.equal(inspectMoonPayConfig({ ...base, redirectUrl: "atara://x" }).ok, true);
 });
 
 test("the report never holds a key's value, not even a fragment of one", () => {
@@ -99,7 +106,7 @@ test("the report never holds a key's value, not even a fragment of one", () => {
     for (let i = 0; i + 6 <= tail.length; i++) assert.equal(dump.includes(tail.slice(i, i + 6)), false, "a fragment of a key is in the report");
   }
   assert.equal(dump.includes("atara.finance"), false, "the redirect value is not reported, only that one is set");
-  for (const fix of Object.values(PROBLEM_FIXES)) assert.equal(/pk_[a-z]+_\w{6,}|sk_[a-z]+_\w{6,}/.test(fix), false);
+  for (const fix of [...Object.values(PROBLEM_FIXES), ...Object.values(WARNING_FIXES)]) assert.equal(/pk_[a-z]+_\w{6,}|sk_[a-z]+_\w{6,}/.test(fix), false);
   assert.equal(problemCode("secret-prefix"), "MP-SECRET-PREFIX");
   assert.equal(keyKind("sk_live_whatever"), "sk_live");
   assert.deepEqual(Object.keys(readMoonPayEnv({})).sort(), ["apiKey", "baseCurrencyCode", "currencyCode", "network", "redirectUrl", "secretKey", "widgetUrl"]);
@@ -155,7 +162,6 @@ test("missing or wrong configuration is refused with a fixed code and no secret 
     [{ MOONPAY_API_KEY: API, MOONPAY_SECRET_KEY: API }, "MoonPay keys do not match the configured sandbox environment", "MP-SECRET-IS-PUBLISHABLE-KEY"],
     [{ MOONPAY_API_KEY: "pk_live_AbCdEfGhIjKlMnOpQrStUvWxYz012345", MOONPAY_SECRET_KEY: SECRET }, "MoonPay keys do not match the configured sandbox environment", "MP-API-KEY-ENVIRONMENT"],
     [{ ...GOOD_ENV, MOONPAY_WIDGET_URL: "https://buy.moonpay.com/" }, "The on-ramp URL does not match the configured network", "MP-WIDGET-HOST"],
-    [{ ...GOOD_ENV, ONRAMP_REDIRECT_URL: "http://atara.finance/x" }, "The on-ramp is not configured correctly", "MP-REDIRECT-NOT-HTTPS"],
   ];
   for (const [env, message, code] of cases) {
     const { buildMoonPayWidgetUrl } = freshService(env);
@@ -170,6 +176,14 @@ test("missing or wrong configuration is refused with a fixed code and no secret 
     for (const secret of [API, SECRET]) assert.equal(logged.includes(secret.slice(8)) || result.message.includes(secret.slice(8)), false, `a key leaked for ${code}`);
     assert.match(logged, /moonpay-config-invalid/);
   }
+});
+
+test("an odd redirect or currency code does not stop a session: the URL is built, signed, and the warning is logged", () => {
+  const { buildMoonPayWidgetUrl, verifyMoonPayUrl } = freshService({ ...GOOD_ENV, ONRAMP_REDIRECT_URL: "atara://done", MOONPAY_BASE_CURRENCY_CODE: "EUR" });
+  const { result: url, captured } = captureStderr(() => buildMoonPayWidgetUrl({ walletAddress: WALLET }));
+  assert.equal(verifyMoonPayUrl(url, SECRET), true);
+  const line = JSON.parse(captured().trim().split("\n").pop());
+  assert.deepEqual(line.warnings, ["redirect-not-https"]);
 });
 
 test("the code reaches the app in the JSON error, and nothing else about the configuration does", () => {
@@ -192,6 +206,7 @@ test("a created session is logged with what a diagnosis needs and no key", () =>
   assert.equal(line.secretKeyKind, "sk_test");
   assert.equal(line.apiKeyLength, API.length);
   assert.deepEqual(line.queryParams, ["apiKey", "currencyCode", "baseCurrencyCode", "walletAddress", "theme", "baseCurrencyAmount", "lockAmount"]);
+  assert.deepEqual(line.warnings, []);
   const text = captured();
   for (const secret of [API, SECRET]) assert.equal(text.includes(secret.slice(8)), false);
   assert.equal(text.includes(WALLET), false, "the wallet address is not logged");

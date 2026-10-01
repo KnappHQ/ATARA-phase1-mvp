@@ -22,7 +22,7 @@ const load = (name) => {
 };
 
 require("dotenv").config({ path: path.join(__dirname, "..", ".env"), quiet: true });
-const { inspectMoonPayConfig, readMoonPayEnv, problemCode, PROBLEM_FIXES } = load("utils/moonpayConfig.js");
+const { inspectMoonPayConfig, readMoonPayEnv, problemCode, PROBLEM_FIXES, WARNING_FIXES } = load("utils/moonpayConfig.js");
 
 const report = inspectMoonPayConfig(readMoonPayEnv());
 const yes = (value) => (value ? "yes" : "NO");
@@ -37,7 +37,7 @@ line();
 
 if (report.warnings.length) {
   line("Warnings (handled by the server, worth cleaning up):");
-  for (const warning of report.warnings) line(`  - ${warning}`);
+  for (const warning of report.warnings) line(`  - ${warning}: ${WARNING_FIXES[warning]}`);
   line();
 }
 
