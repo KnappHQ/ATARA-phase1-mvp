@@ -12,10 +12,8 @@ test("Free stays useful, paid offers only add, and no plan takes a fee on transf
   const [free, plus, max] = ["FREE", "PLUS", "MAX"].map(getPlan);
   assert.equal(free.priceEurCents, 0);
   assert.ok(plus.priceEurCents > 0 && max.priceEurCents > plus.priceEurCents);
-  for (const key of ["vaults", "vaultMembers"]) {
-    assert.ok(free.limits[key] >= 1);
-    assert.ok(plus.limits[key] >= free.limits[key] && max.limits[key] >= plus.limits[key]);
-  }
+  // Vaults are postponed: no plan carries a limit on them.
+  for (const plan of [free, plus, max]) assert.equal("limits" in plan, false);
   assert.ok(plus.sponsorship.monthlySends > free.sponsorship.monthlySends);
   assert.ok(max.milesPerUsd > plus.milesPerUsd && plus.milesPerUsd > free.milesPerUsd);
   for (const plan of [free, plus, max]) {
@@ -23,28 +21,25 @@ test("Free stays useful, paid offers only add, and no plan takes a fee on transf
     // Paying more never raises a fee.
   }
   for (const kind of ["ramp", "card_fx", "swap"]) assert.ok(free.feeBps[kind] >= plus.feeBps[kind] && plus.feeBps[kind] >= max.feeBps[kind]);
-  // The deployed vault contract allows 10 members; no plan may promise more.
-  for (const plan of [free, plus, max]) assert.ok(plan.limits.vaultMembers <= 10);
 });
 
 test("an override changes only what is valid, and reports what it ignored", () => {
   const { plans, ignored } = applyPlanOverrides(
     JSON.stringify({
-      PLUS: { priceEurCents: 599, limits: { vaults: 8, vaultMembers: 50 }, feeBps: { ramp: 20, swap: 9999 } },
+      PLUS: { priceEurCents: 599, limits: { vaults: 8 }, feeBps: { ramp: 20, swap: 9999 } },
       FREE: { priceEurCents: 100 },
       MAX: { name: "" },
       BOGUS: {},
     }),
   );
   assert.equal(plans.PLUS.priceEurCents, 599);
-  assert.equal(plans.PLUS.limits.vaults, 8);
+  assert.equal("limits" in plans.PLUS, false, "a Vault limit in an override is ignored");
   assert.equal(plans.PLUS.feeBps.ramp, 20);
-  // Past the contract's limit, past the fee ceiling, a paid Free, an empty name: all refused.
-  assert.equal(plans.PLUS.limits.vaultMembers, 10);
+  // Past the fee ceiling, a paid Free, an empty name: all refused.
   assert.equal(plans.PLUS.feeBps.swap, 25);
   assert.equal(plans.FREE.priceEurCents, 0);
   assert.notEqual(plans.MAX.name, "");
-  assert.deepEqual(ignored.sort(), ["FREE.priceEurCents", "MAX.name", "PLUS.feeBps.swap", "PLUS.limits.vaultMembers"]);
+  assert.deepEqual(ignored.sort(), ["FREE.priceEurCents", "MAX.name", "PLUS.feeBps.swap"]);
 });
 
 test("a broken override never takes the service down", () => {
