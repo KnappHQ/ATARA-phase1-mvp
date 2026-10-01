@@ -175,11 +175,13 @@ export default function ContactDetail() {
                     .toUpperCase()}
                 </Text>
               </View>
-              <View>
+              <View style={{ flex: 1, minWidth: 0 }}>
                 <View className="flex-row items-center gap-2">
                   <Text
                     className="text-xl font-semibold"
-                    style={{ color: COLORS.white }}
+                    numberOfLines={1}
+                    maxFontSizeMultiplier={1.6}
+                    style={{ color: COLORS.white, flexShrink: 1 }}
                   >
                     {contact.displayName}
                   </Text>
@@ -208,6 +210,9 @@ export default function ContactDetail() {
                 </View>
                 <Text
                   className="text-sm font-mono"
+                  numberOfLines={1}
+                  ellipsizeMode="middle"
+                  maxFontSizeMultiplier={1.6}
                   style={{ color: "rgba(255, 255, 255, 0.4)" }}
                 >
                   {truncateAddress(contact.address)}
@@ -286,9 +291,13 @@ export default function ContactDetail() {
                           )}
                         </View>
 
-                        <View className="flex-1">
+                        <View className="flex-1" style={{ minWidth: 0 }}>
                           <Text
                             className="text-base font-semibold mb-0.5"
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                            minimumFontScale={0.75}
+                            maxFontSizeMultiplier={1.6}
                             style={{
                               color: isReceive
                                 ? COLORS.emarald

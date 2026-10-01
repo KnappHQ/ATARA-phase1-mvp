@@ -26,9 +26,8 @@ import { TermsOfServiceScreen } from "@/components/profile/TermsOfServiceScreen"
 import { PrivacyPolicyScreen } from "@/components/profile/PrivacyPolicyScreen";
 import { useAuth } from "@/providers/AuthProvider";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { useAddressBookStore } from "@/stores/useAddressBookStore";
+import { useAccountSwitchStore } from "@/stores/useAccountSwitchStore";
 import { getInitials } from "@/utils/format";
-import { UserService } from "@/services/user.service";
 
 const SettingRow = ({
   icon: Icon,
@@ -117,6 +116,8 @@ export default function ProfileTab() {
   const initials = getInitials(user?.displayName ?? null, user?.handle ?? "");
 
   const handleLogout = async () => {
+    // A plain logout is not the middle of a switch left over from earlier.
+    useAccountSwitchStore.getState().clear();
     try {
       await logout();
     } catch (err) {
@@ -142,14 +143,6 @@ export default function ProfileTab() {
     } finally {
       setDisplayNameSaving(false);
     }
-  };
-
-  const deleteAccount = async () => {
-    const userId = useAuthStore.getState().user?.id;
-    await UserService.deleteAccount();
-    // Nicknames live on this phone only; the server cannot delete them.
-    if (userId) useAddressBookStore.getState().forget(userId);
-    await logout();
   };
 
   return (
@@ -193,20 +186,24 @@ export default function ProfileTab() {
 
           <SectionHeader title="Account and sign-in" />
           <Text className="text-white/50 text-xs leading-5 mb-4">
-            Name each account above and check its @handle before you
-            log out. The iOS passkey picker does not show these names yet.
+            Your @handle and account name above are public. In Manage
+            accounts, each account also has a private name that exists only on
+            this iPhone: it is what tells your accounts apart when you switch.
           </Text>
+          <SettingRow
+            icon={Users}
+            label="Manage accounts"
+            subtitle="Rename, switch, add or remove the accounts on this iPhone"
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/manage-accounts" as never);
+            }}
+            right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
+          />
           <SettingRow
             icon={LogOut}
             label="Log out"
             subtitle="End your session without deleting your account or wallet"
-            onPress={() => setLogoutOpen(true)}
-            right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
-          />
-          <SettingRow
-            icon={Users}
-            label="Use another account"
-            subtitle="Log out of this account, then choose another sign-in method"
             onPress={() => setLogoutOpen(true)}
             right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
           />
@@ -328,7 +325,6 @@ export default function ProfileTab() {
       <DeleteAccountModal
         isOpen={deleteAccountOpen}
         onClose={() => setDeleteAccountOpen(false)}
-        onConfirm={deleteAccount}
       />
     </View>
   );

@@ -255,24 +255,37 @@ export const AmountStep = ({
     clearError();
     setIsSending(true);
 
+    let movedOn = false;
+    const showSuccess = (transactionId: string, hash = "") => {
+      if (movedOn) return;
+      movedOn = true;
+      router.push({
+        pathname: "/transaction-success",
+        params: {
+          transactionId,
+          hash,
+          recipient: recipient.handle,
+          amount: amountValue.toString(),
+          token: selectedToken.symbol,
+          gasPaidDisplay: "Sponsored",
+        },
+      });
+    };
+
     try {
-      const transactionRequest = buildTransactionRequest();
+      // As soon as the payment is accepted and on record it cannot be sent
+      // twice, so the person goes straight to the receipt instead of watching a
+      // swipe wait for the network. The receipt shows "Sending…", then the
+      // result, and a later failure is raised as an alert.
+      const transactionRequest = { ...buildTransactionRequest(), onAccepted: (id: string) => showSuccess(id) };
       const result =
         await transactionService.sendTransaction(transactionRequest);
 
       if (result.success) {
-        router.push({
-          pathname: "/transaction-success",
-          params: {
-            transactionId: result.transactionId,
-            hash: result.hash || "",
-            recipient: recipient.handle,
-            amount: amountValue.toString(),
-            token: selectedToken.symbol,
-            gasPaidDisplay: "Sponsored",
-          },
-        });
+        // Already on the receipt, except when the payment was answered from an earlier one.
+        showSuccess(result.transactionId, result.hash || "");
       } else {
+        if (movedOn) return;
         if (result.isPendingVerification) setStatusUnknown(true);
         throw new Error(result.error || "Transaction failed");
       }

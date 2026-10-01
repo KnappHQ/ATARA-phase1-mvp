@@ -135,7 +135,10 @@ chaîne et partage le moins possible ; il ne rend pas tes paiements anonymes.
 - **Notifications** : l'app n'en envoie pas ; aucune information financière ne
   peut donc apparaître sur l'écran verrouillé.
 - **Stockage local** : jeton de session et profil minimal dans le trousseau
-  (`expo-secure-store`) ; surnoms dans AsyncStorage, par compte.
+  (`expo-secure-store`) ; surnoms dans AsyncStorage, par compte ; liste des
+  comptes de l'iPhone (noms privés, @handle, adresse, identifiants de passkeys,
+  jamais de clé) dans AsyncStorage, **jamais envoyée** à l'API ni à Privy — voir
+  `docs/ACCOUNTS_AND_PASSKEYS.md`.
 - **Analytics** : aucune analytics produit passive en bêta.
 
 ### 2.3 Limites par parcours

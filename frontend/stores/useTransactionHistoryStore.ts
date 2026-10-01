@@ -9,6 +9,7 @@ import {
 import { useAddressBookStore } from "@/stores/useAddressBookStore";
 import { useWalletStore } from "@/stores/useWalletStore";
 import * as Sentry from "@sentry/react-native";
+import { dedupeHistory } from "@/utils/historyMerge";
 
 export interface DisplayTransaction {
   id: string;
@@ -210,7 +211,7 @@ export const useTransactionHistoryStore = create<HistoryState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
-      const rawHistory = await HistoryService.getHistory();
+      const rawHistory = dedupeHistory(await HistoryService.getHistory());
       if (revision !== accountRevision()) return;
       const displayHistory = rawHistory.map(transformTransaction);
       const contactThreads = groupTransactionsByContact(displayHistory);

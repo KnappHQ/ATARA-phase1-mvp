@@ -48,6 +48,8 @@ const PROTECTED_ROUTES = [
   "add-crypto",
   "pay-merchant",
   "security",
+  "manage-accounts",
+  "sign-in-methods",
   "sovereignty",
   "vault-create",
   "vault-detail",
@@ -202,6 +204,8 @@ function RootLayoutInner() {
           }}
         />
         <Stack.Screen name="security" options={{ presentation: "card", animation: "slide_from_bottom" }} />
+        <Stack.Screen name="manage-accounts" options={{ presentation: "card", animation: "slide_from_bottom" }} />
+        <Stack.Screen name="sign-in-methods" options={{ presentation: "card", animation: "slide_from_right" }} />
         <Stack.Screen name="sovereignty" options={{ presentation: "card", animation: "slide_from_bottom" }} />
         <Stack.Screen name="vault-create" options={{ presentation: "card", animation: "slide_from_bottom" }} />
         <Stack.Screen name="vault-detail" options={{ presentation: "card", animation: "slide_from_bottom" }} />

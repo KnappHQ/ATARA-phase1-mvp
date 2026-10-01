@@ -1,6 +1,7 @@
 import { useTransactionStore } from "../stores/useTransactionStore";
 import { useTransactionHistoryStore } from "../stores/useTransactionHistoryStore";
 import { SmartAccountService } from "./smartAccount.service";
+import { flushRecordings, getPaymentOperations } from "./paymentOperations.runtime";
 import { queueSettlement, retryPendingSettlements, type SettlementReference } from "./settlementRecovery.service";
 import { api } from "./api";
 import { useAlertStore } from "../stores/useAlertStore";
@@ -21,6 +22,12 @@ export interface SendTransactionRequest {
   note?: string;
   /** Called after the transaction is synced to the backend DB. Safe to call backend endpoints that depend on the transaction record existing. */
   settlement?: SettlementReference;
+  /**
+   * Called once, as soon as the payment is accepted and safely on record, before
+   * it is confirmed. The screen can move on; a later failure is reported by
+   * this service as an alert, since nobody is waiting on the swipe any more.
+   */
+  onAccepted?: (transactionId: string) => void;
   onSynced?: (transactionId: string) => Promise<void> | void;
 }
 
@@ -92,6 +99,7 @@ export class TransactionService {
       });
     }
 
+    let accepted = false;
     try {
       const expectedChain = process.env.EXPO_PUBLIC_NETWORK === "base-mainnet" ? 8453 : 84532;
       let reportedChain: unknown;
@@ -109,13 +117,21 @@ export class TransactionService {
       // 1. Sends the UserOperation (gas-sponsored via policy)
       // 2. Waits for it to be bundled into a real transaction
       // 3. Returns the actual mined transaction hash
-      const result = await this.smartAccountService.sendTransaction({
-        recipientAddress: request.recipientAddress,
-        amount: request.amount,
-        tokenSymbol: request.tokenSymbol,
-        tokenAddress: request.tokenAddress,
-        decimals: request.decimals,
-      });
+      const result = await this.smartAccountService.sendTransaction(
+        {
+          recipientAddress: request.recipientAddress,
+          amount: request.amount,
+          tokenSymbol: request.tokenSymbol,
+          tokenAddress: request.tokenAddress,
+          decimals: request.decimals,
+        },
+        {
+          onSubmitted: () => {
+            accepted = true;
+            request.onAccepted?.(transactionId);
+          },
+        },
+      );
 
       if (!result.success || !result.hash) {
         throw new Error("Transaction failed to execute");
@@ -133,7 +149,7 @@ export class TransactionService {
         } catch { useAlertStore.getState().error("Keep your receipt", "Payment sent. This device could not save the payment reconciliation record."); }
       }
       // Sync with backend in background (don't block the UI)
-      this.syncTransactionWithBackend(transactionId)
+      this.recordConfirmedPayment(transactionId, result.hash, request)
         .then(async (backendTransactionId) => {
           // Auto-refresh history to show new transaction
           useTransactionHistoryStore.getState().fetchHistory();
@@ -144,7 +160,7 @@ export class TransactionService {
             await request.onSynced(backendTransactionId);
           }
         })
-        .catch(() => useAlertStore.getState().error("Payment sent; check your history", "Keep your receipt and refresh Activity. Do not pay a second time because of a sync delay."));
+        .catch(() => useAlertStore.getState().error("Payment sent", "It went through. ATARA has not recorded it in your history yet and will keep trying; Activity shows where it stands. Do not pay a second time."));
 
       return {
         transactionId,
@@ -164,6 +180,14 @@ export class TransactionService {
       } else {
         markTransactionFailed(transactionId, failureMessage);
       }
+      if (accepted) {
+        // The screen already moved on, so say so here.
+        if (error?.isPendingVerification) {
+          useAlertStore.getState().error("Payment still being verified", "It may still go through. Check Activity before sending again.");
+        } else {
+          useAlertStore.getState().error("Payment did not go through", `${failureMessage} No money was sent for it.`);
+        }
+      }
 
       return {
         transactionId,
@@ -175,31 +199,41 @@ export class TransactionService {
     }
   }
 
-  private async syncTransactionWithBackend(
+  /**
+   * Tells ATARA's service about a payment that is already confirmed on the chain.
+   *
+   * The confirmed payment is on this phone's outbox (see paymentOperations)
+   * before this runs, so if the service is down, or the app closes, it is
+   * retried later and only the recording is retried: the transfer is never
+   * sent again. Resolves with the service's id for it, or null when it was
+   * already recorded.
+   */
+  private async recordConfirmedPayment(
     transactionId: string,
+    hash: string,
+    request: SendTransactionRequest,
   ): Promise<string | null> {
-    const { getTransactionById } = useTransactionStore.getState();
-    const transaction = getTransactionById(transactionId);
-
-    if (!transaction || !transaction.hash) {
-      return null;
-    }
-
-    const rawAmountWei = transaction.rawAmountWei || parseUnits(transaction.amount, transaction.decimals || 18).toString();
+    const account = this.smartAccountService.address;
+    const operations = getPaymentOperations();
+    const wanted = hash.toLowerCase();
+    const transaction = useTransactionStore.getState().getTransactionById(transactionId);
+    await operations.outbox.enrich(account, wanted, {
+      amount: request.amount,
+      category: "transfer",
+      note: request.note ?? transaction?.note ?? null,
+      ...(request.recipientHandle !== undefined ? { recipientHandle: request.recipientHandle } : {}),
+      ...(request.recipientName !== undefined ? { recipientName: request.recipientName } : {}),
+    });
     for (let attempt = 0; attempt < 5; attempt++) {
-      if (attempt) await new Promise(resolve => setTimeout(resolve, 1500 * attempt));
-      try {
-        const response = await api.post("/transaction/sync", {
-          receiverAddress: transaction.recipientAddress, txHash: transaction.hash, userOpHash: transaction.userOpHash,
-          amount: transaction.amount, rawAmountWei, assetSymbol: transaction.tokenSymbol,
-          category: "transfer", userNote: transaction.note || null,
-        });
-        if (response.data?.transaction?.id) return response.data.transaction.id as string;
-      } catch (error: any) {
-        if (![202, 404, 409, 500, 502, 503, 504].includes(error?.response?.status)) throw error;
-      }
+      if (attempt) await new Promise((resolve) => setTimeout(resolve, 1500 * attempt));
+      const summary = await flushRecordings(account, { force: true });
+      const id = summary.recordedIds[wanted];
+      if (id) return id;
+      const remaining = (await operations.outbox.list(account)).find((entry) => entry.transactionHash === wanted);
+      if (!remaining) return null;
+      if (remaining.state === "rejected") break;
     }
-    throw new Error("Payment confirmed on chain; backend reconciliation pending");
+    throw new Error("Payment confirmed on chain; recording pending");
   }
 }
 

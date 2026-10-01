@@ -219,8 +219,9 @@ export const IdentityScreen = ({
           className="border border-white/30 px-4 py-4 text-white text-base"
         />
         <Text className="text-white/40 text-[11px] leading-4 mt-2">
-          You can change it later. iOS may display only “ATARA”
-          in its passkey list.
+          You can change it later. This is your public name. The name that
+          tells your accounts apart on this iPhone is separate and private:
+          ATARA never receives it.
         </Text>
 
         <View className="mt-5 flex-row items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-4">
