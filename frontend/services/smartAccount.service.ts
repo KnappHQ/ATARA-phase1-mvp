@@ -67,6 +67,11 @@ export interface SmartAccountCall {
   data: `0x${string}` | string;
 }
 
+export interface SendOptions {
+  /** The provider has accepted the payment and it is on record: it can no longer be sent twice. */
+  onSubmitted?: () => void;
+}
+
 export interface SendTransactionFailure extends Error {
   code?: string;
   cause?: unknown;
@@ -323,16 +328,19 @@ export class SmartAccountService {
       data: `0x${string}` | string;
     },
     overrides?: Record<string, unknown>,
+    options?: SendOptions,
   ): Promise<TransactionResult> {
     return this.sendCallsAndWait(
       [{ target: uo.target, value: uo.value, data: uo.data }],
       overrides,
+      options,
     );
   }
 
   private async sendCallsAndWait(
     calls: SmartAccountCall[],
     overrides?: Record<string, unknown>,
+    options?: SendOptions,
   ): Promise<TransactionResult> {
     const operations = getPaymentOperations();
     return runExclusiveOperation(operations.lockKey(this.smartAccountAddress), () =>
@@ -342,6 +350,7 @@ export class SmartAccountService {
         account: this.smartAccountAddress,
         calls: calls.map((call) => ({ target: call.target, value: call.value, data: String(call.data) })),
         overrides,
+        onSubmitted: options?.onSubmitted,
       }),
     );
   }
@@ -410,6 +419,7 @@ export class SmartAccountService {
   async sendETH(
     recipientAddress: string,
     amount: string,
+    options?: SendOptions,
   ): Promise<TransactionResult> {
     if (!this.client) {
       throw new Error("Smart account client not available");
@@ -420,7 +430,7 @@ export class SmartAccountService {
         target: recipientAddress as `0x${string}`,
         value: parseEther(amount),
         data: "0x",
-      }, this.getGaslessCapabilities());
+      }, this.getGaslessCapabilities(), options);
 
       return result;
     } catch (error: any) {
@@ -439,6 +449,7 @@ export class SmartAccountService {
     amount: string,
     tokenAddress: string,
     decimals: number = 6,
+    options?: SendOptions,
   ): Promise<TransactionResult> {
     if (!this.client) {
       throw new Error("Smart account client not available");
@@ -457,7 +468,7 @@ export class SmartAccountService {
         target: tokenAddress as `0x${string}`,
         value: 0n,
         data: transferData,
-      }, this.getGaslessCapabilities());
+      }, this.getGaslessCapabilities(), options);
 
       return result;
     } catch (error: any) {
@@ -473,6 +484,7 @@ export class SmartAccountService {
 
   async sendTransaction(
     params: SendTransactionParams,
+    options?: SendOptions,
   ): Promise<TransactionResult> {
     const { recipientAddress, amount, tokenSymbol, tokenAddress, decimals } =
       params;
@@ -486,12 +498,12 @@ export class SmartAccountService {
     }
 
     if (tokenSymbol === "ETH") {
-      return this.sendETH(recipientAddress, amount);
+      return this.sendETH(recipientAddress, amount, options);
     } else {
       if (!tokenAddress) {
         throw new Error(`Token address required for ${tokenSymbol} transfers`);
       }
-      return this.sendToken(recipientAddress, amount, tokenAddress, decimals);
+      return this.sendToken(recipientAddress, amount, tokenAddress, decimals, options);
     }
   }
 

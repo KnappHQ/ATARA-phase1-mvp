@@ -22,6 +22,12 @@ export interface SendTransactionRequest {
   note?: string;
   /** Called after the transaction is synced to the backend DB. Safe to call backend endpoints that depend on the transaction record existing. */
   settlement?: SettlementReference;
+  /**
+   * Called once, as soon as the payment is accepted and safely on record, before
+   * it is confirmed. The screen can move on; a later failure is reported by
+   * this service as an alert, since nobody is waiting on the swipe any more.
+   */
+  onAccepted?: (transactionId: string) => void;
   onSynced?: (transactionId: string) => Promise<void> | void;
 }
 
@@ -93,6 +99,7 @@ export class TransactionService {
       });
     }
 
+    let accepted = false;
     try {
       const expectedChain = process.env.EXPO_PUBLIC_NETWORK === "base-mainnet" ? 8453 : 84532;
       let reportedChain: unknown;
@@ -110,13 +117,21 @@ export class TransactionService {
       // 1. Sends the UserOperation (gas-sponsored via policy)
       // 2. Waits for it to be bundled into a real transaction
       // 3. Returns the actual mined transaction hash
-      const result = await this.smartAccountService.sendTransaction({
-        recipientAddress: request.recipientAddress,
-        amount: request.amount,
-        tokenSymbol: request.tokenSymbol,
-        tokenAddress: request.tokenAddress,
-        decimals: request.decimals,
-      });
+      const result = await this.smartAccountService.sendTransaction(
+        {
+          recipientAddress: request.recipientAddress,
+          amount: request.amount,
+          tokenSymbol: request.tokenSymbol,
+          tokenAddress: request.tokenAddress,
+          decimals: request.decimals,
+        },
+        {
+          onSubmitted: () => {
+            accepted = true;
+            request.onAccepted?.(transactionId);
+          },
+        },
+      );
 
       if (!result.success || !result.hash) {
         throw new Error("Transaction failed to execute");
@@ -164,6 +179,14 @@ export class TransactionService {
         updateTransaction(transactionId, { error: "Awaiting chain verification. Check Activity before sending again." });
       } else {
         markTransactionFailed(transactionId, failureMessage);
+      }
+      if (accepted) {
+        // The screen already moved on, so say so here.
+        if (error?.isPendingVerification) {
+          useAlertStore.getState().error("Payment still being verified", "It may still go through. Check Activity before sending again.");
+        } else {
+          useAlertStore.getState().error("Payment did not go through", `${failureMessage} No money was sent for it.`);
+        }
       }
 
       return {

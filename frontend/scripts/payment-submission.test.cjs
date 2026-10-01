@@ -289,3 +289,40 @@ test("story: two accounts on one phone never see or block each other's payments,
   await settled.check(ACCOUNT);
   assert.deepEqual(await bOps.inLock.beforeSend(OTHER, fingerprintOf(calls())), { action: "proceed" });
 });
+
+// ------------------------------------------------------------ moving on early
+
+test("the screen is told as soon as the payment is accepted and on record, before it is confirmed", async () => {
+  const events = [];
+  const { run, storage } = setup({ statuses: [{ statusCode: 100 }, { statusCode: 100 }, CONFIRMED] });
+  const result = await run({
+    onSubmitted: () => events.push(`accepted:${stored(storage)?.phase}:${stored(storage)?.id}`),
+    sleep: async (ms) => events.push(`wait:${ms}`),
+  });
+  assert.equal(result.hash, TX);
+  // Told once, with the call id already on record, and before any waiting.
+  assert.deepEqual(events.slice(0, 2), [`accepted:submitted:${CALL_ID}`, "wait:2500"]);
+  assert.equal(events.filter((e) => e.startsWith("accepted")).length, 1);
+});
+
+test("the screen is never told when nothing was accepted, and a failing callback cannot disturb the payment", async () => {
+  let told = 0;
+  const refused = setup({ send: () => Promise.reject(rpcError("policy limit reached", { code: -32000 })) });
+  await assert.rejects(refused.run({ onSubmitted: () => told++ }));
+  const blocked = setup({ statuses: [{ statusCode: 100 }] });
+  await blocked.ops.inLock.begin(ACCOUNT, { fingerprint: fingerprintOf(calls(1n)) });
+  await assert.rejects(blocked.run({ onSubmitted: () => told++ }));
+  assert.equal(told, 0);
+
+  const careless = setup();
+  const result = await careless.run({ onSubmitted: () => { throw new Error("screen exploded"); } });
+  assert.equal(result.hash, TX);
+});
+
+test("a payment that fails after the screen moved on is still reported as failed, and the account is freed", async () => {
+  let told = 0;
+  const { run, storage } = setup({ statuses: [{ statusCode: 100 }, { statusCode: 500 }] });
+  await assert.rejects(run({ onSubmitted: () => told++ }), (error) => error.definitiveFailure === true);
+  assert.equal(told, 1);
+  assert.equal(stored(storage), null);
+});

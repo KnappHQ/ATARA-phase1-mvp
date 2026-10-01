@@ -55,6 +55,12 @@ export interface SubmissionOptions {
   /** How long to wait for confirmation before leaving it to Activity. */
   waitMs?: number;
   pollMs?: number;
+  /**
+   * Called once the provider has accepted the payment and this phone has it on
+   * record. From here the payment can no longer be sent twice, so the screen
+   * may move on while confirmation continues.
+   */
+  onSubmitted?: () => void;
 }
 
 export const fingerprintOf = (calls: SubmissionCall[]): string =>
@@ -156,6 +162,11 @@ export const submitAndConfirm = async (options: SubmissionOptions): Promise<Subm
     await ops.inLock.markSubmitted(account, { id });
   } catch {
     // The intent, with its hash, is already stored; the chain can still settle it.
+  }
+  try {
+    options.onSubmitted?.();
+  } catch {
+    // A screen's callback must never disturb a payment.
   }
 
   // 4. Wait for the outcome, asking the provider (the chain is asked once, at the end).
