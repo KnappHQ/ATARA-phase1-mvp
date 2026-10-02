@@ -22,6 +22,7 @@ import type {
 } from "viem";
 
 import { APP_NETWORK, CHAIN_ID } from "@/utils/constants";
+import { isSponsorRefusal } from "@/utils/gasFailure";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useAddressVerificationStore } from "@/stores/useAddressVerificationStore";
 import { getPaymentOperations } from "@/services/paymentOperations.runtime";
@@ -80,20 +81,6 @@ export interface SendTransactionFailure extends Error {
   isPendingVerification?: boolean;
 }
 
-const PAYMASTER_ERROR_PATTERNS = [
-  /paymaster/i,
-  /gas sponsor/i,
-  /gas sponsorship/i,
-  /sponsorship/i,
-  /policy/i,
-  /limit reached/i,
-  /quota/i,
-  /insufficient funds for gas/i,
-  /simulation/i,
-  /validation reverted/i,
-  /AA23 reverted/i,
-];
-
 const normalizeErrorMessage = (error: unknown): string => {
   if (error instanceof Error) {
     return error.message;
@@ -115,7 +102,7 @@ const normalizeErrorMessage = (error: unknown): string => {
 
 const isPaymasterFailure = (error: unknown): boolean => {
   const message = normalizeErrorMessage(error);
-  return PAYMASTER_ERROR_PATTERNS.some((pattern) => pattern.test(message));
+  return isSponsorRefusal(message);
 };
 
 const createTransactionError = (
