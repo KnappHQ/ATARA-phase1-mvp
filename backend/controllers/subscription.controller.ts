@@ -17,7 +17,6 @@ const publicPlans = () =>
     id: plan.id,
     name: plan.name,
     priceEurCents: plan.priceEurCents,
-    limits: plan.limits,
     sponsoredSendsPerMonth: plan.sponsorship.monthlySends,
     spendStepUsdCents: plan.sponsorship.spendStepUsdCents,
     spendBonusCap: plan.sponsorship.spendBonusCap,

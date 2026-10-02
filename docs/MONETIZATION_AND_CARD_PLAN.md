@@ -62,13 +62,17 @@ subventionner.
 
 ## 2. Les deux abonnements
 
+> **État affiché dans l'app** : Free est « Current plan » ; Plus et Max sont « Coming soon »
+> avec un bouton « Available soon ». **Aucun prix et aucun taux de frais n'est affiché** :
+> aucun n'est une promesse tant que le contrat de la carte et la facturation n'existent pas.
+> Les avantages affichés sont ceux de la configuration serveur, présentés comme « Planned ·
+> not active yet ». Le tableau ci-dessous est la configuration de travail.
+
 Free reste l'offre de base. Deux offres payantes (noms de travail, prix
 **proposés**, modifiables sans publier l'app : ils vivent côté serveur) :
 
 | | **Free** | **ATARA Plus** — 4,99 €/mois | **ATARA Max** — 12,99 €/mois |
 |---|---|---|---|
-| Vaults créés | 1 | 5 | 20 |
-| Membres par Vault | jusqu'à 4 | jusqu'à 10 | jusqu'à 10 |
 | Envois à frais pris en charge / mois | 10 | 60 | illimités (usage raisonnable : 500) |
 | Frais pris en charge en plus par dépense carte | 1 envoi par tranche de 50 $ (max +20) | 1 par 25 $ (max +60) | inclus |
 | Miles par dollar dépensé | 1 | 2 | 3 |
@@ -78,16 +82,16 @@ Free reste l'offre de base. Deux offres payantes (noms de travail, prix
 | Carte virtuelle (Apple Wallet) | oui | oui | oui |
 | Carte physique | — | à confirmer avec Rain **[hypothèse]** | à confirmer **[hypothèse]** |
 
-Les plafonds de Vault sont **à deux niveaux** : l'app les applique (écran de
-création) et, pour qu'ils ne se contournent pas en modifiant l'app, le serveur
-doit être dans la boucle. Le contrat Vault est public et permissionless : rien
-n'empêche techniquement quelqu'un d'appeler la fabrique directement. Le levier
-solide est la **sponsorisation des frais** : si le paquet de création de Vault
-n'est sponsorisé que pour un abonné dont le droit le permet, créer un Vault
-au-delà du plafond coûte du gaz à l'utilisateur. Alchemy propose des règles de
-sponsorisation pilotées par un serveur **[hypothèse : à confirmer dans la doc
-Alchemy Gas Manager avant de l'implémenter]**. Aujourd'hui toutes les opérations
-sont sponsorisées (comportement conservé).
+**Vault n'est dans aucune offre** (décision du 1er octobre 2026). La fonction est
+repoussée : elle est désactivée dans tous les builds (`EXPO_PUBLIC_ENABLE_VAULTS=false`
+dans `eas.json`, `ENABLE_VAULTS=false` sur Render, onglet et carte d'accueil masqués,
+chaque écran Vault protégé par le même indicateur). Aucun plafond de Vault n'est
+configuré, affiché ni appliqué ; le code Vault existant n'a pas été supprimé. Les
+offres portent sur les Miles, les frais réseau pris en charge et les avantages
+carte, pas sur Vault.
+
+Aujourd'hui toutes les opérations sont sponsorisées (comportement conservé) : les
+chiffres « envois à frais pris en charge » du tableau sont **prévus**, pas appliqués.
 
 ---
 
@@ -222,18 +226,18 @@ n'est pas activé.
 
 - **Intact** : le chemin d'envoi, la vérification des paiements, la
   sponsorisation actuelle (tout est sponsorisé), le paiement commerçant par QR, le
-  contrat Vault, `paymentProof.service.ts` (« fail-closed »).
+  contrat Vault (et son masquage), `paymentProof.service.ts` (« fail-closed »).
 - **Ajouté** : barèmes et droits (purs, testés), registre de miles, adaptateur de
   carte, routes `/plans`, `/subscription/me`, `/card/*`, trois tables (registre
   de miles, événements de carte, liste d'attente), deux valeurs d'offre
-  (`PLUS`, `MAX`), écrans Plans & Miles et Carte, plafonds de Vault dans l'écran de
-  création.
+  (`PLUS`, `MAX`), écrans Plans & Miles et Carte. (Un plafond de Vault avait été ajouté à l'écran de
+  création puis retiré : cet écran est revenu à son état d'avant.)
 - **Compatibilité** : `PREMIUM` (l'ancienne valeur, jamais attribuée) est lue comme
   `PLUS`. Aucun utilisateur existant ne change d'offre.
 
 ## 7. Décisions qui sont à toi
 
-1. Prix et noms des deux offres (§2). 2. Free : 1 Vault et 10 envois sponsorisés,
+1. Prix et noms des deux offres (§2). 2. Free : 10 envois sponsorisés par mois,
 est-ce assez généreux pour convaincre sans donner trop ? 3. Prélever ou non une
 commission sur les envois entre utilisateurs (je recommande **non**, §1).
 4. Modèle de recharge de la carte et wording « non custodial » (§4).

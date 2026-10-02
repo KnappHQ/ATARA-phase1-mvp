@@ -17,6 +17,7 @@ import { AppAlert } from "@/components/alert/AppAlert";
 import { VaultOpeningAnimation } from "@/components/onboarding/VaultOpeningAnimation";
 import { ExternalWalletProvider } from "@/providers/ExternalWalletProvider";
 import { scrubBreadcrumb, scrubEvent } from "@/utils/privacyScrub";
+import { decideRedirect } from "@/utils/routeGuard";
 
 import "./global.css";
 
@@ -33,27 +34,6 @@ Sentry.init({
 });
 
 SplashScreen.preventAutoHideAsync();
-
-// Routes that are part of the onboarding flow
-const AUTH_ROUTES = ["onboarding", "oauth-callback"];
-// Routes that require authentication
-const PROTECTED_ROUTES = [
-  "(tabs)",
-  "send",
-  "transaction-success",
-  "transaction-detail",
-  "contact-detail",
-  "group-create",
-  "group-details",
-  "add-crypto",
-  "pay-merchant",
-  "security",
-  "manage-accounts",
-  "sign-in-methods",
-  "sovereignty",
-  "vault-create",
-  "vault-detail",
-];
 
 function RootLayout() {
   return (
@@ -79,13 +59,9 @@ function RootLayoutInner() {
 
   const [navigationReady, setNavigationReady] = useState(false);
   const route = segments[0] as string;
-  const isOnAuthFlow = AUTH_ROUTES.includes(route);
-  const isRedirectingToOnboarding =
-    isReady && !isFullyAuthenticated && !isOnAuthFlow;
-  const isRedirectingToTabs =
-    isReady &&
-    isFullyAuthenticated &&
-    (isOnAuthFlow || !PROTECTED_ROUTES.includes(route));
+  const redirect = decideRedirect({ route, isReady, isFullyAuthenticated });
+  const isRedirectingToOnboarding = redirect === "onboarding";
+  const isRedirectingToTabs = redirect === "tabs";
 
   useEffect(() => {
     if (!isReady) return;
@@ -207,6 +183,8 @@ function RootLayoutInner() {
         <Stack.Screen name="manage-accounts" options={{ presentation: "card", animation: "slide_from_bottom" }} />
         <Stack.Screen name="sign-in-methods" options={{ presentation: "card", animation: "slide_from_right" }} />
         <Stack.Screen name="sovereignty" options={{ presentation: "card", animation: "slide_from_bottom" }} />
+        <Stack.Screen name="plans" options={{ presentation: "card", animation: "slide_from_bottom" }} />
+        <Stack.Screen name="card" options={{ presentation: "card", animation: "slide_from_bottom" }} />
         <Stack.Screen name="vault-create" options={{ presentation: "card", animation: "slide_from_bottom" }} />
         <Stack.Screen name="vault-detail" options={{ presentation: "card", animation: "slide_from_bottom" }} />
       </Stack>

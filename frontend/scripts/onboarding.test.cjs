@@ -385,7 +385,9 @@ test('funding screen distinguishes testnet reception from MoonPay simulation', (
   assert.match(source, /Base Sepolia/);
   assert.match(source, /Clipboard\.setStringAsync\(walletAddress\)/);
   assert.match(source, /Never send real money or crypto here/);
-  assert.match(source, /session\.mode !== "sandbox"/);
+  // The beta only ever opens the sandbox: the check lives with the flow, and the screen uses it.
+  assert.match(source, /await runCheckout\(/);
+  assert.match(fs.readFileSync(path.join(__dirname, '../utils/onrampFlow.ts'), 'utf8'), /session\.mode !== undefined && session\.mode !== "sandbox"/);
 });
 
 test('concurrent sends on the same wallet are rejected before any network call', async () => {

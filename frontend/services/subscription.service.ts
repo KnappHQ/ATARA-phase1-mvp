@@ -1,30 +1,22 @@
 import { api } from "./api";
+import { parseCardStatus, parseMine, parsePlans } from "@/utils/subscriptionParsers";
 
 export type PlanId = "FREE" | "PLUS" | "MAX";
 
+/** Only what the screens use. Prices and fee rates are deliberately not carried: none is a promise yet. */
 export interface PlanInfo {
   id: PlanId;
   name: string;
-  priceEurCents: number;
-  limits: { vaults: number; vaultMembers: number };
   sponsoredSendsPerMonth: number;
-  spendStepUsdCents: number;
-  spendBonusCap: number;
   milesPerUsd: number;
-  /** Basis points: 100 = 1 %. */
-  feeBps: { transfer: number; ramp: number; card_fx: number; swap: number };
+  /** Card currency-conversion rate in basis points, used only to say whether a plan's is lower. */
+  cardFxBps: number | null;
 }
 
 export interface MyEntitlements {
   plan: PlanId;
-  reason: string;
-  expiresAt: string | null;
-  miles: {
-    balance: number;
-    monthlyCardSpendUsdCents: number;
-    sponsoredAllowance: number;
-    sendsThisMonth: number;
-  };
+  milesBalance: number;
+  monthlyCardSpendUsdCents: number;
 }
 
 export interface CardStatusInfo {
@@ -39,20 +31,13 @@ export interface CardStatusInfo {
 /**
  * Read-only: the app is told what the server decided, and can change none of it.
  * An offer only changes when the server receives a verified billing event.
+ * Every answer is validated, so a service that is old, down or sends something
+ * unexpected is an error the screen handles, never a half-filled screen.
  */
 export const SubscriptionService = {
-  getPlans: async (): Promise<{ plans: PlanInfo[]; milesPerSponsoredSend: number }> => {
-    const response = await api.get("/plans");
-    return { plans: response.data.plans, milesPerSponsoredSend: response.data.milesPerSponsoredSend };
-  },
-  getMine: async (): Promise<MyEntitlements> => {
-    const { data } = await api.get("/subscription/me");
-    return { plan: data.plan, reason: data.reason, expiresAt: data.expiresAt ?? null, miles: data.miles };
-  },
-  getCardStatus: async (): Promise<CardStatusInfo> => {
-    const { data } = await api.get("/card/status");
-    return { available: !!data.available, state: data.state, canAddToWallet: !!data.canAddToWallet, last4: data.last4, waitlisted: !!data.waitlisted };
-  },
+  getPlans: async () => parsePlans((await api.get("/plans")).data),
+  getMine: async (): Promise<MyEntitlements> => parseMine((await api.get("/subscription/me")).data),
+  getCardStatus: async (): Promise<CardStatusInfo> => parseCardStatus((await api.get("/card/status")).data),
   joinCardWaitlist: async (country?: string): Promise<void> => {
     await api.post("/card/waitlist", country ? { country } : {});
   },

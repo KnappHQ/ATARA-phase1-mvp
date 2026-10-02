@@ -980,9 +980,11 @@ test("Profile and Security lead to the account screens; the old unnamed passkey 
   const security = read("app/security.tsx");
   assert.doesNotMatch(security, /useLinkWithPasskey/);
   assert.match(security, /router\.push\("\/sign-in-methods"/);
+  // The list of routes a signed-in person may stay on moved to utils/routeGuard.ts.
+  const guard = read("utils/routeGuard.ts");
   const layout = read("app/_layout.tsx");
   for (const route of ["manage-accounts", "sign-in-methods"]) {
-    assert.match(layout, new RegExp(`"${route}",`), `${route} is a protected route`);
+    assert.match(guard, new RegExp(`"${route}",`), `${route} is a protected route`);
     assert.match(layout, new RegExp(`<Stack.Screen name="${route}"`), `${route} is a screen`);
   }
 });
