@@ -255,24 +255,30 @@ export const AmountStep = ({
     clearError();
     setIsSending(true);
 
+    let movedOn = false;
+    const leaveSendFlow = () => {
+      if (movedOn) return;
+      movedOn = true;
+      // Back to the home screen with a short toast: no receipt to dismiss. The
+      // payment keeps confirming in the background; a failure raises an alert
+      // and Activity always shows where it stands.
+      useAlertStore.getState().success("Payment sent", `${amountValue} ${selectedToken.symbol} to ${recipient.handle}`);
+      router.replace("/(tabs)");
+    };
+
     try {
-      const transactionRequest = buildTransactionRequest();
+      // As soon as the payment is accepted and on record it cannot be sent
+      // twice, so the person goes straight home instead of watching a swipe
+      // wait for the network.
+      const transactionRequest = { ...buildTransactionRequest(), onAccepted: () => leaveSendFlow() };
       const result =
         await transactionService.sendTransaction(transactionRequest);
 
       if (result.success) {
-        router.push({
-          pathname: "/transaction-success",
-          params: {
-            transactionId: result.transactionId,
-            hash: result.hash || "",
-            recipient: recipient.handle,
-            amount: amountValue.toString(),
-            token: selectedToken.symbol,
-            gasPaidDisplay: "Sponsored",
-          },
-        });
+        // Already home, except when the payment was answered from an earlier one.
+        leaveSendFlow();
       } else {
+        if (movedOn) return;
         if (result.isPendingVerification) setStatusUnknown(true);
         throw new Error(result.error || "Transaction failed");
       }

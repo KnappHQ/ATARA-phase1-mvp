@@ -1,0 +1,31 @@
+name: Verify Render Deploy
+
+# Confirms that the API on Render actually serves what was merged to main.
+# Render deploys from codex/atara-vault, which "Sync Render Deploy Branch"
+# keeps identical to main; this runs once that sync has pushed.
+on:
+  workflow_run:
+    workflows: [Sync Render Deploy Branch]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: >-
+      github.repository == 'KnappHQ/ATARA-phase1-mvp' &&
+      (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wait for Render to serve the merged commit
+        env:
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: >-
+          bash .github/scripts/wait-for-render-deploy.sh
+          https://api.atara.finance/api/v1/health/backend
+          "$EXPECTED_SHA" 1200 30

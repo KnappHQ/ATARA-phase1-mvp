@@ -10,7 +10,6 @@ import type { LocalAccount } from "viem";
 import * as Sentry from "@sentry/react-native";
 import { useEmbeddedEthereumWallet } from "@privy-io/expo";
 import { runExclusiveOperation } from "@/utils/exclusiveOperation";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { base, baseSepolia } from "viem/chains";
 import {
   alchemyWalletTransport,
@@ -25,6 +24,9 @@ import type {
 import { APP_NETWORK, CHAIN_ID } from "@/utils/constants";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useAddressVerificationStore } from "@/stores/useAddressVerificationStore";
+import { getPaymentOperations } from "@/services/paymentOperations.runtime";
+import type { OperationReport } from "@/services/paymentOperations";
+import { submitAndConfirm } from "@/services/paymentSubmission";
 import {
   compareDerivedAddress,
   type AddressVerification,
@@ -63,6 +65,11 @@ export interface SmartAccountCall {
   target: `0x${string}`;
   value?: bigint;
   data: `0x${string}` | string;
+}
+
+export interface SendOptions {
+  /** The provider has accepted the payment and it is on record: it can no longer be sent twice. */
+  onSubmitted?: () => void;
 }
 
 export interface SendTransactionFailure extends Error {
@@ -284,39 +291,36 @@ export class SmartAccountService {
     this.gasPolicyId = gasPolicyId;
   }
 
-  private pendingKey() {
-    return `atara.pending-call-bundle.${CHAIN_ID}.${this.smartAccountAddress.toLowerCase()}`;
-  }
-
-  /** Read-only chain status. Never resubmits the call or guesses that a timeout failed. */
-  async checkPendingOperation(): Promise<{ status: "none" | "pending" | "confirmed" | "failed"; hash?: string }> {
-    return runExclusiveOperation(`${CHAIN_ID}:${this.smartAccountAddress.toLowerCase()}`, async () => {
-      const stored = await AsyncStorage.getItem(this.pendingKey());
-      if (!stored) return { status: "none" };
-      let id: string;
-      try { id = JSON.parse(stored).id; } catch { id = stored; }
-      if (!id) return { status: "pending" };
-      const result = await this.client.getCallsStatus({ id });
-      if (result.status === "failure") {
-        await AsyncStorage.removeItem(this.pendingKey());
-        return { status: "failed" };
-      }
-      const hash = result.receipts?.[0]?.transactionHash;
-      if (hash) {
-        await AsyncStorage.removeItem(this.pendingKey());
-        return { status: "confirmed", hash };
-      }
-      return { status: "pending" };
-    });
+  /** The wallet this service pays from. */
+  get address(): `0x${string}` {
+    return this.smartAccountAddress;
   }
 
   /**
-   * Sends a wallet call bundle and waits for the actual transaction hash.
-   *
-   * sendCalls() returns a bundle id (NOT a tx hash).
-   * We must call waitForCallsStatus() to get the mined transaction hash
-   * that can be looked up on-chain.
+   * What this phone knows about the payment it is waiting on, from its own
+   * storage only. See services/paymentOperations.ts for the rules.
    */
+  async peekPendingOperation() {
+    return getPaymentOperations().peek(this.smartAccountAddress);
+  }
+
+  /**
+   * Asks the wallet provider and the chain about the payment this phone is
+   * waiting on. Never resubmits it, and never concludes it failed from silence.
+   */
+  async checkPendingOperation(): Promise<OperationReport> {
+    return getPaymentOperations().check(this.smartAccountAddress);
+  }
+
+  /**
+   * Lets the owner pay again after a payment nobody can prove. Only on their
+   * explicit request, once they have been told that it may have gone through.
+   * The payment stays on a watch list, so a late landing is reported.
+   */
+  async releasePendingOperation(): Promise<void> {
+    await getPaymentOperations().release(this.smartAccountAddress);
+  }
+
   private async sendAndWaitForTxHash(
     uo: {
       target: `0x${string}`;
@@ -324,64 +328,31 @@ export class SmartAccountService {
       data: `0x${string}` | string;
     },
     overrides?: Record<string, unknown>,
+    options?: SendOptions,
   ): Promise<TransactionResult> {
     return this.sendCallsAndWait(
       [{ target: uo.target, value: uo.value, data: uo.data }],
       overrides,
+      options,
     );
   }
 
   private async sendCallsAndWait(
     calls: SmartAccountCall[],
     overrides?: Record<string, unknown>,
+    options?: SendOptions,
   ): Promise<TransactionResult> {
-    return runExclusiveOperation(
-      `${CHAIN_ID}:${this.smartAccountAddress.toLowerCase()}`,
-      () => this.sendCallsAndWaitExclusive(calls, overrides),
+    const operations = getPaymentOperations();
+    return runExclusiveOperation(operations.lockKey(this.smartAccountAddress), () =>
+      submitAndConfirm({
+        client: this.client,
+        ops: operations,
+        account: this.smartAccountAddress,
+        calls: calls.map((call) => ({ target: call.target, value: call.value, data: String(call.data) })),
+        overrides,
+        onSubmitted: options?.onSubmitted,
+      }),
     );
-  }
-
-  private async sendCallsAndWaitExclusive(
-    calls: SmartAccountCall[],
-    overrides?: Record<string, unknown>,
-  ): Promise<TransactionResult> {
-    const pendingKey = this.pendingKey();
-    const fingerprint = JSON.stringify(calls.map(c => [c.target.toLowerCase(), String(c.value ?? 0n), c.data.toLowerCase()]));
-    const waitForBundle = async (id: string) => {
-      const status = await this.client.waitForCallsStatus({ id, timeout: 120_000, throwOnFailure: false });
-      if (status.status === "failure") throw Object.assign(new Error("Previous operation failed on chain"), { definitiveFailure: true });
-      const txHash = status.receipts?.[0]?.transactionHash;
-      if (!txHash) throw new Error("Receipt not available yet. Keep the pending operation and retry its verification.");
-      return { hash: txHash, success: true } as TransactionResult;
-    };
-    const stored = await AsyncStorage.getItem(pendingKey);
-    if (stored) {
-      let pending: { id: string; fingerprint?: string };
-      try { pending = JSON.parse(stored); } catch { pending = { id: stored }; }
-      let result: TransactionResult | undefined;
-      try { result = await waitForBundle(pending.id); }
-      catch (error: any) {
-        if (!error?.definitiveFailure) throw Object.assign(new Error("An earlier operation is still unverified. No new operation was sent. Open Activity to check its chain status."), { isPendingVerification: true });
-        await AsyncStorage.removeItem(pendingKey);
-      }
-      if (result) {
-        await AsyncStorage.removeItem(pendingKey);
-        if (pending.fingerprint !== fingerprint) throw new Error(`Earlier operation confirmed: ${result.hash}. Check Activity before starting a different payment.`);
-        return result;
-      }
-    }
-    const { id } = await this.client.sendCalls({ account: this.smartAccountAddress,
-      calls: calls.map(call => ({ to: call.target, value: call.value ?? 0n, data: call.data })),
-      ...(overrides ? { capabilities: overrides } : {}),
-    });
-    await AsyncStorage.setItem(pendingKey, JSON.stringify({ id, fingerprint }));
-    try {
-      const result = await waitForBundle(id); await AsyncStorage.removeItem(pendingKey); return result;
-    } catch (error: any) {
-      if (error?.definitiveFailure) await AsyncStorage.removeItem(pendingKey);
-      if (!error?.definitiveFailure) error.isPendingVerification = true;
-      throw error;
-    }
   }
 
   private getGaslessCapabilities(): Record<string, unknown> {
@@ -448,6 +419,7 @@ export class SmartAccountService {
   async sendETH(
     recipientAddress: string,
     amount: string,
+    options?: SendOptions,
   ): Promise<TransactionResult> {
     if (!this.client) {
       throw new Error("Smart account client not available");
@@ -458,7 +430,7 @@ export class SmartAccountService {
         target: recipientAddress as `0x${string}`,
         value: parseEther(amount),
         data: "0x",
-      }, this.getGaslessCapabilities());
+      }, this.getGaslessCapabilities(), options);
 
       return result;
     } catch (error: any) {
@@ -477,6 +449,7 @@ export class SmartAccountService {
     amount: string,
     tokenAddress: string,
     decimals: number = 6,
+    options?: SendOptions,
   ): Promise<TransactionResult> {
     if (!this.client) {
       throw new Error("Smart account client not available");
@@ -495,7 +468,7 @@ export class SmartAccountService {
         target: tokenAddress as `0x${string}`,
         value: 0n,
         data: transferData,
-      }, this.getGaslessCapabilities());
+      }, this.getGaslessCapabilities(), options);
 
       return result;
     } catch (error: any) {
@@ -511,6 +484,7 @@ export class SmartAccountService {
 
   async sendTransaction(
     params: SendTransactionParams,
+    options?: SendOptions,
   ): Promise<TransactionResult> {
     const { recipientAddress, amount, tokenSymbol, tokenAddress, decimals } =
       params;
@@ -524,12 +498,12 @@ export class SmartAccountService {
     }
 
     if (tokenSymbol === "ETH") {
-      return this.sendETH(recipientAddress, amount);
+      return this.sendETH(recipientAddress, amount, options);
     } else {
       if (!tokenAddress) {
         throw new Error(`Token address required for ${tokenSymbol} transfers`);
       }
-      return this.sendToken(recipientAddress, amount, tokenAddress, decimals);
+      return this.sendToken(recipientAddress, amount, tokenAddress, decimals, options);
     }
   }
 

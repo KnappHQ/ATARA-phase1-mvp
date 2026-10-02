@@ -19,29 +19,37 @@ import { GroupsListTab } from "@/components/activity/GroupsListTab";
 import { COLORS } from "@/utils/constants";
 import { useTransactionHistoryStore } from "@/stores/useTransactionHistoryStore";
 import { useGroupStore } from "@/stores/useGroupStore";
-import { useSmartAccountService } from "@/services/smartAccount.service";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { CHAIN_ID } from "@/utils/constants";
+import { OperationCards } from "@/components/activity/OperationCards";
+import { usePaymentOperations } from "@/hooks/usePaymentOperations";
 import { useAuthStore } from "@/stores/useAuthStore";
-import { useEffect } from "react";
+import { useWalletStore } from "@/stores/useWalletStore";
 
 export default function Activity() {
   const router = useRouter();
   const [activityTab, setActivityTab] = useState<ActivityTab>("transactions");
   const [searchQuery, setSearchQuery] = useState("");
-  const smartAccount = useSmartAccountService();
   const address = useAuthStore((s) => s.user?.smartAccountAddress);
-  const [hasPendingOperation, setHasPendingOperation] = useState(false);
-  const [checkingOperation, setCheckingOperation] = useState(false);
-  const refreshPending = useCallback(async () => {
-    if (!address) { setHasPendingOperation(false); return; }
-    const stored = await AsyncStorage.getItem(`atara.pending-call-bundle.${CHAIN_ID}.${address.toLowerCase()}`);
-    setHasPendingOperation(!!stored);
-  }, [address]);
-  useEffect(() => { void refreshPending(); }, [refreshPending]);
+  const assets = useWalletStore((s) => s.assets);
+  // The account's own payments that are not settled. Nothing here waits for the
+  // wallet to start: checking a payment needs only its address.
+  const operations = usePaymentOperations(address, assets);
+  const refreshOperations = operations.refresh;
 
   const { displayHistory, contactThreads, isLoading, fetchHistory } =
     useTransactionHistoryStore();
+
+  // The phone refuses new payments while one is unverified. When nobody can find
+  // an old one any more, only the owner can lift that, knowing what it risks: the
+  // phone cannot prove the old payment will never land.
+  const confirmRelease = () =>
+    Alert.alert(
+      "Release this payment?",
+      "ATARA cannot find this payment. Look for it in your Activity below and in your balance. If it is there, it went through and releasing is safe. If it is not, it may have expired, or it may still be waiting. Releasing lets this account pay again, and if the old payment still goes through later you would have paid twice. ATARA will keep watching it and tell you here if that happens.",
+      [
+        { text: "Keep waiting", style: "cancel" },
+        { text: "Release", style: "destructive", onPress: () => void operations.run("release") },
+      ],
+    );
   const {
     groups,
     isLoading: groupsLoading,
@@ -87,10 +95,9 @@ export default function Activity() {
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await Promise.all([fetchHistory(), fetchGroups()]);
-    await refreshPending();
+    await Promise.all([fetchHistory(), fetchGroups(), refreshOperations()]);
     setIsRefreshing(false);
-  }, [fetchHistory, fetchGroups, refreshPending]);
+  }, [fetchHistory, fetchGroups, refreshOperations]);
 
   const handleTabChange = (tab: ActivityTab) => {
     setActivityTab(tab);
@@ -117,25 +124,16 @@ export default function Activity() {
           <Text className="text-2xl font-semibold text-primary">Activity</Text>
         </View>
 
-        {hasPendingOperation && <View className="rounded-2xl border border-amber-400/40 p-4 mb-4">
-          <Text className="text-white font-semibold mb-2">Payment awaiting verification</Text>
-          <Text className="text-white/70 mb-3">A wallet operation may still confirm. Check its status before trying to pay again.</Text>
-          <Pressable disabled={!smartAccount || checkingOperation} onPress={async () => {
-            if (!smartAccount) return;
-            setCheckingOperation(true);
-            try {
-              const result = await smartAccount.checkPendingOperation();
-              await refreshPending();
-              if (result.status === "confirmed") {
-                // The receipt is evidence; automatic transaction reconciliation must still run separately.
-                Alert.alert("Confirmed on chain", `Transaction: ${result.hash}. Save this hash and refresh Activity. Do not pay twice.`);
-                await fetchHistory();
-              } else if (result.status === "failed") Alert.alert("Operation failed", "The chain reported a failure. You can try again.");
-              else Alert.alert("Still checking", "No final receipt yet. Try this check again shortly; no new payment was sent.");
-            } catch { Alert.alert("Verification unavailable", "The wallet status could not be checked. Do not send another payment yet."); }
-            finally { setCheckingOperation(false); }
-          }}><Text style={{ color: COLORS.accent }}>{checkingOperation ? "Checking…" : "Check wallet operation"}</Text></Pressable>
-        </View>}
+        <OperationCards
+          cards={operations.cards}
+          checking={operations.checking}
+          onAction={(action) => {
+            if (action === "release") return confirmRelease();
+            void operations.run(action).then(fetchHistory);
+          }}
+          note={operations.releasedNote}
+          onDismissNote={operations.dismissReleasedNote}
+        />
 
         <SearchBar
           value={searchQuery}

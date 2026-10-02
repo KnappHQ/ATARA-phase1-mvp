@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { useCallback } from "react";
 import { ScrollView, Share, View, Text, BackHandler } from "react-native";
 import { useAlertStore } from "@/stores/useAlertStore";
+import { describeOutcome } from "@/utils/paymentOutcome";
 import * as Sentry from "@sentry/react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -53,6 +54,8 @@ export default function TransactionSuccess() {
         timestamp: new Date().toISOString(),
         status: "pending" as const,
       };
+
+  const outcome = transaction ? describeOutcome(transaction.status, transaction.error) : null;
 
   const handleShareProof = async () => {
     try {
@@ -108,6 +111,20 @@ export default function TransactionSuccess() {
         <View className="h-48 items-center justify-center mb-8">
           <ShieldIcon visible={true} />
         </View>
+
+        {outcome && (
+          <View
+            accessibilityRole="alert"
+            className="mb-4 rounded-2xl border p-4"
+            style={{
+              borderColor: outcome.tone === "bad" ? "rgba(248,113,113,0.45)" : "rgba(255,255,255,0.2)",
+              backgroundColor: outcome.tone === "bad" ? "rgba(248,113,113,0.08)" : "rgba(255,255,255,0.05)",
+            }}
+          >
+            <Text className="text-sm font-semibold text-white">{outcome.title}</Text>
+            <Text className="mt-1 text-sm leading-5 text-white/70">{outcome.body}</Text>
+          </View>
+        )}
 
         <TransactionReceipt
           amount={transactionData.amount}

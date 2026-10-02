@@ -7,6 +7,7 @@ import { BalanceRevealSection } from "../../components/homeScreen/BalanceRevealS
 import { ActionButtons } from "../../components/homeScreen/ActionButtons";
 import { CryptoActions } from "../../components/homeScreen/CryptoActions";
 import { VaultEntryCard } from "../../components/homeScreen/VaultEntryCard";
+import { CardEntryCard } from "../../components/homeScreen/CardEntryCard";
 import { ActivityList } from "../../components/homeScreen/ActivityList";
 import { useTransactionHistoryStore } from "@/stores/useTransactionHistoryStore";
 import { useAuthStore } from "@/stores/useAuthStore";
@@ -58,6 +59,8 @@ export default function HomeTab() {
                 onAddCrypto={() => router.push("/add-crypto")}
                 onPayMerchant={() => router.push("/pay-merchant")}
               />
+
+              <CardEntryCard onPress={() => router.push("/card" as never)} />
 
               {VAULTS_ENABLED ? (
                 <VaultEntryCard onPress={() => router.push("/vaults")} />

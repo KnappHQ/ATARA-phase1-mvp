@@ -8,6 +8,7 @@ import rootRouter from "./routers";
 import { errorMiddleware } from "./middleware/error.middleware";
 import { ErrorHandler } from "./utils/errorHandler";
 import associationRouter from "./routers/association.routes";
+import { cardWebhookController } from "./controllers/cardWebhook.controller";
 
 export const app: Application = express();
 
@@ -71,6 +72,16 @@ app.use(cors(corsOptions));
 // Public OS trust documents are not user API requests. Apple/Google fetch
 // through shared infrastructure: the API's per-IP quota must not block them.
 app.use("/.well-known", associationRouter);
+
+// Card issuer events: signed, so they need the RAW body (a parsed one cannot be
+// checked), and they come from shared infrastructure, so they get their own,
+// larger quota instead of the per-IP one below.
+app.post(
+  "/api/v1/card/webhook/:provider",
+  rateLimit({ windowMs: 15 * 60 * 1000, limit: 1000, standardHeaders: "draft-7", legacyHeaders: false }),
+  express.raw({ type: "*/*", limit: "100kb" }),
+  cardWebhookController,
+);
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,

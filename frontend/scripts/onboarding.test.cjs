@@ -7,7 +7,9 @@ const ts = require('typescript');
 // Execute the production TypeScript with mocked native/SDK boundaries.
 // This is a logic simulation, not an iOS device or a live wallet signature.
 function load(file, mocks = {}) {
+  // fileName matters: in a .ts file `<T>(x) =>` is a generic arrow, in a .tsx it would be JSX.
   const code = ts.transpileModule(fs.readFileSync(path.join(__dirname, '..', file), 'utf8'), {
+    fileName: file,
     compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2020 },
   }).outputText;
   const exports = {};
@@ -18,6 +20,10 @@ function load(file, mocks = {}) {
   return exports;
 }
 const readiness = load('utils/walletReadiness.ts');
+const accountLabels = load('utils/accountLabels.ts');
+const passkeyOptions = load('utils/passkeyOptions.ts', { './accountLabels': accountLabels });
+const accountRegistry = load('utils/accountRegistry.ts', { './accountLabels': accountLabels, './passkeyOptions': passkeyOptions });
+const loginMethods = load('utils/loginMethods.ts', { './passkeyOptions': passkeyOptions });
 const pause = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const wallet = { address: '0xAbC', getProvider: async () => ({ request: async () => 'signed' }) };
 
@@ -42,6 +48,39 @@ function harness(options = {}) {
   let cursor = 0;
   const slots = [];
   const events = [];
+  // Passkey boundary: what Privy's server would answer and what iOS would do.
+  const passkeyLog = { created: [], asserted: [] };
+  const privyClient = { auth: { passkey: {
+    generateSignupOptions: async () => ({ options: {
+      challenge: 'chal', rp: { id: 'api.atara.finance', name: 'ATARA' }, pub_key_cred_params: [{ type: 'public-key', alg: -7 }],
+      user: { id: 'handle-1', name: 'ATARA', display_name: 'ATARA' }, authenticator_selection: { resident_key: 'required' },
+    } }),
+    generateAuthenticationOptions: async () => ({ options: { challenge: 'chal2', rp_id: 'api.atara.finance', user_verification: 'required' } }),
+    signupWithPasskey: async () => {
+      if (options.linkError) throw new Error('Signup failed');
+      return { user: { id: 'privy-new', linked_accounts: [] } };
+    },
+    loginWithPasskey: async () => ({ user: { id: 'privy-known', linked_accounts: [{ type: 'passkey', credential_id: 'cred-known' }] } }),
+    linkWithPasskey: async () => ({ user: {} }),
+  } } };
+  const nativePasskeys = {
+    create: async request => {
+      assert.equal(user, null);
+      passkeyLog.created.push(request);
+      events.push(`passkey-signup:${request.user.name}`);
+      return { id: 'cred-new', type: 'public-key' };
+    },
+    get: async request => { passkeyLog.asserted.push(request); events.push('passkey-targeted'); return { id: request.allowCredentials?.[0]?.id ?? 'cred-any', type: 'public-key' }; },
+  };
+  const registryAccounts = options.accounts ?? [];
+  const registryFake = {
+    get accounts() { return registryAccounts; },
+    beginPending: async input => { events.push(`registry-pending:${input.label}`); passkeyLog.pending = input; },
+    recordSignIn: async input => { events.push('registry-signin'); passkeyLog.signIn = input; },
+    removePasskey: async (key, id) => { events.push(`registry-drop:${key}:${id}`); },
+    find: () => options.landed,
+  };
+  const intentStore = { intent: options.intent ?? null, clear() {} };
   let sdkWallets = [];
   let user = { id: 'test-user', linked_accounts: [] };
   const updatedUser = { ...user, address: wallet.address };
@@ -81,13 +120,35 @@ function harness(options = {}) {
       } }),
       useEmbeddedEthereumWallet: () => ({ wallets: sdkWallets, create: async () => { events.push('create'); return createResult; } }),
       useLoginWithOAuth: () => ({ login: async () => {}, state: { status: 'idle' } }),
+      usePrivyClient: () => privyClient,
     },
     '@privy-io/expo/passkey': {
-      useLoginWithPasskey: () => ({ loginWithPasskey: async () => { assert.equal(user, null); events.push('passkey-login'); } }),
-      useSignupWithPasskey: () => ({ signupWithPasskey: async () => { assert.equal(user, null); events.push('passkey-signup'); } }),
+      useLoginWithPasskey: () => ({ loginWithPasskey: async () => {
+        assert.equal(user, null); events.push('passkey-login');
+        return options.singlePasskey ? { id: 'privy-known', linked_accounts: [{ type: 'passkey', credential_id: 'cred-known' }] } : undefined;
+      } }),
     },
+    '@/services/passkey.service': load('services/passkey.service.ts', {
+      '../utils/passkeyOptions': passkeyOptions,
+    }),
+    '@/services/passkeyRuntime': {
+      createPasskeyDeps: () => ({ client: privyClient, passkeys: nativePasskeys, randomBytes: n => new Uint8Array(n).fill(9) }),
+      randomBytes: n => new Uint8Array(n).fill(9),
+    },
+    '@/services/accountActions': { checkLanding: () => ({ matched: true }) },
+    '@/utils/accountLabels': accountLabels,
+    '@/utils/accountRegistry': accountRegistry,
+    '@/utils/loginMethods': loginMethods,
+    '@/utils/privyConfig': load('utils/privyConfig.ts'),
+    '@/stores/useAccountRegistryStore': {
+      useAccountRegistryStore: { getState: () => registryFake },
+      registryReady: async () => {},
+    },
+    '@/stores/useAccountSwitchStore': { useAccountSwitchStore: { getState: () => intentStore } },
     'expo-haptics': { impactAsync: async () => {}, ImpactFeedbackStyle: {} },
     '@/services/settlementRecovery.service': {}, '@/services/api': {},
+    '@/services/paymentOperations.runtime': { flushRecordings: async () => ({ recorded: 0, waiting: 0, rejected: 0, recordedIds: {} }) },
+    '@/stores/useTransactionHistoryStore': { useTransactionHistoryStore: { getState: () => ({ fetchHistory: async () => {} }) } },
     '@/services/auth.service': { AuthService }, '@/utils/walletReadiness': readiness,
     '@/utils/asyncOperation': load('utils/asyncOperation.ts'),
     viem: { stringToHex: value => '0x' + Buffer.from(value).toString('hex') },
@@ -99,7 +160,7 @@ function harness(options = {}) {
     '@/utils/privy': { getPrimaryEmbeddedEthereumWalletAddress: u => u?.address, getPrimaryEmailAddress: () => null, getPrimaryOAuthProvider: () => null },
   });
   const render = () => { cursor = 0; return AuthProvider({ children: null }).props.value; };
-  return { render, events, releaseCreate, publishWallet: () => { sdkWallets = [wallet]; render(); } };
+  return { render, events, passkeyLog, releaseCreate, publishWallet: () => { sdkWallets = [wallet]; render(); } };
 }
 
 test('passkey registration resumes after create() publishes its wallet; double taps create once', async () => {
@@ -114,18 +175,82 @@ test('passkey registration resumes after create() publishes its wallet; double t
   assert.deepEqual(h.events, ['create', 'alchemy', 'challenge', 'register']);
 });
 
-test('fresh passkey signup closes the old provider session first and coalesces double taps', async () => {
+function withPasskeyDomain(run) {
   const previous = process.env.EXPO_PUBLIC_PASSKEY_RP_ID;
   process.env.EXPO_PUBLIC_PASSKEY_RP_ID = 'api.atara.finance';
-  try {
-    const h = harness(); const auth = h.render();
-    await Promise.all([auth.startPasskey('signup'), auth.startPasskey('signup')]);
-    assert.deepEqual(h.events, ['privy-logout', 'wallet-disconnect', 'passkey-signup']);
-  } finally {
+  const restore = () => {
     if (previous === undefined) delete process.env.EXPO_PUBLIC_PASSKEY_RP_ID;
     else process.env.EXPO_PUBLIC_PASSKEY_RP_ID = previous;
-  }
-});
+  };
+  return Promise.resolve().then(run).finally(restore);
+}
+
+test('fresh passkey signup closes the old provider session first, names the passkey and coalesces double taps', () => withPasskeyDomain(async () => {
+  const h = harness(); const auth = h.render();
+  await Promise.all([
+    auth.startPasskey('signup', { label: 'Tanguy — Tests' }),
+    auth.startPasskey('signup', { label: 'Tanguy — Tests' }),
+  ]);
+  assert.deepEqual(h.events, ['privy-logout', 'wallet-disconnect', 'passkey-signup:Tanguy — Tests', 'registry-pending:Tanguy — Tests']);
+  // The passkey iOS stores carries the person's name, not Privy's constant one,
+  // while everything that identifies the credential is what Privy sent.
+  const request = h.passkeyLog.created[0];
+  assert.equal(request.user.name, 'Tanguy — Tests');
+  assert.equal(request.user.displayName, 'Tanguy — Tests');
+  assert.equal(request.user.id, 'handle-1');
+  assert.equal(request.challenge, 'chal');
+  assert.equal(request.rp.id, 'api.atara.finance');
+  // The new account is remembered by its Privy user id and credential id.
+  assert.equal(h.passkeyLog.pending.privyUserId, 'privy-new');
+  assert.equal(h.passkeyLog.pending.credentialId, 'cred-new');
+  assert.equal(h.render().oauthError, null);
+}));
+
+test('signup without a chosen name still gets a distinctive one, never the shared "ATARA"', () => withPasskeyDomain(async () => {
+  const h = harness(); await h.render().startPasskey('signup');
+  const name = h.passkeyLog.created[0].user.name;
+  assert.match(name, /^Account [A-Z2-9]{4}$/);
+  assert.notEqual(name, 'ATARA');
+}));
+
+test('a name already used by another account on this iPhone is refused before any passkey exists', () => withPasskeyDomain(async () => {
+  const h = harness({ accounts: [{ key: 'a', label: 'Tanguy — Tests', passkeys: [] }] });
+  await h.render().startPasskey('signup', { label: 'tanguy — tests' });
+  assert.equal(h.passkeyLog.created.length, 0);
+  assert.match(h.render().oauthError, /already has this name/);
+  // A refused name is not a sign-in fault: no advice about Privy or the API.
+  assert.doesNotMatch(h.render().oauthError, /Privy|Reown|API/);
+}));
+
+test('a passkey created but not accepted by Privy is reported by name, so it can be deleted', () => withPasskeyDomain(async () => {
+  const h = harness({ linkError: true });
+  await h.render().startPasskey('signup', { label: 'Tanguy — Perso' });
+  assert.match(h.render().oauthError, /“Tanguy — Perso” was created on this iPhone but linked to no account/);
+  assert.equal(h.events.includes('registry-pending:Tanguy — Perso'), false);
+}));
+
+test('signing in to a known account offers that one credential only and records which one worked', () => withPasskeyDomain(async () => {
+  const h = harness(); await h.render().startPasskey('login', { credentialId: 'cred-known' });
+  assert.deepEqual(h.passkeyLog.asserted[0].allowCredentials, [{ id: 'cred-known', type: 'public-key' }]);
+  assert.equal(h.passkeyLog.signIn.privyUserId, 'privy-known');
+  assert.equal(h.passkeyLog.signIn.usedCredentialId, 'cred-known');
+}));
+
+test('a switch answered by a credential Privy files under another account corrects the list', () => withPasskeyDomain(async () => {
+  const h = harness({
+    intent: { kind: 'switch', target: { accountKey: 'expected', plan: { method: 'passkey', credentialId: 'cred-known' } } },
+    landed: { key: 'someone-else' },
+  });
+  await h.render().startPasskey('login', { credentialId: 'cred-known' });
+  assert.ok(h.events.includes('registry-drop:expected:cred-known'));
+}));
+
+test('the generic picker keeps working, and a single passkey is remembered as the one that worked', () => withPasskeyDomain(async () => {
+  const h = harness({ singlePasskey: true }); await h.render().startPasskey('login');
+  assert.deepEqual(h.events.slice(0, 3), ['privy-logout', 'wallet-disconnect', 'passkey-login']);
+  assert.equal(h.passkeyLog.signIn.usedCredentialId, 'cred-known');
+  assert.equal(h.passkeyLog.asserted.length, 0);
+}));
 
 test('failed provider logout blocks switching rather than linking to the previous account', async () => {
   const h = harness({ logoutError: true });
@@ -260,7 +385,9 @@ test('funding screen distinguishes testnet reception from MoonPay simulation', (
   assert.match(source, /Base Sepolia/);
   assert.match(source, /Clipboard\.setStringAsync\(walletAddress\)/);
   assert.match(source, /Never send real money or crypto here/);
-  assert.match(source, /session\.mode !== "sandbox"/);
+  // The beta only ever opens the sandbox: the check lives with the flow, and the screen uses it.
+  assert.match(source, /await runCheckout\(/);
+  assert.match(fs.readFileSync(path.join(__dirname, '../utils/onrampFlow.ts'), 'utf8'), /session\.mode !== undefined && session\.mode !== "sandbox"/);
 });
 
 test('concurrent sends on the same wallet are rejected before any network call', async () => {

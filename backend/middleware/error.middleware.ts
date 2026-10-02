@@ -38,6 +38,7 @@ export const errorMiddleware = (
 ): void => {
   let statusCode = 500;
   let message = "Internal Server Error";
+  let code: string | undefined;
 
   const libraryClientStatus = clientErrorStatus(err);
 
@@ -45,6 +46,7 @@ export const errorMiddleware = (
     // Expected refusals - a 400, a 403, a 409. Not worth a log line.
     statusCode = err.statusCode;
     message = err.message;
+    code = err.code;
   } else if (libraryClientStatus !== null) {
     // The caller sent something Express refused before reaching our code - an
     // oversized body, unparseable JSON. Answering 500 would blame the server
@@ -68,6 +70,7 @@ export const errorMiddleware = (
     status: "error",
     statusCode,
     message,
+    ...(code ? { code } : {}),
     stack: NODE_ENV === "development" ? err.stack : undefined,
   });
 };

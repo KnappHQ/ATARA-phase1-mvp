@@ -135,7 +135,10 @@ chaîne et partage le moins possible ; il ne rend pas tes paiements anonymes.
 - **Notifications** : l'app n'en envoie pas ; aucune information financière ne
   peut donc apparaître sur l'écran verrouillé.
 - **Stockage local** : jeton de session et profil minimal dans le trousseau
-  (`expo-secure-store`) ; surnoms dans AsyncStorage, par compte.
+  (`expo-secure-store`) ; surnoms dans AsyncStorage, par compte ; liste des
+  comptes de l'iPhone (noms privés, @handle, adresse, identifiants de passkeys,
+  jamais de clé) dans AsyncStorage, **jamais envoyée** à l'API ni à Privy — voir
+  `docs/ACCOUNTS_AND_PASSKEYS.md`.
 - **Analytics** : aucune analytics produit passive en bêta.
 
 ### 2.3 Limites par parcours
@@ -242,7 +245,9 @@ veut dire et de ses limites.
 
 - L'app suit `release/store-beta` (TestFlight). **L'API Render se déploie depuis
   `main`** (`render.yaml`) : les changements backend de cette PR ne seront en
-  ligne qu'après la fusion release → `main`.
+  ligne qu'après la fusion release → `main`. Le workflow « Verify Render
+  Deploy » confirme ensuite que Render sert bien le commit fusionné
+  (`GET /api/v1/health/backend` renvoie `commit`), et échoue sinon.
 - Chaque changement app reste compatible avec l'ancien backend dans cet
   intervalle : l'app nettoie elle-même le profil reçu, désactive l'édition de la
   note pour le destinataire et ne lit que le statut des liens.

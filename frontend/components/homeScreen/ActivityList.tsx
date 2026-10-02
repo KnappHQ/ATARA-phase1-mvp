@@ -6,6 +6,8 @@ import { COLORS } from "@/utils/constants";
 import { truncateAddress } from "@/utils/format";
 import { DisplayTransaction } from "@/stores/useTransactionHistoryStore";
 import { TransactionsSkeleton } from "./ActivitySkeleton";
+import { RowHeader } from "@/components/activity/RowHeader";
+import { MAX_ROW_FONT_MULTIPLIER } from "@/utils/rowLayout";
 import { useRouter } from "expo-router";
 
 interface ActivityListProps {
@@ -71,9 +73,9 @@ export const ActivityList = ({
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                   }}
                   activeOpacity={0.8}
-                  className="flex-row items-center justify-between py-4 border-b border-white/5"
+                  className="flex-row items-center py-4 border-b border-white/5"
                 >
-                  <View className="flex-row items-center gap-3">
+                  <View className="flex-1 flex-row items-center gap-3" style={{ minWidth: 0 }}>
                     <View className="w-8 h-8 items-center justify-center">
                       {tx.type === "receive" ? (
                         <ArrowDownLeft size={16} color={COLORS.accent} />
@@ -84,34 +86,22 @@ export const ActivityList = ({
                         />
                       )}
                     </View>
-                    <View>
-                      <View className="flex-row items-center gap-2">
-                        <Text className="text-base font-medium text-white/80">
-                          {tx.counterparty.name}
-                        </Text>
-                        {tx.counterparty.showAddress && (
-                          <Text className="text-xs text-platinum-muted/40">
-                            {truncateAddress(tx.counterparty.address)}
-                          </Text>
-                        )}
-                      </View>
-                      <Text className="text-xs text-platinum-muted/60">
+                    <View className="flex-1" style={{ minWidth: 0 }}>
+                      <RowHeader
+                        name={tx.counterparty.name}
+                        address={tx.counterparty.showAddress ? truncateAddress(tx.counterparty.address) : null}
+                        amount={tx.formattedAmount}
+                        amountColor={tx.type === "receive" ? COLORS.accent : "rgba(255, 255, 255, 0.8)"}
+                        nameClassName="text-base font-medium text-white/80"
+                        addressClassName="text-xs text-platinum-muted/40"
+                        amountClassName="text-sm font-medium"
+                        amountStyle={{ fontVariant: ["tabular-nums"] }}
+                      />
+                      <Text className="text-xs text-platinum-muted/60" numberOfLines={1} maxFontSizeMultiplier={MAX_ROW_FONT_MULTIPLIER}>
                         {tx.displayDate}
                       </Text>
                     </View>
                   </View>
-                  <Text
-                    className="text-sm font-medium"
-                    style={{
-                      color:
-                        tx.type === "receive"
-                          ? COLORS.accent
-                          : "rgba(255, 255, 255, 0.8)",
-                      fontVariant: ["tabular-nums"],
-                    }}
-                  >
-                    {tx.formattedAmount}
-                  </Text>
                 </TouchableOpacity>
               </MotiView>
             );

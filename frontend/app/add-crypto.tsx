@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import * as WebBrowser from "expo-web-browser";
 import * as Clipboard from "expo-clipboard";
 import {
   ActivityIndicator,
+  AppState,
   Pressable,
   ScrollView,
   Text,
@@ -23,23 +24,49 @@ import { APP_NETWORK, COLORS, NETWORK_NAME } from "@/utils/constants";
 import { DEMO_MODE } from "@/utils/demoMode";
 import { OnrampService } from "@/services/onramp.service";
 import { useWalletStore } from "@/stores/useWalletStore";
-
-const formatError = (error: any) => {
-  const message = error?.response?.data?.message;
-  if (message === "The on-ramp is not configured yet") {
-    return "MoonPay is not configured yet. To test ATARA, get test USDC from the Circle faucet above.";
-  }
-  return message || "Buying crypto is not configured for this beta yet.";
-};
+import {
+  INITIAL_ONRAMP,
+  isBusy,
+  onrampReducer,
+  runCheckout,
+  scheduleBalanceRefresh,
+} from "@/utils/onrampFlow";
 
 export default function AddCryptoScreen() {
   const router = useRouter();
   const [amount, setAmount] = useState("50");
-  const [isOpening, setIsOpening] = useState(false);
+  const [checkout, dispatch] = useReducer(onrampReducer, INITIAL_ONRAMP);
+  const isOpening = isBusy(checkout);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const walletAddress = useWalletStore((state) => state.smartAccountAddress);
   const isTestnet = APP_NETWORK === "base-sepolia";
+
+  // After coming back from MoonPay the balance is re-read a few times, then left
+  // alone: nothing here waits for MoonPay, and a later confirmation shows in Activity.
+  const cancelRefresh = useRef<(() => void) | null>(null);
+  const refreshAfterReturn = useCallback(() => {
+    cancelRefresh.current?.();
+    cancelRefresh.current = scheduleBalanceRefresh(() => useWalletStore.getState().refreshBalances());
+  }, []);
+  useEffect(() => () => cancelRefresh.current?.(), []);
+
+  // The browser's own promise may never settle on iOS when the checkout hands
+  // control back through a link, so coming back to the app is enough to move on.
+  const phase = checkout.phase;
+  useEffect(() => {
+    if (phase !== "open") return;
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") {
+        dispatch({ type: "returned" });
+        refreshAfterReturn();
+      }
+    });
+    return () => subscription.remove();
+  }, [phase, refreshAfterReturn]);
+  useEffect(() => {
+    if (phase === "returned") refreshAfterReturn();
+  }, [phase, refreshAfterReturn]);
 
   const openTestFaucet = async () => {
     if (!isTestnet || !walletAddress) return;
@@ -82,33 +109,25 @@ export default function AddCryptoScreen() {
       return;
     }
 
-    setIsOpening(true);
     setError(null);
     setMessage(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    try {
-      const session = await OnrampService.createSession(
-        numericAmount.toFixed(2),
-      );
-      if (
-        session.mode !== "sandbox" ||
-        new URL(session.url).hostname !== "buy-sandbox.moonpay.com"
-      ) {
-        throw new Error("Unexpected live checkout in beta");
-      }
-      await WebBrowser.openBrowserAsync(session.url, {
-        // Use Safari's full-screen chrome so its native Close button remains
-        // reachable even when the checkout itself displays an error.
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-        dismissButtonStyle: "close",
-        controlsColor: COLORS.white,
-        toolbarColor: COLORS.black,
-      });
-    } catch (requestError) {
-      setError(formatError(requestError));
-    } finally {
-      setIsOpening(false);
-    }
+    await runCheckout(
+      {
+        createSession: (value) => OnrampService.createSession(value),
+        openBrowser: (url) =>
+          WebBrowser.openBrowserAsync(url, {
+            // Use Safari's full-screen chrome so its native Close button remains
+            // reachable even when the checkout itself displays an error.
+            presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+            dismissButtonStyle: "close",
+            controlsColor: COLORS.white,
+            toolbarColor: COLORS.black,
+          }),
+      },
+      numericAmount.toFixed(2),
+      dispatch,
+    );
   };
 
   return (
@@ -116,6 +135,9 @@ export default function AddCryptoScreen() {
       <View className="flex-row items-center px-6 py-4 border-b border-white/10">
         <Pressable
           onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          hitSlop={8}
           className="w-11 h-11 rounded-full items-center justify-center bg-white/10"
         >
           <ArrowLeft size={20} color={COLORS.white} />
@@ -227,6 +249,36 @@ export default function AddCryptoScreen() {
 
           {error ? (
             <Text className="mt-4 text-sm leading-5 text-red-300">{error}</Text>
+          ) : null}
+          {checkout.phase === "failed" && checkout.failure ? (
+            <View accessibilityRole="alert" className="mt-4">
+              <Text className="text-sm leading-5 text-red-300">{checkout.failure.message}</Text>
+              {checkout.failure.code ? (
+                <Text selectable className="mt-1 text-xs text-white/40">{`Reference: ${checkout.failure.code}`}</Text>
+              ) : null}
+            </View>
+          ) : null}
+          {checkout.phase === "open" ? (
+            <View accessibilityRole="alert" className="mt-4 rounded-2xl border border-white/15 bg-white/5 p-4">
+              <Text className="text-sm font-semibold text-white">MoonPay is open</Text>
+              <Text className="mt-1 text-sm leading-5 text-white/65">
+                Finish or close it when you like and come back here. Nothing is waiting on it.
+              </Text>
+              <Pressable
+                onPress={() => dispatch({ type: "returned" })}
+                accessibilityRole="button"
+                hitSlop={8}
+                className="mt-3 min-h-11 justify-center self-start"
+              >
+                <Text className="text-sm font-semibold" style={{ color: COLORS.accent }}>I’m back</Text>
+              </Pressable>
+            </View>
+          ) : null}
+          {checkout.phase === "returned" ? (
+            <Text className="mt-4 text-sm leading-5 text-green-300">
+              Back from MoonPay. The sandbox only simulates a purchase, so nothing is added to your Base Sepolia balance.
+              If MoonPay confirms something later, it appears in Activity.
+            </Text>
           ) : null}
           {message ? (
             <Text className="mt-4 text-sm leading-5 text-green-300">

@@ -130,6 +130,11 @@ class UserService {
           },
         });
         await tx.recoveryCode.deleteMany({ where: { userId } });
+        // Loyalty points and a place on a waiting list are worth nothing once
+        // the person is gone, and a card event keeps only that it happened.
+        await tx.milesEntry.deleteMany({ where: { userId } });
+        await tx.cardWaitlist.deleteMany({ where: { userId } });
+        await tx.cardEvent.updateMany({ where: { userId }, data: { userId: null } });
         await tx.user.update({
           where: { id: userId },
           data: {

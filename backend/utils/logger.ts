@@ -72,3 +72,8 @@ export const logError = (
 
   process.stderr.write(`${JSON.stringify(entry)}\n`);
 };
+
+/** An informational event: one JSON line on stderr, fields chosen by the caller (never values of secrets). */
+export const logInfo = (context: string, fields: Record<string, unknown> = {}): void => {
+  process.stderr.write(`${JSON.stringify({ time: new Date().toISOString(), level: "info", context, ...fields })}\n`);
+};
