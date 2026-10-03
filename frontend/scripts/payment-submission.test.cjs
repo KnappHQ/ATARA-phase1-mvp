@@ -126,7 +126,7 @@ test("a request that may have been accepted is kept, and nothing can be sent on 
   assert.equal(log.slice(before).includes("prepare"), false, "the second attempt asked the provider for nothing");
 });
 
-test("a request the provider refused outright leaves nothing behind, so the retry with gas can proceed", async () => {
+test("a request the provider refused outright leaves nothing behind, so the person can try again", async () => {
   const { run, storage } = setup({ send: () => Promise.reject(rpcError("policy limit reached", { code: -32000 })) });
   await assert.rejects(run(), /policy limit/);
   assert.equal(stored(storage), null);
@@ -325,4 +325,21 @@ test("a payment that fails after the screen moved on is still reported as failed
   await assert.rejects(run({ onSubmitted: () => told++ }), (error) => error.definitiveFailure === true);
   assert.equal(told, 1);
   assert.equal(stored(storage), null);
+});
+
+test("a prepared payment whose fee is not acceptable is stopped before anything is recorded or signed", async () => {
+  const { run, log, storage } = setup();
+  const refusal = Object.assign(new Error("The network fee changed."), { code: "FEE_CHANGED" });
+  await assert.rejects(run({ onPrepared: () => { throw refusal; } }), (error) => error.code === "FEE_CHANGED" && error.notSent === true);
+  assert.deepEqual(log, ["prepare"], "nothing was signed or sent");
+  assert.equal(stored(storage), null, "and nothing is on record, so the person can simply confirm again");
+});
+
+test("an acceptable fee lets the payment go through as before, after the check ran on the prepared payment", async () => {
+  const seen = [];
+  const { run, log } = setup();
+  const result = await run({ onPrepared: (prepared) => void seen.push(prepared.type) });
+  assert.deepEqual(seen, ["user-operation-v070"]);
+  assert.deepEqual(log.slice(0, 3), ["prepare", "sign", "send"]);
+  assert.equal(result.hash, TX);
 });

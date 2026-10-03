@@ -3,6 +3,7 @@ import { AlertCircle } from "lucide-react-native";
 
 import { COLORS, NETWORK_NAME } from "@/utils/constants";
 import { groupAddress } from "@/utils/paymentReview";
+import { feeLineLabel, leavesAccountLabel } from "@/utils/networkFee";
 
 interface PaymentReviewProps {
   visible: boolean;
@@ -13,6 +14,8 @@ interface PaymentReviewProps {
   tokenSymbol: string;
   approxUsd?: string | null;
   note?: string;
+  /** The network fee, paid in USDC: the payment cannot be confirmed without a known fee. */
+  fee: { state: "loading" | "ready" | "unavailable"; maxFee: bigint | null };
   busy: boolean;
   onCancel: () => void;
   onConfirm: () => void;
@@ -32,8 +35,8 @@ const Line = ({ label, value, strong }: { label: string; value: string; strong?:
  *
  * It shows the whole address, what the recipient receives, the network fee
  * and what leaves the account, and what is shared with the recipient. The fee
- * is sponsored in this build: when sponsorship is unavailable the payment is
- * refused rather than charged.
+ * is paid by the sender in USDC and is never shown as 0: when it is not known
+ * the payment cannot be confirmed.
  */
 export const PaymentReview = ({
   visible,
@@ -43,10 +46,13 @@ export const PaymentReview = ({
   tokenSymbol,
   approxUsd,
   note,
+  fee,
   busy,
   onCancel,
   onConfirm,
-}: PaymentReviewProps) => (
+}: PaymentReviewProps) => {
+  const feeKnown = fee.state === "ready" && fee.maxFee !== null;
+  return (
   <Modal
     visible={visible}
     transparent
@@ -86,8 +92,9 @@ export const PaymentReview = ({
           <View className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 mb-4">
             <Line label="Recipient receives" value={`${amount} ${tokenSymbol}`} strong />
             {!!approxUsd && <Line label="Approx. value" value={approxUsd} />}
-            <Line label="Network fee" value="0, paid by ATARA while sponsorship is available" />
-            <Line label="Leaves your account" value={`${amount} ${tokenSymbol}`} strong />
+            <Line label="Network fee" value={feeLineLabel(fee.state, fee.maxFee)} />
+            <Line label="Leaves your account" value={leavesAccountLabel(amount, tokenSymbol, fee.maxFee)} strong />
+            <Text className="text-xs text-muted mt-2">The network fee is paid in USDC from your balance.</Text>
             <Line label="Network" value={NETWORK_NAME} />
           </View>
 
@@ -111,9 +118,9 @@ export const PaymentReview = ({
             </Pressable>
             <Pressable
               onPress={onConfirm}
-              disabled={busy}
+              disabled={busy || !feeKnown}
               className="flex-1 items-center justify-center rounded-2xl bg-white py-3"
-              style={{ opacity: busy ? 0.7 : 1 }}
+              style={{ opacity: busy || !feeKnown ? 0.5 : 1 }}
             >
               <Text className="text-sm font-semibold text-black">Confirm and pay</Text>
             </Pressable>
@@ -122,4 +129,5 @@ export const PaymentReview = ({
       </ScrollView>
     </View>
   </Modal>
-);
+  );
+};

@@ -17,6 +17,8 @@ import { DEMO_MODE } from "@/utils/demoMode";
 import { useSmartAccountService } from "@/services/smartAccount.service";
 import { useTransactionService } from "@/services/transaction.service";
 import { PaymentReview } from "@/components/send/PaymentReview";
+import { useNetworkFee } from "@/hooks/useNetworkFee";
+import { checkFee, feeCheckMessage, feeLineLabel, toBaseUnits } from "@/utils/networkFee";
 import { useWalletStore } from "@/stores/useWalletStore";
 import { useAuthStore } from "@/stores/useAuthStore";
 import {
@@ -115,8 +117,25 @@ export default function PayMerchantScreen() {
     amountInBaseUnits !== null &&
     balanceInBaseUnits !== null &&
     amountInBaseUnits <= balanceInBaseUnits;
+  // The network fee is paid in USDC from this account and quoted before paying.
+  const fee = useNetworkFee(service, isValidAddress ? rawAddress : undefined, selectedToken);
+  const usdcAsset = assets.find((asset) => asset.symbol === "USDC");
+  const usdcBalance = !usdcAsset
+    ? null
+    : /^\d+$/.test(usdcAsset.balanceWei ?? "")
+      ? BigInt(usdcAsset.balanceWei as string)
+      : toBaseUnits(usdcAsset.balance, 6);
+  const feeCheck = checkFee({
+    feeState: fee.state,
+    maxFee: fee.maxFee,
+    tokenSymbol: selectedToken?.symbol ?? "",
+    amountBase: amountInBaseUnits ?? 0n,
+    usdcBalance,
+  });
+  const feeProblem = isValidAmount && hasBalance && isValidAddress ? feeCheckMessage(feeCheck, fee.maxFee) : null;
   const canPay =
     !!selectedToken &&
+    (DEMO_MODE || feeCheck.ok) &&
     (DEMO_MODE || !!transactionService) &&
     isValidAddress &&
     isValidAmount &&
@@ -158,6 +177,11 @@ export default function PayMerchantScreen() {
             ? (Number(normalizedAmount) * selectedToken.usdPrice).toFixed(2)
             : selectedToken.usdValue,
         note: note.trim() || undefined,
+        fee: {
+          maxFee: fee.maxFee,
+          usdcBalance,
+          payingUsdc: selectedToken.symbol === "USDC" ? amountInBaseUnits ?? 0n : 0n,
+        },
       });
       if (!result.success) {
         if (result.isPendingVerification) {
@@ -165,6 +189,7 @@ export default function PayMerchantScreen() {
           setMessage("Status unknown. Do not pay again: this payment may still go through. Check Activity before trying again.");
           return;
         }
+        fee.retry(); // the quote may be what changed: ask for a fresh one before the next try
         setMessage(result.error || "Payment failed.");
         return;
       }
@@ -293,6 +318,13 @@ export default function PayMerchantScreen() {
             Available balance: {balanceText} {selectedToken?.symbol ?? ""}
           </Text>
           {isValidAmount && !hasBalance ? <Text className="text-red-300 text-xs mt-2">Amount exceeds your available balance.</Text> : null}
+          {feeProblem ? <Text className="text-red-300 text-xs mt-2">{feeProblem}</Text> : null}
+          {isValidAddress && isValidAmount && hasBalance && fee.state === "unavailable" ? (
+            <Pressable onPress={fee.retry} className="mt-2 self-start">
+              <Text style={{ color: COLORS.accent }} className="text-xs font-semibold">Try again</Text>
+            </Pressable>
+          ) : null}
+          {isValidAddress && !DEMO_MODE ? <Text className="text-white/40 text-xs mt-2">Network fee: {feeLineLabel(fee.state, fee.maxFee)}, paid in USDC.</Text> : null}
           {amount.includes(".") && !hasValidDecimals ? <Text className="text-red-300 text-xs mt-2">{selectedToken?.symbol ?? "This token"} supports up to {maxDecimals} decimal places.</Text> : null}
 
           <TextInput
@@ -340,6 +372,7 @@ export default function PayMerchantScreen() {
             : null
         }
         note={note.trim() || undefined}
+        fee={{ state: fee.state, maxFee: fee.maxFee }}
         busy={isPaying}
         onCancel={() => setIsReviewOpen(false)}
         onConfirm={pay}

@@ -8,6 +8,7 @@ import { useAlertStore } from "../stores/useAlertStore";
 import * as Sentry from "@sentry/react-native";
 import { parseUnits } from "viem";
 import { assessServiceNetwork } from "../utils/networkGuard";
+import { feeFailureMessage } from "../utils/networkFee";
 
 export interface SendTransactionRequest {
   transactionId?: string;
@@ -28,6 +29,17 @@ export interface SendTransactionRequest {
    * this service as an alert, since nobody is waiting on the swipe any more.
    */
   onAccepted?: (transactionId: string) => void;
+  /**
+   * The network fee the person was shown, and the USDC they hold. Checked on the
+   * real quote before anything is signed; without a fee here the payment is not sent.
+   */
+  fee?: {
+    /** The largest fee shown, in USDC base units. */
+    maxFee: bigint | null;
+    usdcBalance: bigint | null;
+    /** USDC that leaves as the payment itself (0 when another token is sent). */
+    payingUsdc: bigint;
+  };
   onSynced?: (transactionId: string) => Promise<void> | void;
 }
 
@@ -36,7 +48,6 @@ interface TransactionResponse {
   hash?: string;
   success: boolean;
   error?: string;
-  isPaymasterFailure?: boolean;
   /** Submitted, but neither confirmed nor refused. Never send it again blindly. */
   isPendingVerification?: boolean;
 }
@@ -114,7 +125,7 @@ export class TransactionService {
         throw new Error("The app and service use different networks. No payment was sent.");
       }
       // SmartAccountService.sendTransaction now internally:
-      // 1. Sends the UserOperation (gas-sponsored via policy)
+      // 1. Sends the UserOperation (network fee paid by the sender in USDC)
       // 2. Waits for it to be bundled into a real transaction
       // 3. Returns the actual mined transaction hash
       const result = await this.smartAccountService.sendTransaction(
@@ -129,6 +140,12 @@ export class TransactionService {
           onSubmitted: () => {
             accepted = true;
             request.onAccepted?.(transactionId);
+          },
+          // Always set: a payment with no fee shown is refused before signing.
+          feeGuard: {
+            shownMaxFee: request.fee?.maxFee ?? null,
+            usdcBalance: request.fee?.usdcBalance ?? null,
+            payingUsdc: request.fee?.payingUsdc ?? 0n,
           },
         },
       );
@@ -170,10 +187,7 @@ export class TransactionService {
     } catch (error: any) {
       console.error("Transaction failed:", error);
 
-      const isPaymasterFailure = !!error?.isPaymasterFailure;
-      const failureMessage = isPaymasterFailure
-        ? "Gas sponsorship is unavailable or its limit has been reached. Try again later."
-        : error.message;
+      const failureMessage = feeFailureMessage(error) ?? error.message;
 
       if (error?.isPendingVerification) {
         updateTransaction(transactionId, { error: "Awaiting chain verification. Check Activity before sending again." });
@@ -193,7 +207,6 @@ export class TransactionService {
         transactionId,
         success: false,
         error: failureMessage,
-        isPaymasterFailure,
         isPendingVerification: !!error?.isPendingVerification,
       };
     }

@@ -40,7 +40,7 @@ const PREPARED = {
   },
   chainId: `0x${CHAIN_ID.toString(16)}`,
   signatureRequest: { type: "personal_sign", data: { raw: USER_OP_HASH }, rawPayload: `0x${"2a".repeat(32)}` },
-  feePayment: { sponsored: true, tokenAddress: USDC, maxAmount: "0x0" },
+  feePayment: { sponsored: false, tokenAddress: USDC, maxAmount: "0x7530" },
   details: { type: "user-operation", data: { hash: USER_OP_HASH, calls: [{ to: USDC, data: "0x", value: "0x0" }] } },
 };
 
@@ -83,10 +83,13 @@ const storageDouble = () => {
   };
 };
 
+// The person pays the network fee in USDC: Alchemy's ERC-20 paymaster, post-operation, exact approval.
+const FEE_CAPABILITIES = { paymaster: { policyId: "11111111-2222-4333-8444-555555555555", erc20: { tokenAddress: USDC, postOpSettings: { autoApprove: true } } } };
+
 const request = () => ({
   account: SENDER,
   calls: [{ to: USDC, value: 0n, data: transferData }],
-  capabilities: { paymaster: { policyId: "11111111-2222-4333-8444-555555555555" } },
+  capabilities: FEE_CAPABILITIES,
 });
 
 test("the split submission sends the same requests as the SDK's own sendCalls", async () => {
@@ -106,7 +109,7 @@ test("the split submission sends the same requests as the SDK's own sendCalls", 
     ops,
     account: SENDER,
     calls: [{ target: USDC, value: 0n, data: transferData }],
-    overrides: { paymaster: { policyId: "11111111-2222-4333-8444-555555555555" } },
+    overrides: FEE_CAPABILITIES,
     sleep: async () => undefined,
   });
 
@@ -116,6 +119,41 @@ test("the split submission sends the same requests as the SDK's own sendCalls", 
   assert.equal(result.hash, `0x${"7a".repeat(32)}`);
   assert.equal(result.userOpHash, USER_OP_HASH, "the hash read before sending is the one in the call id");
   assert.deepEqual(parseCallId(CALL_ID), { chainId: CHAIN_ID, userOpHash: USER_OP_HASH });
+});
+
+test("the ERC-20 fee capability reaches the provider on prepare, and only the policy on send", async () => {
+  const { client, exchange } = await build();
+  const storage = storageDouble();
+  const ops = createPaymentOperations({
+    storage,
+    chainId: CHAIN_ID,
+    provider: { getCallsStatus: (input) => client.getCallsStatus(input) },
+    lock: runExclusiveOperation,
+  });
+  await submitAndConfirm({
+    client,
+    ops,
+    account: SENDER,
+    calls: [{ target: USDC, value: 0n, data: transferData }],
+    overrides: FEE_CAPABILITIES,
+    sleep: async () => undefined,
+  });
+  const prepare = exchange.find((entry) => entry.method === "wallet_prepareCalls");
+  const prepared = prepare.params[0].capabilities.paymasterService;
+  assert.equal(prepared.policyId, "11111111-2222-4333-8444-555555555555");
+  assert.equal(prepared.erc20.tokenAddress, USDC);
+  assert.deepEqual(prepared.erc20.postOpSettings, { autoApprove: true });
+  const send = exchange.find((entry) => entry.method === "wallet_sendPreparedCalls");
+  assert.deepEqual(Object.keys(send.params[0].capabilities.paymasterService).sort(), ["policyId"], "the provider takes only the policy on send");
+});
+
+test("the fee quote the real SDK returns is read as a positive USDC amount, and a sponsored one is refused", async () => {
+  const { readFeeQuote } = load("utils/networkFee.ts");
+  const { client } = await build();
+  const prepared = await client.prepareCalls(request());
+  assert.equal(typeof prepared.feePayment.maxAmount, "bigint");
+  assert.equal(readFeeQuote(prepared, USDC), 30_000n);
+  assert.equal(readFeeQuote({ feePayment: { ...prepared.feePayment, sponsored: true } }, USDC), null);
 });
 
 test("the provider's own status action reads a call id the way the verifier expects", async () => {

@@ -61,6 +61,12 @@ export interface SubmissionOptions {
    * may move on while confirmation continues.
    */
   onSubmitted?: () => void;
+  /**
+   * Runs on the prepared payment, before the intent is written and before
+   * anything is signed. Throwing stops the payment with nothing sent and
+   * nothing on record (the network fee turned out not to be acceptable).
+   */
+  onPrepared?: (prepared: any) => void | Promise<void>;
 }
 
 export const fingerprintOf = (calls: SubmissionCall[]): string =>
@@ -117,6 +123,15 @@ export const submitAndConfirm = async (options: SubmissionOptions): Promise<Subm
   const prepared: any = await client.prepareCalls(request);
   const preparedHash = USER_OPERATIONS.has(prepared?.type) && isHash32(prepared?.details?.data?.hash) ? (prepared.details.data.hash as string) : undefined;
 
+  // 2b. Is what was just quoted still what the person agreed to? Nothing is committed yet.
+  if (options.onPrepared) {
+    try {
+      await options.onPrepared(prepared);
+    } catch (error) {
+      throw Object.assign(error as Error, { notSent: true });
+    }
+  }
+
   // 3. Write the intent, THEN sign and send.
   await ops.inLock.begin(account, { fingerprint, userOpHash: preparedHash });
 
@@ -134,7 +149,7 @@ export const submitAndConfirm = async (options: SubmissionOptions): Promise<Subm
       const capabilities = capabilitiesForSending(overrides);
       ({ id } = await client.sendPreparedCalls({ ...signed, ...(capabilities ? { capabilities } : {}) }));
     } else {
-      // A shape this code does not split (e.g. an ERC-20 paymaster permit): the SDK does it whole.
+      // A shape this code does not split: the SDK does it whole. (The fee is taken after the payment runs, so a user operation is the normal case.)
       ({ id } = await client.sendCalls(request));
     }
   } catch (error) {

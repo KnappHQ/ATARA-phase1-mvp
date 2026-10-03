@@ -23,7 +23,16 @@ import {
   SendTransactionRequest,
 } from "@/services/transaction.service";
 import { useAlertStore } from "@/stores/useAlertStore";
+import { useNetworkFee } from "@/hooks/useNetworkFee";
 import { COLORS } from "@/utils/constants";
+import {
+  checkFee,
+  feeCheckMessage,
+  feeLineLabel,
+  formatUsdc,
+  maxSendable,
+  toBaseUnits,
+} from "@/utils/networkFee";
 import {
   formatTokenAmount,
   formatCurrency,
@@ -144,6 +153,31 @@ export const AmountStep = ({
   const amountValue = parseAmount(amount);
   const balanceValidation = validateBalance(amountValue, currentBalance);
 
+  // The network fee is paid in USDC from this account: it is quoted before the
+  // person confirms, and nothing is sent without it.
+  const fee = useNetworkFee(smartAccountService, recipient.smartAccountAddress, selectedToken);
+  const usdcAsset = getAssetBySymbol("USDC");
+  const usdcBalance =
+    !usdcAsset || isLoadingBalances
+      ? null
+      : /^\d+$/.test(usdcAsset.balanceWei ?? "")
+        ? BigInt(usdcAsset.balanceWei as string)
+        : toBaseUnits(usdcAsset.balance, 6);
+  const amountBase = toBaseUnits(String(amountValue), selectedToken.decimals) ?? 0n;
+  const feeCheck = checkFee({
+    feeState: fee.state,
+    maxFee: fee.maxFee,
+    tokenSymbol: selectedToken.symbol,
+    amountBase,
+    usdcBalance,
+  });
+  const feeProblem =
+    amountValue > 0 && balanceValidation.isValid && !isLoadingBalances ? feeCheckMessage(feeCheck, fee.maxFee) : null;
+  const sendMax =
+    !feeCheck.ok && feeCheck.reason === "not-enough-for-fee" && !settlementGroupId && (feeCheck.maxSendable ?? 0n) > 0n
+      ? feeCheck.maxSendable!
+      : null;
+
   useEffect(() => {
     onTransactionStateChange?.(isTransactionInProgress);
   }, [isTransactionInProgress, onTransactionStateChange]);
@@ -158,6 +192,14 @@ export const AmountStep = ({
     if (isTransactionInProgress || isLoadingBalances || settlementGroupId) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (percentage === "MAX" && selectedToken.symbol === "USDC") {
+      // Everything except the largest fee: the fee comes out of the same USDC.
+      // Without a fee quote there is no honest "max", so nothing is guessed.
+      if (fee.state !== "ready" || fee.maxFee === null || usdcBalance === null) return;
+      const spendable = maxSendable(usdcBalance, fee.maxFee);
+      if (spendable > 0n) setAmount(formatUsdc(spendable));
+      return;
+    }
     const calculatedAmount = calculatePercentageAmount(
       percentage,
       currentBalance,
@@ -181,6 +223,7 @@ export const AmountStep = ({
   const isValidAmount = amountValue > 0 && balanceValidation.isValid;
   const canSend =
     isValidAmount &&
+    feeCheck.ok &&
     !isTransactionInProgress &&
     !statusUnknown &&
     smartAccountService &&
@@ -221,6 +264,11 @@ export const AmountStep = ({
         ? `$${(amountValue * selectedToken.usdPrice).toFixed(2)}`
         : selectedToken.usdValue,
     note: note || undefined,
+    fee: {
+      maxFee: fee.maxFee,
+      usdcBalance,
+      payingUsdc: selectedToken.symbol === "USDC" ? amountBase : 0n,
+    },
     settlement: settlementGroupId && settlementMemberId && settlementIntentId
       ? { groupId: settlementGroupId, memberId: settlementMemberId, intentId: settlementIntentId }
       : undefined,
@@ -279,6 +327,8 @@ export const AmountStep = ({
         leaveSendFlow();
       } else {
         if (movedOn) return;
+        // The quote may be what changed: ask for a fresh one before the next try.
+        if (!result.isPendingVerification) fee.retry();
         if (result.isPendingVerification) setStatusUnknown(true);
         throw new Error(result.error || "Transaction failed");
       }
@@ -528,6 +578,7 @@ export const AmountStep = ({
         tokenSymbol={selectedToken.symbol}
         approxUsd={approxUsd}
         note={note || undefined}
+        fee={{ state: fee.state, maxFee: fee.maxFee }}
         busy={isTransactionInProgress}
         onCancel={closeAddressReview}
         onConfirm={handleConfirmAddressAndSend}
@@ -546,6 +597,37 @@ export const AmountStep = ({
         </MotiView>
       )}
 
+      {feeProblem && (
+        <MotiView
+          from={{ opacity: 0, translateY: -5 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          className="mb-4 p-3 rounded-2xl bg-bitcoin/10 border border-bitcoin/30"
+        >
+          <View className="flex-row items-start gap-2">
+            <AlertCircle size={16} color={COLORS.bitcoinOrange} />
+            <Text className="text-sm text-bitcoin flex-1">{feeProblem}</Text>
+          </View>
+          {sendMax !== null && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setAmount(formatUsdc(sendMax))}
+              className="mt-3 self-start rounded-xl border border-bitcoin/40 px-4 py-2"
+            >
+              <Text className="text-sm font-semibold text-bitcoin">Send max ({formatUsdc(sendMax)} USDC)</Text>
+            </Pressable>
+          )}
+          {fee.state === "unavailable" && (
+            <Pressable
+              accessibilityRole="button"
+              onPress={fee.retry}
+              className="mt-3 self-start rounded-xl border border-bitcoin/40 px-4 py-2"
+            >
+              <Text className="text-sm font-semibold text-bitcoin">Try again</Text>
+            </Pressable>
+          )}
+        </MotiView>
+      )}
+
       <MotiView
         from={{ opacity: 0, translateY: -20 }}
         animate={{ opacity: 1, translateY: 0 }}
@@ -557,7 +639,7 @@ export const AmountStep = ({
 
         <Text className="text-sm text-muted">Network fee:</Text>
         <View className="px-2.5 py-1 rounded-full bg-emarald/10 border border-emarald/20">
-          <Text className="text-xs font-medium text-emarald">Sponsorship subject to availability</Text>
+          <Text className="text-xs font-medium text-emarald">{feeLineLabel(fee.state, fee.maxFee)}</Text>
         </View>
       </MotiView>
 
@@ -615,7 +697,11 @@ export const AmountStep = ({
                   ? "Loading Balances..."
                   : !balanceValidation.isValid && amountValue > 0
                     ? balanceValidation.message
-                    : "Slide right to send"
+                    : amountValue > 0 && fee.state === "loading"
+                      ? "Estimating network fee..."
+                      : feeProblem
+                        ? "Network fee needs attention"
+                        : "Slide right to send"
           }
         />
       </MotiView>

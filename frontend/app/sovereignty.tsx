@@ -190,8 +190,8 @@ export default function SovereigntyScreen() {
             passkey or account restores access.
           </Limit>
           <Limit>
-            Alchemy: it runs your account, and ATARA pays the network fees through it. If that
-            sponsorship stops, payments fail; you cannot pay the fee yourself yet.
+            Alchemy: it runs your account and takes the small network fee of each payment, in
+            USDC, from your balance. If Alchemy is unavailable, payments cannot be made.
           </Limit>
           <Limit>
             Your key cannot be exported from this version of the app, so the account cannot yet be
@@ -205,7 +205,6 @@ export default function SovereigntyScreen() {
         <Card>
           <Blocks color={COLORS.accent} />
           <Text className="text-white text-lg font-semibold mt-3">What comes next</Text>
-          <Fact>Paying the network fee yourself, with its price shown, when sponsorship is unavailable.</Fact>
           <Fact>A way to use your account from another wallet: a second key you hold, or signing in with your own wallet.</Fact>
           <Fact>Private notes that only you can read.</Fact>
           <Fact>Several network providers, so no single one can stop payments.</Fact>

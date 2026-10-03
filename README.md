@@ -318,7 +318,8 @@ Create a `.env` file (Expo reads `EXPO_PUBLIC_` prefixed variables on the client
 
 ```env
 EXPO_PUBLIC_ALCHEMY_API_KEY=your_alchemy_api_key
-EXPO_PUBLIC_ALCHEMY_GAS_POLICY_ID=your_gas_manager_policy_id
+# id of the Gas Manager ERC-20 ("pay gas with any token") policy: see docs/NETWORK_FEES.md
+EXPO_PUBLIC_ALCHEMY_GAS_POLICY_ID=your_erc20_gas_manager_policy_id
 EXPO_PUBLIC_API_URL=http://your-backend-ip:4000
 EXPO_PUBLIC_PRIVY_APP_ID=your_privy_app_id
 EXPO_PUBLIC_PRIVY_CLIENT_ID=your_privy_native_client_id
@@ -352,7 +353,7 @@ npm run ios            # Build and run on iOS simulator (macOS only)
 
 ### ERC-4337 transactions
 
-Transactions use Alchemy smart accounts, and every transaction is sponsored by the configured Gas Manager policy. If sponsorship is unavailable, the payment is refused: there is no user-paid fallback in this build (it was removed in `66fc97c` until fees can be quoted before signing). The backend verifies completed receipts on-chain before recording them.
+Transactions use Alchemy smart accounts. ATARA does not sponsor network fees: each payment pays its own fee in USDC, taken from the same account by Alchemy's ERC-20 paymaster, and the fee is shown before the person confirms (see `docs/NETWORK_FEES.md`). If the fee cannot be quoted, the payment is not sent. The backend verifies completed receipts on-chain before recording them.
 
 ### On-ramp and merchant payments
 
