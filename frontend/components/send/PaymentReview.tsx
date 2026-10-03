@@ -3,6 +3,8 @@ import { AlertCircle } from "lucide-react-native";
 
 import { COLORS, NETWORK_NAME } from "@/utils/constants";
 import { groupAddress } from "@/utils/paymentReview";
+import type { FeeQuote } from "@/utils/feeEstimator";
+import { formatLeavesAccount, formatNetworkFee } from "@/utils/networkFee";
 
 interface PaymentReviewProps {
   visible: boolean;
@@ -14,6 +16,13 @@ interface PaymentReviewProps {
   approxUsd?: string | null;
   note?: string;
   busy: boolean;
+  /** The network fee the person pays, in USDC. A payment is never confirmed without a real one. */
+  fee: FeeQuote;
+  /** Set when the balance cannot cover the amount and the fee: confirming is blocked. */
+  fundsMessage?: string | null;
+  /** Shown above the buttons, e.g. "The network fee changed. Please check and confirm again." */
+  notice?: string | null;
+  onRetryFee: () => void;
   onCancel: () => void;
   onConfirm: () => void;
 }
@@ -32,8 +41,8 @@ const Line = ({ label, value, strong }: { label: string; value: string; strong?:
  *
  * It shows the whole address, what the recipient receives, the network fee
  * and what leaves the account, and what is shared with the recipient. The fee
- * is sponsored in this build: when sponsorship is unavailable the payment is
- * refused rather than charged.
+ * is paid in USDC from the same account and shown before anything is signed.
+ * Without a real fee the payment cannot be confirmed: there is no default.
  */
 export const PaymentReview = ({
   visible,
@@ -44,9 +53,17 @@ export const PaymentReview = ({
   approxUsd,
   note,
   busy,
+  fee,
+  fundsMessage,
+  notice,
+  onRetryFee,
   onCancel,
   onConfirm,
-}: PaymentReviewProps) => (
+}: PaymentReviewProps) => {
+  const maxFee = fee.status === "ready" ? fee.maxFee : null;
+  const feeText = fee.status === "loading" ? "Estimating…" : formatNetworkFee(maxFee);
+  const canConfirm = fee.status === "ready" && !fundsMessage && !busy;
+  return (
   <Modal
     visible={visible}
     transparent
@@ -86,10 +103,34 @@ export const PaymentReview = ({
           <View className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 mb-4">
             <Line label="Recipient receives" value={`${amount} ${tokenSymbol}`} strong />
             {!!approxUsd && <Line label="Approx. value" value={approxUsd} />}
-            <Line label="Network fee" value="0, paid by ATARA while sponsorship is available" />
-            <Line label="Leaves your account" value={`${amount} ${tokenSymbol}`} strong />
+            <Line label="Network fee" value={feeText} />
+            <Line
+              label="Leaves your account"
+              value={formatLeavesAccount({ amount, tokenSymbol, maxFee })}
+              strong
+            />
             <Line label="Network" value={NETWORK_NAME} />
+            <Text className="mt-3 text-xs leading-5 text-white/50">Paid in USDC from your balance.</Text>
           </View>
+
+          {(fundsMessage || notice || fee.status === "unavailable") && (
+            <View className="rounded-2xl border border-bitcoin/30 bg-bitcoin/10 p-4 mb-4">
+              <Text className="text-sm leading-5 text-white/80">
+                {fundsMessage ??
+                  notice ??
+                  "The network fee could not be calculated, so this payment is on hold. Nothing was sent."}
+              </Text>
+              {fee.status === "unavailable" && (
+                <Pressable
+                  onPress={onRetryFee}
+                  disabled={busy}
+                  className="mt-3 self-start rounded-xl border border-white/20 px-4 py-2"
+                >
+                  <Text className="text-sm font-semibold text-white">Try again</Text>
+                </Pressable>
+              )}
+            </View>
+          )}
 
           <View className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 mb-5">
             <Text className="text-xs uppercase tracking-widest text-muted mb-2">Shared</Text>
@@ -111,9 +152,9 @@ export const PaymentReview = ({
             </Pressable>
             <Pressable
               onPress={onConfirm}
-              disabled={busy}
+              disabled={!canConfirm}
               className="flex-1 items-center justify-center rounded-2xl bg-white py-3"
-              style={{ opacity: busy ? 0.7 : 1 }}
+              style={{ opacity: canConfirm ? 1 : 0.4 }}
             >
               <Text className="text-sm font-semibold text-black">Confirm and pay</Text>
             </Pressable>
@@ -122,4 +163,5 @@ export const PaymentReview = ({
       </ScrollView>
     </View>
   </Modal>
-);
+  );
+};

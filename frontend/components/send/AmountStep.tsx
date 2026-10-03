@@ -23,6 +23,17 @@ import {
   SendTransactionRequest,
 } from "@/services/transaction.service";
 import { useAlertStore } from "@/stores/useAlertStore";
+import { useNetworkFee } from "@/hooks/useNetworkFee";
+import {
+  FEE_TOKEN_SYMBOL,
+  assessSend,
+  assetBaseUnits,
+  formatNetworkFee,
+  formatUnits,
+  formatUsdc,
+  maxSendable,
+  parseUnits,
+} from "@/utils/networkFee";
 import { COLORS } from "@/utils/constants";
 import {
   formatTokenAmount,
@@ -94,6 +105,8 @@ export const AmountStep = ({
   // It stays until the person leaves: sending again could pay twice.
   const [statusUnknown, setStatusUnknown] = useState(false);
   const [swipeResetKey, setSwipeResetKey] = useState(0);
+  // Set when the real fee moved after the review: the review reopens with it.
+  const [reviewNotice, setReviewNotice] = useState<string | null>(null);
   const isTransactionInProgress = isSending || isTransactionLoading;
 
   useEffect(() => {
@@ -144,6 +157,31 @@ export const AmountStep = ({
   const amountValue = parseAmount(amount);
   const balanceValidation = validateBalance(amountValue, currentBalance);
 
+  // The network fee is paid in USDC, so what can be sent depends on it.
+  const { quote: feeQuote, refresh: refreshFee } = useNetworkFee({
+    service: smartAccountService,
+    recipientAddress: recipient.smartAccountAddress,
+    tokenSymbol: selectedToken?.symbol,
+    tokenAddress: selectedToken?.contractAddress,
+  });
+  const maxFee = feeQuote.status === "ready" ? feeQuote.maxFee : null;
+  const sendingFeeToken = selectedToken.symbol === FEE_TOKEN_SYMBOL;
+  const tokenBalanceUnits = assetBaseUnits(selectedToken);
+  const feeTokenBalanceUnits = assetBaseUnits(getAssetBySymbol(FEE_TOKEN_SYMBOL));
+  const amountUnits = amount.trim() ? parseUnits(amount, selectedToken.decimals) : null;
+  const { fundsMessage, maxSend } = assessSend({
+    amountUnits,
+    tokenSymbol: selectedToken.symbol,
+    tokenBalance: tokenBalanceUnits,
+    feeTokenBalance: feeTokenBalanceUnits,
+    maxFee,
+  });
+  // Only offered for a free amount: a group settlement is a fixed amount.
+  const maxSendAmount =
+    maxSend !== null && !settlementGroupId
+      ? formatUnits(maxSend, selectedToken.decimals, 0)
+      : null;
+
   useEffect(() => {
     onTransactionStateChange?.(isTransactionInProgress);
   }, [isTransactionInProgress, onTransactionStateChange]);
@@ -156,6 +194,17 @@ export const AmountStep = ({
 
   const handleQuickAmount = (percentage: string) => {
     if (isTransactionInProgress || isLoadingBalances || settlementGroupId) return;
+
+    if (percentage === "MAX" && sendingFeeToken) {
+      // The fee comes out of this same balance: keep the largest fee back. With
+      // no real quote there is nothing honest to subtract, so MAX waits.
+      const room =
+        tokenBalanceUnits === null ? null : maxSendable(tokenBalanceUnits, maxFee);
+      if (room === null) return;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setAmount(formatUnits(room, selectedToken.decimals, 0));
+      return;
+    }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const calculatedAmount = calculatePercentageAmount(
@@ -179,8 +228,11 @@ export const AmountStep = ({
   };
 
   const isValidAmount = amountValue > 0 && balanceValidation.isValid;
+  const feeReady = feeQuote.status === "ready";
   const canSend =
     isValidAmount &&
+    feeReady &&
+    !fundsMessage &&
     !isTransactionInProgress &&
     !statusUnknown &&
     smartAccountService &&
@@ -221,6 +273,18 @@ export const AmountStep = ({
         ? `$${(amountValue * selectedToken.usdPrice).toFixed(2)}`
         : selectedToken.usdValue,
     note: note || undefined,
+    // What the person was shown and could afford; checked again against the real
+    // fee before anything is signed.
+    feeGuard:
+      maxFee !== null && amountUnits !== null
+        ? {
+            shownMaxFee: maxFee,
+            amount: amountUnits,
+            sendingFeeToken,
+            tokenBalance: tokenBalanceUnits ?? 0n,
+            feeTokenBalance: (sendingFeeToken ? tokenBalanceUnits : feeTokenBalanceUnits) ?? 0n,
+          }
+        : undefined,
     settlement: settlementGroupId && settlementMemberId && settlementIntentId
       ? { groupId: settlementGroupId, memberId: settlementMemberId, intentId: settlementIntentId }
       : undefined,
@@ -233,6 +297,9 @@ export const AmountStep = ({
     if (!canSend || isTransactionInProgress) return;
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    // Ask for a fresh quote: the one on screen may be old. The review waits for it.
+    setReviewNotice(null);
+    refreshFee();
     setIsAddressReviewOpen(true);
   };
 
@@ -280,6 +347,18 @@ export const AmountStep = ({
       } else {
         if (movedOn) return;
         if (result.isPendingVerification) setStatusUnknown(true);
+        if (
+          result.errorCode === "FEE_CHANGED" ||
+          result.errorCode === "FEE_INSUFFICIENT" ||
+          result.errorCode === "FEE_UNAVAILABLE"
+        ) {
+          // Nothing was sent. Get the new fee and ask again, with the reason.
+          clearError();
+          setReviewNotice(result.error ?? null);
+          refreshFee();
+          setIsAddressReviewOpen(true);
+          return;
+        }
         throw new Error(result.error || "Transaction failed");
       }
     } catch {
@@ -468,11 +547,14 @@ export const AmountStep = ({
           <Pressable
             key={pct}
             onPress={() => handleQuickAmount(pct)}
-            disabled={isLoadingBalances || isTransactionInProgress}
+            disabled={isLoadingBalances || isTransactionInProgress || (pct === "MAX" && sendingFeeToken && !feeReady)}
             className="px-4 py-2 rounded-2xl active:opacity-70 border border-muted/40"
             style={{
               backgroundColor: "rgba(255, 255, 255, 0.05)",
-              opacity: isLoadingBalances || isTransactionInProgress ? 0.5 : 1,
+              opacity:
+                isLoadingBalances || isTransactionInProgress || (pct === "MAX" && sendingFeeToken && !feeReady)
+                  ? 0.5
+                  : 1,
             }}
           >
             <Text className="text-xs font-medium text-muted">{pct}</Text>
@@ -529,9 +611,35 @@ export const AmountStep = ({
         approxUsd={approxUsd}
         note={note || undefined}
         busy={isTransactionInProgress}
+        fee={feeQuote}
+        fundsMessage={fundsMessage}
+        notice={reviewNotice}
+        onRetryFee={refreshFee}
         onCancel={closeAddressReview}
         onConfirm={handleConfirmAddressAndSend}
       />
+
+      {!!fundsMessage && balanceValidation.isValid && (
+        <MotiView
+          from={{ opacity: 0, translateY: -5 }}
+          animate={{ opacity: 1, translateY: 0 }}
+          className="mb-4 p-3 rounded-2xl bg-bitcoin/10 border border-bitcoin/30"
+        >
+          <View className="flex-row items-start gap-2">
+            <AlertCircle size={16} color={COLORS.bitcoinOrange} />
+            <Text className="text-sm text-bitcoin flex-1">{fundsMessage}</Text>
+          </View>
+          {maxSendAmount !== null && maxSend !== null && (
+            <Pressable
+              onPress={() => setAmount(maxSendAmount)}
+              disabled={isTransactionInProgress}
+              className="mt-3 self-start rounded-xl border border-white/20 px-4 py-2"
+            >
+              <Text className="text-sm font-semibold text-white">{`Send max (${formatUsdc(maxSend)})`}</Text>
+            </Pressable>
+          )}
+        </MotiView>
+      )}
 
       {!balanceValidation.isValid && amountValue > 0 && (
         <MotiView
@@ -557,8 +665,21 @@ export const AmountStep = ({
 
         <Text className="text-sm text-muted">Network fee:</Text>
         <View className="px-2.5 py-1 rounded-full bg-emarald/10 border border-emarald/20">
-          <Text className="text-xs font-medium text-emarald">Sponsorship subject to availability</Text>
+          <Text className="text-xs font-medium text-emarald">
+            {feeQuote.status === "loading"
+              ? "Estimating…"
+              : feeQuote.status === "ready"
+                ? formatNetworkFee(feeQuote.maxFee)
+                : feeQuote.status === "unavailable"
+                  ? "Unavailable"
+                  : "—"}
+          </Text>
         </View>
+        {feeQuote.status === "unavailable" && (
+          <Pressable onPress={refreshFee} disabled={isTransactionInProgress}>
+            <Text className="text-xs font-semibold text-white underline">Try again</Text>
+          </Pressable>
+        )}
       </MotiView>
 
       {statusUnknown && (
@@ -615,7 +736,13 @@ export const AmountStep = ({
                   ? "Loading Balances..."
                   : !balanceValidation.isValid && amountValue > 0
                     ? balanceValidation.message
-                    : "Slide right to send"
+                    : fundsMessage
+                      ? "Not enough USDC for the fee"
+                      : feeQuote.status === "loading"
+                        ? "Calculating network fee..."
+                        : feeQuote.status === "unavailable"
+                          ? "Network fee unavailable"
+                          : "Slide right to send"
           }
         />
       </MotiView>

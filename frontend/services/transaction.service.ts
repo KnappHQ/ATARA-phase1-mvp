@@ -1,6 +1,6 @@
 import { useTransactionStore } from "../stores/useTransactionStore";
 import { useTransactionHistoryStore } from "../stores/useTransactionHistoryStore";
-import { SmartAccountService } from "./smartAccount.service";
+import { SmartAccountService, type FeeGuard } from "./smartAccount.service";
 import { flushRecordings, getPaymentOperations } from "./paymentOperations.runtime";
 import { queueSettlement, retryPendingSettlements, type SettlementReference } from "./settlementRecovery.service";
 import { api } from "./api";
@@ -29,6 +29,8 @@ export interface SendTransactionRequest {
    */
   onAccepted?: (transactionId: string) => void;
   onSynced?: (transactionId: string) => Promise<void> | void;
+  /** The fee the person was shown and the funds they had: checked again before signing. */
+  feeGuard?: FeeGuard;
 }
 
 interface TransactionResponse {
@@ -36,7 +38,8 @@ interface TransactionResponse {
   hash?: string;
   success: boolean;
   error?: string;
-  isPaymasterFailure?: boolean;
+  /** Set for a network-fee problem (unavailable, changed, not enough USDC, service down). Nothing was sent. */
+  errorCode?: string;
   /** Submitted, but neither confirmed nor refused. Never send it again blindly. */
   isPendingVerification?: boolean;
 }
@@ -114,7 +117,7 @@ export class TransactionService {
         throw new Error("The app and service use different networks. No payment was sent.");
       }
       // SmartAccountService.sendTransaction now internally:
-      // 1. Sends the UserOperation (gas-sponsored via policy)
+      // 1. Sends the UserOperation (the network fee is paid in USDC by the user)
       // 2. Waits for it to be bundled into a real transaction
       // 3. Returns the actual mined transaction hash
       const result = await this.smartAccountService.sendTransaction(
@@ -126,6 +129,7 @@ export class TransactionService {
           decimals: request.decimals,
         },
         {
+          feeGuard: request.feeGuard,
           onSubmitted: () => {
             accepted = true;
             request.onAccepted?.(transactionId);
@@ -170,10 +174,9 @@ export class TransactionService {
     } catch (error: any) {
       console.error("Transaction failed:", error);
 
-      const isPaymasterFailure = !!error?.isPaymasterFailure;
-      const failureMessage = isPaymasterFailure
-        ? "Gas sponsorship is unavailable or its limit has been reached. Try again later."
-        : error.message;
+      // Fee problems already carry a plain message (see utils/networkFee).
+      const errorCode = typeof error?.code === "string" && error.code.startsWith("FEE_") ? error.code : undefined;
+      const failureMessage = error.message;
 
       if (error?.isPendingVerification) {
         updateTransaction(transactionId, { error: "Awaiting chain verification. Check Activity before sending again." });
@@ -193,7 +196,7 @@ export class TransactionService {
         transactionId,
         success: false,
         error: failureMessage,
-        isPaymasterFailure,
+        errorCode,
         isPendingVerification: !!error?.isPendingVerification,
       };
     }
