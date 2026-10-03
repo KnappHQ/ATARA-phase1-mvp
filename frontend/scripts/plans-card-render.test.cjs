@@ -95,12 +95,13 @@ test("Plans & Miles is never empty: in every scenario it shows the three plans a
     withState(state);
     const tree = render(PlansScreen);
     const text = textOf(tree);
-    for (const shown of ["Plans & Miles", "ATARA Plans", "Current plan", "ATARA Plus", "ATARA Max", "Coming soon", "Available soon", "ATARA Miles", "Miles balance: 0", "Card rewards coming soon"]) {
+    for (const shown of ["Plans & Miles", "ATARA Plans", "Current plan", "ATARA Plus", "ATARA Max", "Coming soon", "Available soon", "ATARA Miles", "Card rewards coming soon"]) {
       assert.ok(text.includes(shown), `${name}: missing "${shown}"`);
     }
     assert.equal(elements(tree).filter((n) => n.type === "LoadNotice").length, 1, `${name}: the notice slot is there`);
     assert.ok(elements(tree).some((n) => n.type === "SafeAreaView"), name);
     assert.doesNotMatch(text, /vault|undefined|NaN|null/i, name);
+    assert.doesNotMatch(text, /Miles balance/, `${name}: no Miles number while Miles are not live`);
   }
 });
 

@@ -75,7 +75,11 @@ export default function PlansScreen() {
 
         <View className="mt-2 rounded-3xl border border-white/15 bg-white/[0.04] p-5">
           <Text className="text-xs uppercase text-white/40" style={{ letterSpacing: 1.2 }}>ATARA Miles</Text>
-          <Text className="mt-1 text-2xl font-semibold text-white">{view.miles.balanceLabel}</Text>
+          <Text
+            className={view.miles.state === "live" ? "mt-1 text-2xl font-semibold text-white" : "mt-1 text-lg font-semibold text-white/70"}
+          >
+            {view.miles.valueLabel}
+          </Text>
           <Text className="mt-1 text-sm font-semibold" style={{ color: COLORS.accent }}>{view.miles.status}</Text>
           {view.miles.lines.map((line) => (
             <Text key={line} className="mt-2 text-sm leading-5 text-white/55">{line}</Text>
