@@ -19,7 +19,7 @@ export const CardEntryCard = ({ onPress }: { onPress: () => void }) => (
     </View>
     <View className="flex-1 ml-3" style={{ minWidth: 0 }}>
       <Text className="text-white text-sm font-semibold" numberOfLines={1}>ATARA Card</Text>
-      <Text className="text-white/45 text-xs mt-1" numberOfLines={2}>Visa in Apple Wallet · earn miles that cover your fees</Text>
+      <Text className="text-white/45 text-xs mt-1" numberOfLines={2}>Coming soon · Visa card and ATARA Miles</Text>
     </View>
     <Text className="text-white/50 text-xs ml-2">Open</Text>
   </TouchableOpacity>

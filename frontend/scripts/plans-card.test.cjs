@@ -143,15 +143,25 @@ test("the app asks for the offers and the waiting list, and can change nothing e
 
 const text = (view) => JSON.stringify(view);
 
-test("Plans & Miles shows Free as current, Plus and Max as coming soon, and Miles at 0, even with no API at all", () => {
+test("Plans & Miles shows Free as current, Plus and Max as coming soon, and Miles as Coming soon, never a number, even with no API at all", () => {
   for (const load of [{ status: "loading" }, { status: "ready" }, { status: "unavailable", failure: "not-found" }]) {
     const view = buildPlansView({ load, plans: null, mine: null });
     assert.equal(view.heading, "ATARA Plans");
     assert.deepEqual(view.plans.map((p) => [p.name, p.badge]), [["ATARA", "Current plan"], ["ATARA Plus", "Coming soon"], ["ATARA Max", "Coming soon"]]);
     assert.deepEqual(view.plans.map((p) => p.action), [null, "Available soon", "Available soon"]);
-    assert.equal(view.miles.balanceLabel, "Miles balance: 0");
+    assert.equal(view.miles.state, "coming-soon");
+    assert.equal(view.miles.valueLabel, "Coming soon");
+    assert.doesNotMatch(text(view.miles), /balance|\b0\b/i);
     assert.equal(view.miles.status, "Card rewards coming soon");
   }
+});
+
+test("once Miles are live, a missing answer is Unavailable or Loading, never 0", () => {
+  const loading = buildPlansView({ load: { status: "loading" }, plans: null, mine: null, milesLive: true });
+  assert.equal(loading.miles.valueLabel, "Loading…");
+  const down = buildPlansView({ load: { status: "unavailable", failure: "server" }, plans: null, mine: null, milesLive: true });
+  assert.equal(down.miles.valueLabel, "Unavailable");
+  assert.doesNotMatch(text(down.miles), /balance: 0/);
 });
 
 test("while loading and when unavailable, the notice says so and the content is still there", () => {
@@ -171,7 +181,10 @@ test("while loading and when unavailable, the notice says so and the content is 
 test("API success adds the backend's planned benefits, without prices, fee rates or Vaults, and never invents a subscription", () => {
   const plans = parsePlans(PLANS).plans;
   const view = buildPlansView({ load: { status: "ready" }, plans, mine: parseMine(ME) });
-  assert.equal(view.miles.balanceLabel, "Miles balance: 120");
+  // The server says 120, but Miles are not live: the number stays hidden.
+  assert.equal(view.miles.valueLabel, "Coming soon");
+  const live = buildPlansView({ load: { status: "ready" }, plans, mine: parseMine(ME), milesLive: true });
+  assert.equal(live.miles.valueLabel, "Miles balance: 120");
   const plus = view.plans.find((p) => p.id === "PLUS");
   assert.equal(plus.planned, true);
   assert.ok(plus.highlights.includes("2× ATARA Miles on card spending"));
