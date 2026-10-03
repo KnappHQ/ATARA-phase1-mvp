@@ -1,7 +1,15 @@
 import { Text, TouchableOpacity, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { ArrowDownToLine, ShoppingBasket } from "lucide-react-native";
-import { COLORS } from "@/utils/constants";
+import { APP_NETWORK, COLORS } from "@/utils/constants";
+import { CARD_PURCHASE_ENABLED } from "@/utils/featureFlags";
+
+const ADD_TITLE = CARD_PURCHASE_ENABLED ? "Add crypto" : "Add money";
+const ADD_SUBTITLE = CARD_PURCHASE_ENABLED
+  ? "Via MoonPay"
+  : APP_NETWORK === "base-sepolia"
+    ? "Receive test USDC"
+    : "Receive USDC";
 
 export const CryptoActions = ({
   onAddCrypto,
@@ -20,8 +28,8 @@ export const CryptoActions = ({
       className="flex-1 rounded-2xl border border-white/10 bg-white/[0.06] p-4"
     >
       <ArrowDownToLine size={19} color={COLORS.accent} />
-      <Text className="text-white text-sm font-semibold mt-3">Add crypto</Text>
-      <Text className="text-white/45 text-xs mt-1">Via MoonPay</Text>
+      <Text className="text-white text-sm font-semibold mt-3">{ADD_TITLE}</Text>
+      <Text className="text-white/45 text-xs mt-1">{ADD_SUBTITLE}</Text>
     </TouchableOpacity>
     <TouchableOpacity
       onPress={() => {

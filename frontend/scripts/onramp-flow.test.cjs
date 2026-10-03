@@ -74,8 +74,8 @@ test("signing input is deterministic and the app never changes the URL: openBrow
   await run({ createSession: async () => ({ url: GOOD, mode: "sandbox" }), openBrowser: async (url) => { opened.push(url); return { type: "cancel" }; } });
   assert.deepEqual(opened, [GOOD]);
   assert.equal(signedUrl(), signedUrl(), "same inputs, same URL");
-  // The app source never rebuilds, normalises or appends to the checkout URL.
-  const screen = read("app/add-crypto.tsx");
+  // The checkout source never rebuilds, normalises or appends to the checkout URL.
+  const screen = read("components/addMoney/CardPurchaseSection.tsx");
   assert.doesNotMatch(screen, /encodeURI|new URL\(|URLSearchParams|\.searchParams|session\.url\s*\+/);
   assert.match(screen, /openBrowser: \(url\) =>\s*WebBrowser\.openBrowserAsync\(url,/);
 });
@@ -211,7 +211,8 @@ test("after coming back the balance is re-read on a short schedule, failures are
 // ----------------------------------------------------------------- the screen
 
 test("the Add crypto screen uses the flow, frees itself, and keeps its close and back controls reachable", () => {
-  const screen = read("app/add-crypto.tsx");
+  const screen = read("components/addMoney/CardPurchaseSection.tsx");
+  const page = read("app/add-crypto.tsx");
   assert.match(screen, /useReducer\(onrampReducer, INITIAL_ONRAMP\)/);
   assert.match(screen, /const isOpening = isBusy\(checkout\);/);
   assert.doesNotMatch(screen, /setIsOpening/);
@@ -220,9 +221,9 @@ test("the Add crypto screen uses the flow, frees itself, and keeps its close and
   assert.match(screen, /presentationStyle: WebBrowser\.WebBrowserPresentationStyle\.FULL_SCREEN/);
   assert.match(screen, /dismissButtonStyle: "close"/);
   // Safe area: the screen sits inside SafeAreaView on top and bottom, and its Back button is labelled, 44pt and has hit slop.
-  assert.match(screen, /import \{ SafeAreaView \} from "react-native-safe-area-context"/);
-  assert.match(screen, /<SafeAreaView className="flex-1 bg-black" edges=\{\["top", "bottom"\]\}>/);
-  assert.match(screen, /accessibilityLabel="Back"\s*hitSlop=\{8\}\s*className="w-11 h-11/);
+  assert.match(page, /import \{ SafeAreaView \} from "react-native-safe-area-context"/);
+  assert.match(page, /<SafeAreaView className="flex-1 bg-black" edges=\{\["top", "bottom"\]\}>/);
+  assert.match(page, /accessibilityLabel="Back"\s*hitSlop=\{8\}\s*className="w-11 h-11/);
   // Coming back to the app ends the wait; an explicit way out exists while MoonPay is open.
   assert.match(screen, /AppState\.addEventListener\("change"/);
   assert.match(screen, /I’m back/);
