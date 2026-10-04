@@ -6,6 +6,7 @@ import { splitExpense } from "../utils/expenseAmounts";
 import { getKnownTokens, type AppNetwork } from "../utils/tokenConfig";
 import { NETWORK } from "../utils/constants";
 import { verifyTokenPayment } from "./paymentProof.service";
+import { safetyService } from "./safety.service";
 
 interface MemberBalance {
   userId: string;
@@ -39,7 +40,9 @@ class GroupService {
     const member = await db.groupMember.findUnique({
       where: { groupId_userId: { groupId, userId } },
     });
-    if (!member)
+    // Someone who has only been invited is not a member yet: they see none of the
+    // group until they accept (see getInvitations).
+    if (!member || member.status !== "ACTIVE")
       throw new ErrorHandler("You are not a member of this group", 403);
   }
 
@@ -60,7 +63,7 @@ class GroupService {
       );
   }
 
-  private async resolveHandles(handles: string[]) {
+  private async resolveHandles(handles: string[], requesterId?: string) {
     if (
       handles.length > 49 ||
       handles.some(
@@ -73,10 +76,16 @@ class GroupService {
     handles = [
       ...new Set(handles.map((h) => h.replace(/^@/, "").toLowerCase())),
     ];
-    const users = await prisma.user.findMany({
+    let users = await prisma.user.findMany({
       where: { handle: { in: handles }, deletedAt: null },
       select: { id: true, handle: true },
     });
+    // Someone who blocked you, or whom you blocked, reads as "not found": a block
+    // is never announced, and nobody can be put into a group against one.
+    if (requesterId) {
+      const blocked = await safetyService.blockedBothWays(requesterId);
+      users = users.filter((user) => !blocked.has(user.id));
+    }
 
     const found = new Set(users.map((u) => u.handle));
     const missing = handles.filter((h) => !found.has(h));
@@ -98,7 +107,7 @@ class GroupService {
   ) {
     if (!memberHandles?.length)
       throw new ErrorHandler("Choose at least one other member", 400);
-    const resolved = await this.resolveHandles(memberHandles);
+    const resolved = await this.resolveHandles(memberHandles, creatorId);
     if (resolved.some((user) => user.id === creatorId))
       throw new ErrorHandler("You are already in this group. Choose someone else.", 400);
     const memberUserIds = resolved.map((user) => user.id);
@@ -112,7 +121,12 @@ class GroupService {
         members: {
           create: [
             { userId: creatorId }, // creator is always a member
-            ...memberUserIds.map((uid) => ({ userId: uid })),
+            // Everyone else is invited: they join only when they accept.
+            ...memberUserIds.map((uid) => ({
+              userId: uid,
+              status: "INVITED" as const,
+              invitedById: creatorId,
+            })),
           ],
         },
       },
@@ -145,11 +159,11 @@ class GroupService {
 
   public async getMyGroups(userId: string): Promise<GroupSummary[]> {
     const memberships = await prisma.groupMember.findMany({
-      where: { userId },
+      where: { userId, status: "ACTIVE" },
       include: {
         group: {
           include: {
-            _count: { select: { members: true } },
+            _count: { select: { members: { where: { status: "ACTIVE" } } } },
             expenses: {
               include: {
                 splits: {
@@ -274,7 +288,7 @@ class GroupService {
     }
 
     const memberBalances: MemberBalance[] = group.members
-      .filter((m) => m.userId !== requestingUserId)
+      .filter((m) => m.userId !== requestingUserId && m.status === "ACTIVE")
       .map((m) => ({
         userId: m.user.id,
         handle: m.user.handle,
@@ -329,7 +343,7 @@ class GroupService {
   ) {
     await this.assertMember(groupId, requestingUserId);
 
-    const users = await this.resolveHandles(handles);
+    const users = await this.resolveHandles(handles, requestingUserId);
 
     const existing = await prisma.groupMember.findMany({
       where: { groupId, userId: { in: users.map((u) => u.id) } },
@@ -342,11 +356,74 @@ class GroupService {
       throw new ErrorHandler("All specified users are already members", 409);
     }
 
+    // Added people are invited, not enrolled: nothing can be assigned to them
+    // until they accept.
     await prisma.groupMember.createMany({
-      data: toAdd.map((u) => ({ groupId, userId: u.id })),
+      data: toAdd.map((u) => ({
+        groupId,
+        userId: u.id,
+        status: "INVITED" as const,
+        invitedById: requestingUserId,
+      })),
     });
 
     return toAdd;
+  }
+
+  /** Groups the person has been invited to and has not answered, newest first. */
+  public async getInvitations(userId: string) {
+    const blocked = await safetyService.blockedBothWays(userId);
+    const rows = await prisma.groupMember.findMany({
+      where: { userId, status: "INVITED" },
+      orderBy: { joinedAt: "desc" },
+      select: {
+        groupId: true,
+        joinedAt: true,
+        invitedById: true,
+        group: { select: { id: true, name: true, description: true, createdById: true } },
+      },
+    });
+    const inviterIds = [...new Set(rows.map((row) => row.invitedById).filter((id): id is string => !!id))];
+    const inviters = inviterIds.length
+      ? await prisma.user.findMany({
+          where: { id: { in: inviterIds }, deletedAt: null },
+          select: { id: true, handle: true, displayName: true },
+        })
+      : [];
+    return rows
+      .filter((row) => !row.invitedById || !blocked.has(row.invitedById))
+      .map((row) => {
+        const inviter = inviters.find((user) => user.id === row.invitedById);
+        return {
+          groupId: row.groupId,
+          groupName: row.group.name,
+          description: row.group.description,
+          invitedAt: row.joinedAt,
+          invitedBy: inviter ? { handle: inviter.handle, displayName: inviter.displayName } : null,
+        };
+      });
+  }
+
+  public async acceptInvitation(groupId: string, userId: string) {
+    const invitation = await prisma.groupMember.findUnique({
+      where: { groupId_userId: { groupId, userId } },
+      select: { status: true, invitedById: true },
+    });
+    if (!invitation || invitation.status !== "INVITED")
+      throw new ErrorHandler("This invitation is no longer available", 404);
+    if (invitation.invitedById && (await safetyService.isBlockedEitherWay(userId, invitation.invitedById)))
+      throw new ErrorHandler("This invitation is no longer available", 404);
+    await prisma.groupMember.update({
+      where: { groupId_userId: { groupId, userId } },
+      data: { status: "ACTIVE" },
+    });
+  }
+
+  /** Declining removes the invitation. Nobody is told, and nothing was ever assigned to the person. */
+  public async declineInvitation(groupId: string, userId: string) {
+    await prisma.groupMember.deleteMany({
+      where: { groupId, userId, status: "INVITED" },
+    });
   }
 
   public async removeMember(
@@ -422,14 +499,39 @@ class GroupService {
             400,
           );
         const members = await db.groupMember.findMany({
-          where: { groupId },
+          where: { groupId, status: "ACTIVE" },
           select: { userId: true },
         });
         const ids = splitWithUserIds?.length
           ? splitWithUserIds
           : members.map((m) => m.userId);
-        if (ids.some((id) => !members.some((m) => m.userId === id)))
+        const notActive = ids.filter((id) => !members.some((m) => m.userId === id));
+        if (notActive.length) {
+          // A person who has not accepted the invitation cannot be given a share.
+          const pending = await db.groupMember.findMany({
+            where: { groupId, status: "INVITED", userId: { in: notActive } },
+            include: { user: { select: { handle: true } } },
+          });
+          if (pending.length)
+            throw new ErrorHandler(
+              `${pending.map((m) => `@${m.user.handle}`).join(", ")} has not accepted the invitation to this group yet`,
+              409,
+            );
           throw new ErrorHandler("Unknown group member", 400);
+        }
+        // A block ends shared expenses in both directions, whoever blocked.
+        const blocked = await safetyService.blockedBothWays(payerId);
+        const blockedIds = ids.filter((id) => id !== payerId && blocked.has(id));
+        if (blockedIds.length) {
+          const people = await db.user.findMany({
+            where: { id: { in: blockedIds } },
+            select: { handle: true },
+          });
+          throw new ErrorHandler(
+            `This expense can't include ${people.map((p) => `@${p.handle}`).join(", ")}`,
+            400,
+          );
+        }
         const shares = splitExpense(amount, ids, customSplits);
         const group = await db.group.findUniqueOrThrow({
           where: { id: groupId },

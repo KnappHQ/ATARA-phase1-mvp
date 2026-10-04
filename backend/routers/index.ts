@@ -12,6 +12,7 @@ import paymentRequestRouter from "./paymentRequest.routes";
 import securityRouter from "./security.routes";
 import legalRouter from "./legal.routes";
 import subscriptionRouter from "./subscription.routes";
+import safetyRouter from "./safety.routes";
 
 app.use("/", express.Router());
 app.use("/health", healthRouter);
@@ -25,6 +26,7 @@ if (process.env.ENABLE_VAULTS === "true") app.use("/vaults", vaultRouter);
 app.use("/security", securityRouter);
 app.use("/requests", paymentRequestRouter);
 app.use("/legal", legalRouter);
+app.use("/safety", safetyRouter);
 app.use("/", subscriptionRouter);
 
 export default app;

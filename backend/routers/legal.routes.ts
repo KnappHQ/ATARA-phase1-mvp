@@ -31,10 +31,10 @@ router.get("/privacy", (_req, res) => {
     page(
       "Privacy Policy",
       `<h1>Privacy Policy</h1>
-      <p class="muted">Last updated: 28 September 2026</p>
+      <p class="muted">Last updated: 4 October 2026</p>
       <p>${COMPANY.name} (company number ${COMPANY.number}), registered office ${COMPANY.address}, is the controller for personal data described here.</p>
       <h2>What ATARA is</h2><p>ATARA is software for self-custodial crypto payments and related group features. Vault functionality is not exposed in the current beta. ATARA does not hold a conventional custodial crypto balance for users.</p>
-      <h2>Data we process</h2><p>We may process usernames, public wallet addresses, blockchain transaction information, technical/server security information, support messages and feedback. Email address and name are processed only where a user chooses a social or recovery provider. Wallet-only sign-in does not require ATARA to receive an email address. Passive product analytics is disabled for the current beta unless separately disclosed and enabled.</p>
+      <h2>Data we process</h2><p>We may process usernames, public wallet addresses, blockchain transaction information, technical/server security information, support messages and feedback, the users you block and the reports you make about other users (kept to review them; the text of your reports is erased if you delete your account). Email address and name are processed only where a user chooses a social or recovery provider. Wallet-only sign-in does not require ATARA to receive an email address. Passive product analytics is disabled for the current beta unless separately disclosed and enabled.</p>
       <h2>Why we process it</h2><p>We process data to operate and secure the Service, authenticate users, prevent fraud and abuse, provide support, comply with law and improve ATARA.</p>
       <h2>Providers and transfers</h2><p>ATARA currently uses Privy for embedded authentication/wallet infrastructure, Reown for external-wallet discovery when enabled, Alchemy for smart-account and blockchain connectivity, plus hosting/database providers. Some providers may process data outside the UK or EEA under applicable transfer safeguards.</p>
       <p>Sentry receives crash reports identified by an opaque account number; wallet addresses, transaction hashes, payment-link tokens, handles and email addresses are removed on the device first. MoonPay receives only the delivery address, and only if you choose to buy crypto; it collects what it needs from you directly. Feedback is delivered to our team by email through Resend, with your handle.</p>
@@ -52,12 +52,13 @@ router.get("/terms", (_req, res) => {
     page(
       "Terms of Service",
       `<h1>Terms of Service</h1>
-      <p class="muted">Last updated: 9 September 2026</p>
+      <p class="muted">Last updated: 4 October 2026</p>
       <p>These terms govern use of ATARA, provided by ${COMPANY.name}, company number ${COMPANY.number}, ${COMPANY.address}.</p>
       <h2>Eligibility</h2><p>You must be at least 18 and may not use ATARA where prohibited by applicable law or sanctions restrictions.</p>
       <h2>Beta service</h2><p>The beta may use test networks such as Base Sepolia and test tokens with no monetary value. Features may change, be suspended or removed during testing.</p>
       <h2>Self-custody</h2><p>You are responsible for authentication methods, recipients, amounts and transaction decisions. Blockchain transactions can be irreversible.</p>
       <h2>Risks</h2><p>Crypto and blockchain technology involves technical, market, network, smart-contract, authentication and regulatory risks. ATARA does not provide investment, financial, legal or tax advice.</p>
+      <h2>Objectionable content and abuse</h2><p>ATARA does not tolerate objectionable content or abusive behaviour, including harassment, scams, impersonation and unwanted contact. You can report or block any user from their profile, a payment note or a group. We review reports within 24 hours and may remove content or suspend accounts that break these rules. Write to <a href="mailto:support@atara.finance">support@atara.finance</a> to report a problem directly.</p>
       <h2>Third-party services</h2><p>ATARA depends on third-party infrastructure that may have separate terms, geographic restrictions, outages or fees.</p>
       <h2>Law</h2><p>These terms are governed by the laws of England and Wales, without limiting mandatory consumer rights that apply where you live.</p>
       <h2>Contact</h2><p><a href="mailto:support@atara.finance">support@atara.finance</a></p>`,
