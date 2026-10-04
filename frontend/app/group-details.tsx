@@ -77,7 +77,7 @@ export default function GroupDetailsScreen() {
           />
         )}
 
-        {groupDetail?.members.length === 1 && (
+        {groupDetail?.members.length === 1 && groupDetail.pendingMembers.length === 0 && (
           <View className="mx-6 mb-5 rounded-2xl border border-white/20 p-4">
             <Text className="text-white font-semibold mb-2">This group only has you</Text>
             <Text className="text-white/60 mb-3">The person you selected may have been your own account. Add another member to share expenses.</Text>
@@ -168,7 +168,7 @@ export default function GroupDetailsScreen() {
       <Pressable
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          if (groupDetail?.members.length === 1) setShowInvite(true);
+          if (groupDetail?.members.length === 1 && groupDetail.pendingMembers.length === 0) setShowInvite(true);
           else setShowAddExpense(true);
         }}
         className="absolute bottom-6 right-6 w-14 h-14 rounded-full items-center justify-center active:opacity-80"
