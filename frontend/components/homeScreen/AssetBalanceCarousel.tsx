@@ -5,37 +5,22 @@ import { ChevronLeft, ChevronRight } from "lucide-react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { runOnJS } from "react-native-reanimated";
 import type { Token } from "@/stores/useWalletStore";
+import { UNAVAILABLE, formatAssetBalance, formatAssetUsd } from "@/utils/balanceDisplay";
 
 interface AssetBalanceCarouselProps {
   assets: Token[];
+  /** Token amounts have been read. Until then there is no balance, and "0" would be a lie. */
+  balancesKnown: boolean;
+  /** ATARA's price service answered, so USD values exist. */
+  usdKnown: boolean;
   selectedIndex: number;
   onSelect: (index: number) => void;
 }
 
-const formatBalance = (balance: string) => {
-  const numericBalance = Number(balance);
-  if (!Number.isFinite(numericBalance)) return balance || "0";
-
-  return numericBalance.toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 6,
-  });
-};
-
-const formatUsd = (usdValue: string) => {
-  const numericValue = Number(usdValue.replace(/[$,]/g, ""));
-  if (!Number.isFinite(numericValue)) return "$0.00";
-
-  return numericValue.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-};
-
 export const AssetBalanceCarousel = ({
   assets,
+  balancesKnown,
+  usdKnown,
   selectedIndex,
   onSelect,
 }: AssetBalanceCarouselProps) => {
@@ -48,6 +33,9 @@ export const AssetBalanceCarousel = ({
 
   const safeIndex = Math.min(selectedIndex, availableAssets.length - 1);
   const asset = availableAssets[safeIndex];
+
+  const balanceText = formatAssetBalance(asset.balance, balancesKnown);
+  const usdText = formatAssetUsd(asset.usdValue, balancesKnown && usdKnown);
 
   const selectAsset = (nextIndex: number) => {
     const normalizedIndex =
@@ -86,13 +74,21 @@ export const AssetBalanceCarousel = ({
         </View>
 
         <View className="flex-row items-baseline justify-center">
-          <Text className="text-5xl font-bold text-white">
-            {formatBalance(asset.balance)}
-          </Text>
-          <Text className="text-2xl text-white/45 ml-2">{asset.symbol}</Text>
+          {balanceText === UNAVAILABLE ? (
+            <Text className="text-3xl font-semibold text-white/70">{UNAVAILABLE}</Text>
+          ) : (
+            <>
+              <Text className="text-5xl font-bold text-white">{balanceText}</Text>
+              <Text className="text-2xl text-white/45 ml-2">{asset.symbol}</Text>
+            </>
+          )}
         </View>
         <Text className="text-sm text-white/45 mt-2">
-          ≈ {formatUsd(asset.usdValue)} · available balance
+          {balanceText === UNAVAILABLE
+            ? "Balance unavailable right now"
+            : usdText === UNAVAILABLE
+              ? "USD value unavailable · available balance"
+              : `≈ ${usdText} · available balance`}
         </Text>
 
         <View className="flex-row items-center gap-3 mt-5" accessible={false}>

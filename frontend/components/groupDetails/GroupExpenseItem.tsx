@@ -98,7 +98,7 @@ export const GroupExpenseItem = ({
           <Text className="text-white/60 text-xs">{split.userId === me ? "Your share" : `@${split.user?.handle ?? "member"}`} : {Number(split.amount).toFixed(2)} {expense.assetSymbol} · {split.settled ? "settled" : split.decision === "ACCEPTED" ? "accepted" : split.decision === "DISPUTED" ? "disputed" : "pending approval"}</Text>
           {split.userId === me && !split.settled ? <View className="flex-row gap-4 mt-2">
             {split.decision !== "ACCEPTED" && <Pressable disabled={busy} onPress={() => decide("ACCEPTED")}><Text style={{ color: COLORS.accent }}>Accepter ma part</Text></Pressable>}
-            {split.decision !== "DISPUTED" && <Pressable disabled={busy} onPress={() => decide("DISPUTED")}><Text className="text-white/60">Contester</Text></Pressable>}
+            {split.decision !== "DISPUTED" && <Pressable disabled={busy} onPress={() => decide("DISPUTED")}><Text className="text-white/60">Dispute</Text></Pressable>}
           </View> : null}
         </View>)}
       </View>
