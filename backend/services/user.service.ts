@@ -1,3 +1,4 @@
+import { safetyService } from "./safety.service";
 import crypto from "node:crypto";
 import { Prisma } from "@prisma/client";
 import prisma from "../config/prisma";
@@ -103,6 +104,15 @@ class UserService {
           where: { userId },
           data: { userId: null, handle: null, message: "" },
         });
+        // Reports this person made are kept for review, but unlinked from them,
+        // with the text they wrote erased. Their blocks go with the account.
+        await tx.userReport.updateMany({
+          where: { reporterId: userId },
+          data: { reporterId: null, details: "" },
+        });
+        await tx.userBlock.deleteMany({
+          where: { OR: [{ blockerId: userId }, { blockedId: userId }] },
+        });
 
         // Retain shared ledger rows and replay protection. Deleting an account
         // must never erase another member's expenses, payments or acknowledged debt.
@@ -169,6 +179,7 @@ class UserService {
           const successor = await tx.groupMember.findFirst({
             where: {
               groupId: group.id,
+              status: "ACTIVE",
               userId: { not: userId },
               user: { deletedAt: null },
             },
@@ -185,7 +196,7 @@ class UserService {
     );
   }
 
-  public async searchUsers(query: string) {
+  public async searchUsers(query: string, requesterId?: string) {
     const where = buildSearchFilter(query);
 
     // Too short to be a lookup. Returning nothing beats returning a slice of
@@ -194,8 +205,13 @@ class UserService {
       return [];
     }
 
+    // Someone who blocked you, or whom you blocked, is not in your search.
+    const blocked = requesterId ? [...(await safetyService.blockedBothWays(requesterId))] : [];
+
     return prisma.user.findMany({
-      where: { AND: [where, { deletedAt: null }] },
+      where: {
+        AND: [where, { deletedAt: null }, ...(blocked.length ? [{ id: { notIn: blocked } }] : [])],
+      },
       take: 5,
       select: USER_SEARCH_SELECT,
     });
@@ -237,6 +253,7 @@ class UserService {
       take: limit * 4,
     });
 
+    const blocked = await safetyService.blockedBothWays(userId);
     const seen = new Set<string>();
     const contacts = [];
 
@@ -246,6 +263,7 @@ class UserService {
         !counterparty ||
         counterparty.deletedAt ||
         !counterparty.smartAccountAddress ||
+        blocked.has(counterparty.id) ||
         seen.has(counterparty.id)
       )
         continue;
@@ -260,6 +278,7 @@ class UserService {
   public async getUserByHandle(
     handle: string,
     includePrivate: boolean = false,
+    requesterId?: string,
   ) {
     const selectFields = {
       id: true,
@@ -278,7 +297,8 @@ class UserService {
       select: selectFields,
     });
 
-    if (!user) {
+    // A block reads exactly like an account that does not exist.
+    if (!user || (requesterId && user.id !== requesterId && (await safetyService.isBlockedEitherWay(requesterId, user.id)))) {
       throw new ErrorHandler("User not found", 404);
     }
 

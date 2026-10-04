@@ -146,7 +146,9 @@ export const useWalletStore = create<WalletState>((set, get) => {
           };
         }
 
-        return asset;
+        // The service answered and does not list this token: nothing is held, a
+        // real zero (the placeholder was "not read yet", which is not the same).
+        return { ...asset, balance: "0", usdValue: "$0.00", balanceWei: "0" };
       });
 
       portfolio.tokens.forEach((portfolioToken: any) => {

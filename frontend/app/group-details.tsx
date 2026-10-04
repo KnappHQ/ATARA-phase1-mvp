@@ -10,6 +10,10 @@ import type { GroupMemberBalance } from "@/stores/useGroupStore";
 import { useState, useEffect } from "react";
 import { GroupDetailsHeader } from "@/components/groupDetails/GroupDetailsHeader";
 import { MemberBalanceList } from "@/components/groupDetails/MemberBalanceList";
+import { GroupPeople } from "@/components/groupDetails/GroupPeople";
+import { SafetySheet } from "@/components/safety/SafetySheet";
+import type { SafetyContext } from "@/utils/safetyFlow";
+import { useAuthStore } from "@/stores/useAuthStore";
 import { SettleBottomSheet } from "@/components/groupDetails/SettleBottomSheet";
 import { GroupExpenseList } from "@/components/groupDetails/GroupExpenseList";
 import { AddExpenseModal } from "@/components/groupDetails/AddExpenseModal";
@@ -39,6 +43,9 @@ export default function GroupDetailsScreen() {
   );
 
 
+  const myId = useAuthStore((state) => state.user?.id);
+  const [safety, setSafety] = useState<{ handle: string; context: SafetyContext } | null>(null);
+
   useEffect(() => {
     if (id) fetchGroupDetail(id);
     return () => clearDetail();
@@ -61,7 +68,16 @@ export default function GroupDetailsScreen() {
           />
         )}
 
-        {groupDetail?.members.length === 1 && (
+        {groupDetail && (
+          <GroupPeople
+            members={groupDetail.members}
+            pending={groupDetail.pendingMembers}
+            myId={myId}
+            onSafety={(handle) => setSafety({ handle, context: { kind: "group", id: groupDetail.id } })}
+          />
+        )}
+
+        {groupDetail?.members.length === 1 && groupDetail.pendingMembers.length === 0 && (
           <View className="mx-6 mb-5 rounded-2xl border border-white/20 p-4">
             <Text className="text-white font-semibold mb-2">This group only has you</Text>
             <Text className="text-white/60 mb-3">The person you selected may have been your own account. Add another member to share expenses.</Text>
@@ -96,9 +112,18 @@ export default function GroupDetailsScreen() {
           <GroupExpenseList
             expenses={groupDetail.expenses}
             memberCount={groupDetail.members.length}
+            onReport={(handle, expenseId) => setSafety({ handle, context: { kind: "expense", id: expenseId } })}
           />
         ) : null}
       </ScrollView>
+
+      <SafetySheet
+        visible={!!safety}
+        handle={safety?.handle ?? ""}
+        context={safety?.context ?? { kind: "contact" }}
+        onClose={() => setSafety(null)}
+        onBlocked={() => id && fetchGroupDetail(id)}
+      />
 
       <AddExpenseModal
         isOpen={showAddExpense}
@@ -112,8 +137,8 @@ export default function GroupDetailsScreen() {
       <Modal visible={showInvite} transparent animationType="slide" onRequestClose={() => setShowInvite(false)}>
         <View className="flex-1 justify-end bg-black/80">
           <View className="rounded-t-3xl bg-[#151217] p-6 pb-12">
-            <Text className="text-white text-xl font-semibold mb-3">Add a member</Text>
-            <Text className="text-white/60 mb-3">Enter the other person’s @handle.</Text>
+            <Text className="text-white text-xl font-semibold mb-3">Invite a member</Text>
+            <Text className="text-white/60 mb-3">Enter the other person’s @handle. They join, and can be given shares, only after they accept.</Text>
             <TextInput accessibilityLabel="Member handle" autoCapitalize="none" autoCorrect={false} value={inviteHandle} onChangeText={setInviteHandle} placeholder="@handle" placeholderTextColor="#777" className="text-white bg-white/10 p-4 rounded-2xl mb-4" />
             <Pressable disabled={inviting || !/^@?[a-zA-Z0-9_]{1,32}$/.test(inviteHandle.trim())} onPress={async () => {
               if (!id || inviting) return;
@@ -122,10 +147,10 @@ export default function GroupDetailsScreen() {
                 await GroupService.addMembers(id, [inviteHandle.trim()]);
                 await fetchGroupDetail(id);
                 setShowInvite(false); setInviteHandle("");
-              } catch (error: any) { Alert.alert("Couldn't add member", error?.response?.data?.message ?? "Check the handle and try again."); }
+              } catch (error: any) { Alert.alert("Couldn't invite", error?.response?.data?.message ?? "Check the handle and try again."); }
               finally { setInviting(false); }
             }} className="rounded-2xl p-4" style={{ backgroundColor: COLORS.accent, opacity: inviting || !inviteHandle.trim() ? .5 : 1 }}>
-              {inviting ? <ActivityIndicator color="#000" /> : <Text className="text-black font-semibold text-center">Add member</Text>}
+              {inviting ? <ActivityIndicator color="#000" /> : <Text className="text-black font-semibold text-center">Send invitation</Text>}
             </Pressable>
             <Pressable disabled={inviting} onPress={() => setShowInvite(false)} className="p-4"><Text className="text-white/70 text-center">Cancel</Text></Pressable>
           </View>
@@ -143,7 +168,7 @@ export default function GroupDetailsScreen() {
       <Pressable
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          if (groupDetail?.members.length === 1) setShowInvite(true);
+          if (groupDetail?.members.length === 1 && groupDetail.pendingMembers.length === 0) setShowInvite(true);
           else setShowAddExpense(true);
         }}
         className="absolute bottom-6 right-6 w-14 h-14 rounded-full items-center justify-center active:opacity-80"

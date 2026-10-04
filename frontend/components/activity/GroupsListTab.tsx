@@ -4,6 +4,7 @@ import { COLORS } from "@/utils/constants";
 import { Group } from "@/stores/useGroupStore";
 import { GroupItem } from "./GroupItem";
 import { useRouter } from "expo-router";
+import { GroupInvitations } from "./GroupInvitations";
 
 interface GroupsListTabProps {
   groups: Group[];
@@ -13,7 +14,7 @@ interface GroupsListTabProps {
   onRetry: () => void;
 }
 
-export function GroupsListTab({
+function GroupsListBody({
   groups,
   searchQuery,
   isLoading,
@@ -109,6 +110,16 @@ export function GroupsListTab({
           onPress={handleSelectGroup}
         />
       ))}
+    </View>
+  );
+}
+
+/** The invitations to answer come first, then the groups the person is in. */
+export function GroupsListTab(props: GroupsListTabProps) {
+  return (
+    <View>
+      <GroupInvitations />
+      <GroupsListBody {...props} />
     </View>
   );
 }

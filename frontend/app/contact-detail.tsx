@@ -19,6 +19,8 @@ import {
 import { MotiView } from "moti";
 import { FinancialSummary } from "@/components/activity/FinancialSummary";
 import { COLORS } from "@/utils/constants";
+import { SafetySheet } from "@/components/safety/SafetySheet";
+import type { SafetyContext } from "@/utils/safetyFlow";
 import {
   DisplayTransaction,
   useTransactionHistoryStore,
@@ -72,6 +74,11 @@ export default function ContactDetail() {
         transactions: thread?.transactions ?? [],
       }
     : null;
+
+  // Only people who use ATARA have a handle to report or block.
+  const safetyHandle =
+    contact?.transactions.find((tx) => tx.isInApp && tx.counterparty.handle)?.counterparty.handle ?? null;
+  const [safety, setSafety] = useState<{ handle: string; context: SafetyContext } | null>(null);
 
   const handleBack = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -219,6 +226,17 @@ export default function ContactDetail() {
                 </Text>
               </View>
             </View>
+            {safetyHandle ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Report or block @${safetyHandle}`}
+                onPress={() => setSafety({ handle: safetyHandle, context: { kind: "contact" } })}
+                className="w-12 h-12 rounded-full items-center justify-center active:opacity-70"
+                style={{ backgroundColor: "rgba(255, 255, 255, 0.05)", borderWidth: 1, borderColor: "rgba(255, 255, 255, 0.15)" }}
+              >
+                <MoreHorizontal size={20} color="rgba(255, 255, 255, 0.8)" />
+              </Pressable>
+            ) : null}
           </View>
 
           <View className="px-6">
@@ -339,6 +357,13 @@ export default function ContactDetail() {
                       </View>
 
                       {/* Note row — only if note exists */}
+                      {!tx.userNote && tx.noteHidden && (
+                        <View className="mx-4 mb-3 px-3 py-2 rounded-xl" style={{ backgroundColor: "rgba(255,255,255,0.04)" }}>
+                          <Text className="text-xs italic" style={{ color: "rgba(255,255,255,0.4)" }}>
+                            Note hidden
+                          </Text>
+                        </View>
+                      )}
                       {!!tx.userNote && (
                         <View
                           className="mx-4 mb-3 px-3 py-2 rounded-xl"
@@ -351,6 +376,17 @@ export default function ContactDetail() {
                           >
                             {`“${tx.userNote}”`}
                           </Text>
+                          {isReceive && tx.isInApp && tx.counterparty.handle ? (
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel="Report this note"
+                              hitSlop={8}
+                              onPress={() => setSafety({ handle: tx.counterparty.handle as string, context: { kind: "payment_note", id: tx.id } })}
+                              className="mt-1 self-start"
+                            >
+                              <Text className="text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>Report this note</Text>
+                            </Pressable>
+                          ) : null}
                         </View>
                       )}
                     </Pressable>
@@ -390,6 +426,13 @@ export default function ContactDetail() {
           </Pressable>
         </View>
       </SafeAreaView>
+      <SafetySheet
+        visible={!!safety}
+        handle={safety?.handle ?? ""}
+        context={safety?.context ?? { kind: "contact" }}
+        onClose={() => setSafety(null)}
+        onBlocked={() => router.back()}
+      />
     </View>
   );
 }

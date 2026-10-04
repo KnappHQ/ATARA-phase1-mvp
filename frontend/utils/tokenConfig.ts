@@ -38,6 +38,14 @@ export const getTokenAddress = (
   network: AppNetwork,
 ) => DEFAULT_TOKEN_ADDRESSES[network][symbol];
 
+/**
+ * Before a balance is read, an asset has no balance and no USD value: empty
+ * strings, not "0.00" / "$0.00", which would read as an empty wallet. Every
+ * screen treats "" as "not known yet" (see utils/balanceDisplay.ts).
+ */
+const PLACEHOLDER_BALANCE = "";
+const PLACEHOLDER_USD = "";
+
 export const getDefaultAssets = (network: AppNetwork): SupportedAsset[] => {
   const usdcAddress = getTokenAddress("USDC", network);
   const usdtAddress = getTokenAddress("USDT", network);
@@ -46,9 +54,8 @@ export const getDefaultAssets = (network: AppNetwork): SupportedAsset[] => {
     {
       symbol: "ETH",
       name: "Ethereum",
-      balance: "0.0",
-      balanceWei: "0",
-      usdValue: "$0.00",
+      balance: PLACEHOLDER_BALANCE,
+      usdValue: PLACEHOLDER_USD,
       usdPrice: 0,
       decimals: 18,
     },
@@ -56,9 +63,8 @@ export const getDefaultAssets = (network: AppNetwork): SupportedAsset[] => {
       symbol: "USDC",
       name: "USD Coin",
       contractAddress: usdcAddress || undefined,
-      balance: "0.00",
-      balanceWei: "0",
-      usdValue: "$0.00",
+      balance: PLACEHOLDER_BALANCE,
+      usdValue: PLACEHOLDER_USD,
       usdPrice: 0,
       decimals: 6,
     },
@@ -66,9 +72,8 @@ export const getDefaultAssets = (network: AppNetwork): SupportedAsset[] => {
       symbol: "USDT",
       name: "Tether USD",
       contractAddress: usdtAddress || undefined,
-      balance: "0.00",
-      balanceWei: "0",
-      usdValue: "$0.00",
+      balance: PLACEHOLDER_BALANCE,
+      usdValue: PLACEHOLDER_USD,
       usdPrice: 0,
       decimals: 6,
     },

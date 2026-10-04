@@ -45,6 +45,8 @@ export interface GroupDetailResponse {
   createdAt: string;
   members: {
     userId: string;
+    /** INVITED until the person accepts (see SafetyService.getInvitations). */
+    status?: "ACTIVE" | "INVITED";
     user: {
       id: string;
       handle: string;
