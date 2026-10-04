@@ -20,9 +20,11 @@ export default function AddCryptoScreen() {
   const walletAddress = useWalletStore((state) => state.smartAccountAddress);
   const verification = useAddressVerificationStore((state) => state.statusFor(walletAddress));
   const isTestnet = APP_NETWORK === "base-sepolia";
+  // An address that failed its check is never shown as something to copy, scan or paste into a faucet.
+  const addressUsable = !!walletAddress && verification !== "mismatch";
 
   const openTestFaucet = async () => {
-    if (!isTestnet || !walletAddress) return;
+    if (!isTestnet || !walletAddress || !addressUsable) return;
     try {
       await Clipboard.setStringAsync(walletAddress);
       setError(null);
@@ -73,7 +75,7 @@ export default function AddCryptoScreen() {
             </View>
           ) : null}
           {/* Drawn on the phone, and never when the address failed its check (same rule as ShareModal). */}
-          {walletAddress && verification !== "mismatch" ? (
+          {addressUsable && walletAddress ? (
             <View className="items-center mt-4">
               <View className="rounded-2xl bg-white p-3">
                 <QRCodeStyled
@@ -84,7 +86,7 @@ export default function AddCryptoScreen() {
               </View>
             </View>
           ) : null}
-          {walletAddress ? (
+          {addressUsable && walletAddress ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Copy my receiving address"
@@ -99,12 +101,12 @@ export default function AddCryptoScreen() {
               </Text>
               <Copy size={18} color={COLORS.white} />
             </Pressable>
-          ) : (
+          ) : !walletAddress ? (
             <Text className="text-amber-200 mt-3 text-sm">
               Address unavailable: wait for your wallet to be created before receiving.
             </Text>
-          )}
-          {isTestnet && walletAddress ? (
+          ) : null}
+          {isTestnet && addressUsable ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Copy my address and open the Circle faucet to receive test USDC"

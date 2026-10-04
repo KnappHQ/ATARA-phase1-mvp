@@ -62,8 +62,21 @@ test("the flag-off screen has a muted coming-soon line and no buy control", () =
 
 test("the receive QR is drawn on the phone and never on an address mismatch", () => {
   const screen = read("app/add-crypto.tsx");
-  assert.match(screen, /verification !== "mismatch"[\s\S]{0,200}QRCodeStyled/);
+  assert.match(screen, /addressUsable = !!walletAddress && verification !== "mismatch"/);
+  assert.match(screen, /addressUsable && walletAddress \?[\s\S]{0,200}QRCodeStyled/);
   assert.match(screen, /buildReceiveUri\(walletAddress, CHAIN_ID\)/);
+});
+
+test("on an address mismatch the receive screen also hides the copy box and the faucet, which copies the address", () => {
+  const screen = read("app/add-crypto.tsx");
+  assert.match(screen, /const addressUsable = !!walletAddress && verification !== "mismatch"/);
+  // Each of the three ways to hand the address out is behind addressUsable.
+  assert.match(screen, /\{addressUsable && walletAddress \? \(\s*<View className="items-center mt-4">/);
+  assert.match(screen, /\{addressUsable && walletAddress \? \(\s*<Pressable[\s\S]{0,120}Copy my receiving address/);
+  assert.match(screen, /\{isTestnet && addressUsable \? \(/);
+  assert.match(screen, /if \(!isTestnet \|\| !walletAddress \|\| !addressUsable\) return;/);
+  // And nothing else copies it.
+  assert.equal((screen.match(/Clipboard\.setStringAsync/g) ?? []).length, 2);
 });
 
 test("OnrampService and MoonPay URLs are only reachable from the card purchase component", () => {
