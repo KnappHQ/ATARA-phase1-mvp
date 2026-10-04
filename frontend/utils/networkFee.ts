@@ -132,10 +132,16 @@ export const formatLeavesAccount = (input: {
   return `${amount} ${tokenSymbol} + network fee ${formatNetworkFee(maxFee)} in USDC`;
 };
 
-/** Plain-language mapping of what a provider says when the fee cannot be paid. */
+/**
+ * Plain-language mapping of what a provider says when the FEE cannot be paid.
+ * Deliberately narrow: only wording that names the fee machinery counts. A
+ * reverted simulation, an AA23 validation failure or "transfer amount exceeds
+ * balance" can come from the payment itself, and calling them a fee problem would
+ * hide the real cause, so they stay unclassified (null).
+ */
 export const classifyFeeFailure = (message: string): FeeErrorCode | null => {
-  if (/AA21|prefund|transfer amount exceeds balance|insufficient (usdc|token|funds)/i.test(message)) return "FEE_INSUFFICIENT";
-  if (/paymaster|policy|erc-?20|allowance|AA3\d|AA2[2-5]|limit reached|quota|simulation|validation reverted/i.test(message)) return "FEE_SERVICE";
+  if (/AA21|didn'?t pay prefund/i.test(message)) return "FEE_INSUFFICIENT";
+  if (/paymaster|gas manager|policy id|AA3\d/i.test(message)) return "FEE_SERVICE";
   return null;
 };
 
@@ -199,13 +205,13 @@ export interface FeeGuard {
 
 /**
  * Runs on the real prepared payment, before it is recorded or signed. Throws when
- * there is no real fee, when it rose past what the person was shown, or when it no
+ * there is no real fee, when no fee was shown (no guard), when it rose past what the person was shown, or when it no
  * longer fits the balance. Nothing has been sent at that point.
  */
 export const checkPreparedFee = (prepared: any, feeTokenAddress: string, guard?: FeeGuard): bigint => {
   const actual = usableFee(prepared, feeTokenAddress);
-  if (actual === null) throw createFeeError("FEE_UNAVAILABLE");
-  if (!guard) return actual;
+  // No fee was shown to the person (no guard): there is nothing they agreed to, so nothing is signed.
+  if (actual === null || !guard) throw createFeeError("FEE_UNAVAILABLE");
   if (feeChangedTooMuch(guard.shownMaxFee, actual)) throw createFeeError("FEE_CHANGED");
   const funds = checkFunds({
     amount: guard.amount,

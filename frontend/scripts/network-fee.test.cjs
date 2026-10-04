@@ -68,7 +68,8 @@ test("the fee may rise 25 percent between the review and the signature, not more
 test("the real quote is read before signing: no real fee, a changed fee or a short balance stop the payment", () => {
   const guard = { shownMaxFee: 20_000n, amount: usdc("10"), sendingFeeToken: true, tokenBalance: usdc("25"), feeTokenBalance: usdc("25") };
   assert.equal(fee.checkPreparedFee(prepared(22_000n), USDC, guard), 22_000n);
-  assert.equal(fee.checkPreparedFee(prepared(22_000n), USDC.toLowerCase()), 22_000n, "no guard still needs a real fee");
+  assert.equal(fee.checkPreparedFee(prepared(22_000n), USDC.toLowerCase(), guard), 22_000n);
+  assert.throws(() => fee.checkPreparedFee(prepared(22_000n), USDC), (error) => error.code === "FEE_UNAVAILABLE" && error.notSent === true, "no fee was shown: nothing is signed");
   const code = (run) => { try { run(); } catch (error) { assert.equal(error.notSent, true); return error.code; } return null; };
   assert.equal(code(() => fee.checkPreparedFee({ type: "user-operation-v070" }, USDC, guard)), "FEE_UNAVAILABLE", "no feePayment");
   assert.equal(code(() => fee.checkPreparedFee(prepared(0n), USDC, guard)), "FEE_UNAVAILABLE", "a zero fee is not a fee");
@@ -86,10 +87,19 @@ test("a bare sponsorship answer never passes for a fee", () => {
 
 test("provider failures about the fee get plain messages", () => {
   assert.equal(fee.classifyFeeFailure("AA21 didn't pay prefund"), "FEE_INSUFFICIENT");
-  assert.equal(fee.classifyFeeFailure("ERC20: transfer amount exceeds balance"), "FEE_INSUFFICIENT");
+  assert.equal(fee.classifyFeeFailure("AA33 reverted (or OOG)"), "FEE_SERVICE");
   assert.equal(fee.classifyFeeFailure("Gas Manager policy not found"), "FEE_SERVICE");
   assert.equal(fee.classifyFeeFailure("paymaster rejected"), "FEE_SERVICE");
   assert.equal(fee.classifyFeeFailure("Request timed out"), null);
+  // Errors of the payment itself are not fee errors: they keep their own cause.
+  for (const message of [
+    "UserOperation reverted during simulation with reason: Ownable: caller is not the owner",
+    "execution reverted: ERC20: transfer amount exceeds balance",
+    "AA23 reverted",
+    "validation reverted",
+    "rate limit reached",
+    "Quota exceeded",
+  ]) assert.equal(fee.classifyFeeFailure(message), null, message);
   for (const text of Object.values(fee.FEE_MESSAGES)) assert.doesNotMatch(text, /gas|paymaster|sponsor/i);
 });
 

@@ -129,6 +129,15 @@ test("the split submission sends the same requests as the SDK's own sendCalls", 
   assert.deepEqual(parseCallId(CALL_ID), { chainId: CHAIN_ID, userOpHash: USER_OP_HASH });
 });
 
+test("the fee quote the real SDK returns is a positive whole amount in USDC, and a sponsored one is refused", async () => {
+  const { usableFee } = load("utils/networkFee.ts");
+  const { client } = await build();
+  const prepared = await client.prepareCalls(request());
+  assert.equal(typeof prepared.feePayment.maxAmount, "bigint", "the SDK decodes the maximum to a bigint");
+  assert.equal(usableFee(prepared, USDC), 20_000n);
+  assert.equal(usableFee({ feePayment: { ...prepared.feePayment, sponsored: true } }, USDC), null);
+});
+
 test("the provider's own status action reads a call id the way the verifier expects", async () => {
   const { client } = await build();
   const status = await client.getCallsStatus({ id: CALL_ID });
