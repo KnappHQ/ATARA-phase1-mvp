@@ -184,6 +184,7 @@ function RootLayoutInner() {
         <Stack.Screen name="sign-in-methods" options={{ presentation: "card", animation: "slide_from_right" }} />
         <Stack.Screen name="sovereignty" options={{ presentation: "card", animation: "slide_from_bottom" }} />
         <Stack.Screen name="plans" options={{ presentation: "card", animation: "slide_from_bottom" }} />
+        <Stack.Screen name="blocked-users" options={{ presentation: "card", animation: "slide_from_right" }} />
         <Stack.Screen name="card" options={{ presentation: "card", animation: "slide_from_bottom" }} />
         <Stack.Screen name="vault-create" options={{ presentation: "card", animation: "slide_from_bottom" }} />
         <Stack.Screen name="vault-detail" options={{ presentation: "card", animation: "slide_from_bottom" }} />

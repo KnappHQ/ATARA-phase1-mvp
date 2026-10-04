@@ -9,6 +9,8 @@ export interface HistoryTransaction {
   assetSymbol: string;
   category: string | null;
   userNote: string | null;
+  /** A note exists but is hidden because the other person was blocked (or blocked you). */
+  noteHidden?: boolean;
   type: "send" | "receive";
   isInApp: boolean;
   counterparty: {

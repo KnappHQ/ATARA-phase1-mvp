@@ -18,6 +18,14 @@ export interface GroupMember {
   avatar: string;
 }
 
+const toGroupMember = (m: GroupDetailResponse["members"][number]): GroupMember => ({
+  id: m.user.id,
+  name: m.user.displayName || `@${m.user.handle}`,
+  handle: m.user.handle,
+  address: "",
+  avatar: getInitials(m.user.displayName, m.user.handle),
+});
+
 export interface Group {
   id: string;
   name: string;
@@ -35,6 +43,7 @@ export interface GroupExpenseDetail {
   id: string;
   paidById: string;
   paidByName: string;
+  paidByHandle: string;
   amount: number;
   description: string;
   date: string;
@@ -58,6 +67,8 @@ export interface GroupDetail {
   createdById: string;
   createdAt: string;
   members: GroupMember[];
+  /** Invited and not yet accepted: not part of expenses or balances. */
+  pendingMembers: GroupMember[];
   expenses: GroupExpenseDetail[];
   memberBalances: GroupMemberBalance[];
 }
@@ -101,19 +112,15 @@ function mapDetailResponse(d: GroupDetailResponse): GroupDetail {
       day: "numeric",
       year: "numeric",
     }),
-    members: d.members.map((m) => ({
-      id: m.user.id,
-      name: m.user.displayName || `@${m.user.handle}`,
-      handle: m.user.handle,
-      address: "",
-      avatar: getInitials(m.user.displayName, m.user.handle),
-    })),
+    members: d.members.filter((m) => m.status !== "INVITED").map(toGroupMember),
+    pendingMembers: d.members.filter((m) => m.status === "INVITED").map(toGroupMember),
     expenses: d.expenses.map((e) => ({
       id: e.id,
       assetSymbol: e.assetSymbol,
       splits: e.splits ?? [],
       paidById: e.paidById,
       paidByName: e.paidBy.displayName || `@${e.paidBy.handle}`,
+      paidByHandle: e.paidBy.handle,
       amount: parseFloat(e.amount),
       description: e.description,
       date: new Date(e.createdAt).toLocaleDateString("en-US", {

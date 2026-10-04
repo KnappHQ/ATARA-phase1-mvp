@@ -33,6 +33,7 @@ export interface DisplayTransaction {
   displayTime: string;
   category: string | null;
   userNote: string | null;
+  noteHidden?: boolean;
   isInApp: boolean;
 }
 
@@ -176,6 +177,7 @@ const transformTransaction = (tx: HistoryTransaction): DisplayTransaction => {
     }),
     category: tx.category,
     userNote: tx.userNote,
+    noteHidden: tx.noteHidden === true,
     isInApp: tx.isInApp,
   };
 };
