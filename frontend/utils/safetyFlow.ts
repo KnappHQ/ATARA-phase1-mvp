@@ -51,7 +51,7 @@ export const reportPayload = (handle: string, draft: ReportDraft, context: Safet
 });
 
 export const reportThanks = (blocked: boolean): string =>
-  `Thank you. We review every report within 24 hours.${blocked ? " They can no longer find or contact you." : ""} You can also write to ${SUPPORT_EMAIL}.`;
+  `Thank you. We review reports within 24 hours.${blocked ? " They can no longer find you or add you to groups in ATARA." : ""} You can also write to ${SUPPORT_EMAIL}.`;
 
 export const blockConfirmText = (handle: string): string =>
   `Block @${handle.replace(/^@/, "")}? They will not be able to find you, add you to groups or split expenses with you, and you will no longer see their notes. Payments already made stay in your history.`;

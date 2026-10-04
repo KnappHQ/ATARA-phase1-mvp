@@ -124,9 +124,9 @@ if (!process.env.TEST_DATABASE_URL) {
     // Nothing can be assigned to B yet.
     const key = (n) => `req-${suffix}-${n}`.padEnd(20, "0");
     await failsWith(groupService.addExpense(group.id, ids.a, "Taxi", "10", [ids.a, ids.b], undefined, key(1)), 409, /has not accepted/);
-    // Without naming anyone, an expense is shared among the members who accepted: B is left out.
-    const equal = await groupService.addExpense(group.id, ids.a, "Coffee", "4", undefined, undefined, key(2));
-    assert.deepEqual(equal.splits.map((split) => split.userId), [ids.a]);
+    // "Everyone" is ambiguous while B has not accepted (old app builds list invitees as members): refused.
+    await failsWith(groupService.addExpense(group.id, ids.a, "Coffee", "4", undefined, undefined, key(2)), 409, /not accepted their invitation/);
+    assert.equal(await prisma.groupExpense.count({ where: { groupId: group.id } }), 0, "nothing was stored");
 
     // Accepting makes B a member and shares possible.
     await groupService.acceptInvitation(group.id, ids.b);
@@ -135,6 +135,43 @@ if (!process.env.TEST_DATABASE_URL) {
     assert.equal((await groupService.getInvitations(ids.b)).length, 0);
     const expense = await groupService.addExpense(group.id, ids.a, "Taxi", "10", [ids.a, ids.b], undefined, key(3));
     assert.equal(expense.splits.length, 2);
+    // With nobody waiting any more, an equal split among everyone is allowed again.
+    const equal = await groupService.addExpense(group.id, ids.a, "Coffee", "4", undefined, undefined, key(4));
+    assert.deepEqual(equal.splits.map((split) => split.userId).sort(), [ids.a, ids.b].sort());
+  });
+
+  test("an expense needs someone besides the payer", async () => {
+    const group = await groupService.createGroup(ids.a, "Solo", undefined, [handle("b")]);
+    createdGroups.push(group.id);
+    await groupService.acceptInvitation(group.id, ids.b);
+    const key = (n) => `req-${suffix}-solo-${n}`.padEnd(20, "0");
+    await failsWith(groupService.addExpense(group.id, ids.a, "Lunch", "12", [ids.a], undefined, key(1)), 400, /at least one other person/);
+    assert.equal(await prisma.groupExpense.count({ where: { groupId: group.id } }), 0);
+    // Paying for someone else alone is fine: the payer need not be on the split.
+    const forB = await groupService.addExpense(group.id, ids.a, "Lunch for B", "12", [ids.b], undefined, key(2));
+    assert.deepEqual(forB.splits.map((split) => split.userId), [ids.b]);
+  });
+
+  test("two people on the same expense who blocked each other cannot share it, even if neither is the payer", async () => {
+    const group = await groupService.createGroup(ids.a, "Three", undefined, [handle("b"), handle("c")]);
+    createdGroups.push(group.id);
+    await groupService.acceptInvitation(group.id, ids.b);
+    await groupService.acceptInvitation(group.id, ids.c);
+    const key = (n) => `req-${suffix}-three-${n}`.padEnd(20, "0");
+
+    await safetyService.block(ids.b, handle("c")); // B blocks C; A, the payer, blocked nobody
+    await failsWith(groupService.addExpense(group.id, ids.a, "Dinner", "30", [ids.a, ids.b, ids.c], undefined, key(1)), 400, /can't include/);
+    await failsWith(groupService.addExpense(group.id, ids.a, "Dinner", "30", undefined, undefined, key(2)), 400, /can't include/);
+    // The other direction too: C blocks B instead.
+    await safetyService.unblock(ids.b, handle("c"));
+    await safetyService.block(ids.c, handle("b"));
+    await failsWith(groupService.addExpense(group.id, ids.a, "Dinner", "30", [ids.b, ids.c], undefined, key(3)), 400, /can't include/);
+    assert.equal(await prisma.groupExpense.count({ where: { groupId: group.id } }), 0);
+
+    // Each of them can still share an expense with the payer alone.
+    const withB = await groupService.addExpense(group.id, ids.a, "Taxi", "10", [ids.a, ids.b], undefined, key(4));
+    assert.equal(withB.splits.length, 2);
+    await safetyService.unblock(ids.c, handle("b"));
   });
 
   test("declining removes the invitation, and blocking the person who invited also removes it", async () => {

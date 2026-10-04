@@ -132,3 +132,13 @@ test("once ATARA's service answered, a token it does not list is a real zero, no
   assert.match(store, /does not list this token: nothing is held, a\s+\/\/ real zero/);
   assert.match(store, /return \{ \.\.\.asset, balance: "0", usdValue: "\$0\.00", balanceWei: "0" \};/);
 });
+
+test("the Send screen's balance line says Balance unavailable until a balance is read, and nothing else in it changed", () => {
+  const screen = source("components/send/AmountStep.tsx");
+  assert.match(screen, /!balancesKnown\(balanceSource\)\s*\? "Balance unavailable"/);
+  assert.match(screen, /usdValuesKnown\(balanceSource\)/);
+  assert.match(screen, /: "· USD value unavailable"/);
+  // The balance used by the send logic is still the token's own, unchanged.
+  assert.match(screen, /const currentBalance = parseAmount\(selectedToken\.balance\);/);
+  assert.match(screen, /validateBalance\(amountValue, currentBalance\)/);
+});

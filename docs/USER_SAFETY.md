@@ -18,7 +18,9 @@
 - Neither person finds the other in search, by @handle, or in recent contacts. Every refusal reads as
   "not found": nobody is told they were blocked.
 - Neither can add the other to a group (create or add members), and neither can be given a share in an
-  expense the other adds.
+  expense the other adds. An expense is also refused when two people on it blocked each other, even if
+  neither is the payer; when it is shared "with everyone" while the group still has pending invitations (the
+  payer must choose who shares it); and when the payer is its only participant.
 - Notes written by the other person are hidden in Activity ("Note hidden"); the payment itself stays, because
   it is a record of money moved.
 - Pending invitations between the two end.

@@ -37,7 +37,7 @@ test("the request says where the problem was seen, and for a contact needs no id
 test("the messages are plain, give the support address and promise 24 hours", () => {
   assert.match(flow.reportThanks(false), /within 24 hours/);
   assert.match(flow.reportThanks(false), /support@atara\.finance/);
-  assert.match(flow.reportThanks(true), /no longer find or contact you/);
+  assert.match(flow.reportThanks(true), /They can no longer find you or add you to groups in ATARA\./);
   assert.doesNotMatch(flow.reportThanks(false), /no longer find/);
   assert.match(flow.blockConfirmText("@bob"), /Block @bob\?/);
   assert.match(flow.blockConfirmText("bob"), /add you to groups/);
@@ -231,6 +231,15 @@ test("the group store keeps invited people out of the members that expenses are 
   const store = read("stores/useGroupStore.ts");
   assert.match(store, /members: d\.members\.filter\(\(m\) => m\.status !== "INVITED"\)/);
   assert.match(store, /pendingMembers: d\.members\.filter\(\(m\) => m\.status === "INVITED"\)/);
+});
+
+test("the 24-hour promise is worded the same everywhere, and the terms say content may be hidden", () => {
+  const sources = [read("utils/tnc.ts"), read("utils/safetyFlow.ts"), read("app/(tabs)/profile.tsx"), read("../backend/routers/legal.routes.ts")];
+  for (const source of sources) {
+    assert.match(source, /We review reports within 24 hours/);
+    assert.doesNotMatch(source, /review every report|Reports are handled within|may remove content/);
+  }
+  for (const source of [read("utils/tnc.ts"), read("../backend/routers/legal.routes.ts")]) assert.match(source, /may hide content/);
 });
 
 test("the legal text says objectionable content is not tolerated and reports are handled within 24 hours", () => {

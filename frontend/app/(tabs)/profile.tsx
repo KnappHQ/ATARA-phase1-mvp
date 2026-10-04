@@ -277,7 +277,7 @@ export default function ProfileTab() {
           <SettingRow
             icon={LifeBuoy}
             label="Report a problem"
-            subtitle={`${SUPPORT_EMAIL}. Reports are handled within 24 hours.`}
+            subtitle={`${SUPPORT_EMAIL}. We review reports within 24 hours.`}
             delay={385}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

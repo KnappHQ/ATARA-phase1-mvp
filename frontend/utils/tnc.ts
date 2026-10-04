@@ -41,7 +41,7 @@ export const TNC_SECTIONS: TncSection[] = [
   },
   {
     title: "6. Acceptable use",
-    body: "You must not use ATARA for unlawful activity, fraud, sanctions evasion, money laundering, terrorist financing, exploitation, or any activity prohibited by applicable law. We may restrict access to ATARA services where reasonably necessary for security, legal compliance, abuse prevention, or protection of users. ATARA does not tolerate objectionable content or abusive behaviour, including harassment, scams, impersonation and unwanted contact. You can report or block any user from their profile, a payment note or a group. We review reports within 24 hours and may remove content or suspend accounts that break these rules.",
+    body: "You must not use ATARA for unlawful activity, fraud, sanctions evasion, money laundering, terrorist financing, exploitation, or any activity prohibited by applicable law. We may restrict access to ATARA services where reasonably necessary for security, legal compliance, abuse prevention, or protection of users. ATARA does not tolerate objectionable content or abusive behaviour, including harassment, scams, impersonation and unwanted contact. You can report or block any user from their profile, a payment note or a group. We review reports within 24 hours and may hide content or suspend accounts that break these rules.",
   },
   {
     title: "7. Fees",

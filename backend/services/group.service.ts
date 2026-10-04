@@ -505,6 +505,19 @@ class GroupService {
         const ids = splitWithUserIds?.length
           ? splitWithUserIds
           : members.map((m) => m.userId);
+        // "Everyone in the group" is ambiguous while some people have not accepted:
+        // old app builds still list them as members, so the server decides. The
+        // payer must then say who shares the expense.
+        if (!splitWithUserIds?.length) {
+          const waiting = await db.groupMember.count({
+            where: { groupId, status: "INVITED" },
+          });
+          if (waiting > 0)
+            throw new ErrorHandler(
+              "Some people in this group have not accepted their invitation yet. Wait for them, or choose who shares this expense.",
+              409,
+            );
+        }
         const notActive = ids.filter((id) => !members.some((m) => m.userId === id));
         if (notActive.length) {
           // A person who has not accepted the invitation cannot be given a share.
@@ -519,16 +532,24 @@ class GroupService {
             );
           throw new ErrorHandler("Unknown group member", 400);
         }
-        // A block ends shared expenses in both directions, whoever blocked.
-        const blocked = await safetyService.blockedBothWays(payerId);
-        const blockedIds = ids.filter((id) => id !== payerId && blocked.has(id));
-        if (blockedIds.length) {
+        // An expense shared with nobody but the payer is no expense at all.
+        if (new Set(ids).size === 1 && ids[0] === payerId)
+          throw new ErrorHandler("An expense needs at least one other person", 400);
+        // A block ends shared expenses in both directions, whoever blocked, and
+        // between any two people on the expense, not only the payer and one other.
+        const involved = [...new Set([...ids, payerId])];
+        const blocks = await db.userBlock.findMany({
+          where: { blockerId: { in: involved }, blockedId: { in: involved } },
+          select: { blockerId: true, blockedId: true },
+        });
+        if (blocks.length) {
+          const blockedIds = [...new Set(blocks.flatMap((b) => [b.blockerId, b.blockedId]))];
           const people = await db.user.findMany({
             where: { id: { in: blockedIds } },
             select: { handle: true },
           });
           throw new ErrorHandler(
-            `This expense can't include ${people.map((p) => `@${p.handle}`).join(", ")}`,
+            `This expense can't include ${people.map((p) => `@${p.handle}`).join(" and ")}`,
             400,
           );
         }
