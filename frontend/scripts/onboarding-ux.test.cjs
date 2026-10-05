@@ -52,3 +52,54 @@ test("identity screen shows the rules, a counter and that the @handle is fixed",
   assert.equal(rules.HANDLE_RULES_TEXT, "3 to 20 characters. Lowercase letters, numbers and _ only.");
   assert.match(rules.HANDLE_FIXED_TEXT, /can't change your @handle in the app yet/);
 });
+
+// ---- B: saved onboarding draft ---------------------------------------------
+
+const draft = load("utils/onboardingDraft.ts");
+const DAY = 24 * 60 * 60 * 1000;
+const NOW = 1_800_000_000_000;
+
+test("a draft is saved and restored per Privy user", () => {
+  let drafts = {};
+  drafts = draft.saveDraft(drafts, "user-a", { handle: "tanguy", accountName: "Personal" }, NOW);
+  drafts = draft.saveDraft(drafts, "user-b", { handle: "other", accountName: "" }, NOW);
+  assert.deepEqual(draft.readDraft(drafts, "user-a", NOW + 1000), { handle: "tanguy", accountName: "Personal", savedAt: NOW });
+  assert.equal(draft.readDraft(drafts, "user-b", NOW).handle, "other");
+  assert.equal(draft.readDraft(drafts, "user-c", NOW), null);
+  assert.equal(draft.readDraft(drafts, null, NOW), null);
+});
+
+test("a draft older than 7 days is ignored and pruned", () => {
+  const drafts = draft.saveDraft({}, "user-a", { handle: "tanguy", accountName: "" }, NOW);
+  assert.ok(draft.readDraft(drafts, "user-a", NOW + 7 * DAY - 1));
+  assert.equal(draft.readDraft(drafts, "user-a", NOW + 7 * DAY), null);
+  assert.deepEqual(draft.pruneDrafts(drafts, NOW + 8 * DAY), {});
+  assert.ok(draft.pruneDrafts(drafts, NOW + DAY)["user-a"]);
+});
+
+test("a draft is cleared on success and an empty draft is not kept", () => {
+  let drafts = draft.saveDraft({}, "user-a", { handle: "tanguy", accountName: "" }, NOW);
+  assert.deepEqual(draft.clearDraft(drafts, "user-a"), {});
+  drafts = draft.saveDraft(drafts, "user-a", { handle: "", accountName: "  " }, NOW);
+  assert.deepEqual(drafts, {});
+});
+
+test("only the handle, the account name and the time are stored; the terms tick never is", () => {
+  const drafts = draft.saveDraft({}, "user-a", { handle: "tanguy", accountName: "Me", acceptedLegalTerms: true }, NOW);
+  assert.deepEqual(Object.keys(drafts["user-a"]).sort(), ["accountName", "handle", "savedAt"]);
+  // Malformed or padded stored data is rebuilt field by field.
+  const loaded = draft.pruneDrafts({ "user-a": { handle: "x", accountName: "y", savedAt: NOW, acceptedLegalTerms: true }, bad: { handle: 3 } }, NOW);
+  assert.deepEqual(Object.keys(loaded["user-a"]).sort(), ["accountName", "handle", "savedAt"]);
+  assert.equal(loaded.bad, undefined);
+});
+
+test("onboarding wiring: restores on the identity step, clears after registering, never touches the terms", () => {
+  const screen = read("app/onboarding.tsx");
+  const store = read("stores/useOnboardingDraftStore.ts");
+  assert.match(store, /atara\.onboardingDraft\.v1/);
+  assert.match(screen, /usePrivy\(\)/);
+  assert.match(screen, /DRAFT_SAVE_DELAY_MS = 300/);
+  assert.match(screen, /await registerWithHandle\(params\);[\s\S]*clear\(userId\)/);
+  assert.doesNotMatch(screen + store, /acceptedLegalTerms/);
+  assert.doesNotMatch(store, /\bfetch\(|axios|api\./);
+});

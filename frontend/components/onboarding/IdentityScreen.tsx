@@ -37,6 +37,8 @@ import { PrivacyPolicyScreen } from "@/components/profile/PrivacyPolicyScreen";
 interface IdentityScreenProps {
   handle: string;
   setHandle: (h: string) => void;
+  accountName: string;
+  setAccountName: (name: string) => void;
   onCheckHandle: (handle: string) => Promise<boolean>;
   onSubmit: (params: { handle: string; displayName?: string }) => Promise<void>;
   onBack: () => Promise<void>;
@@ -59,6 +61,8 @@ const formatRegistrationError = (error: any): string => {
 export const IdentityScreen = ({
   handle,
   setHandle,
+  accountName,
+  setAccountName,
   onCheckHandle,
   onSubmit,
   onBack,
@@ -72,7 +76,6 @@ export const IdentityScreen = ({
   const [termsOpen, setTermsOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [isGoingBack, setIsGoingBack] = useState(false);
-  const [accountName, setAccountName] = useState("");
   const [showStripped, setShowStripped] = useState(false);
   const strippedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const busyRef = useRef(false);
