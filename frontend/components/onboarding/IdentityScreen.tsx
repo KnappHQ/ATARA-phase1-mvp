@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   Platform,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MotiView } from "moti";
@@ -130,7 +131,7 @@ export const IdentityScreen = ({
     }
   };
 
-  const handleBack = async () => {
+  const signOut = async () => {
     if (isGoingBack) return;
     Keyboard.dismiss();
     setIsGoingBack(true);
@@ -142,6 +143,19 @@ export const IdentityScreen = ({
     } finally {
       setIsGoingBack(false);
     }
+  };
+
+  // Going back drops the session, so say so before doing it.
+  const handleBack = () => {
+    if (isGoingBack) return;
+    Alert.alert(
+      "Use a different sign-in?",
+      "You'll be signed out and go back to the first screen. Your @handle and name stay saved on this iPhone. If you just created a passkey, choose \"Sign in with an existing passkey\" to pick up where you left off.",
+      [
+        { text: "Stay", style: "cancel" },
+        { text: "Sign out", style: "destructive", onPress: () => void signOut() },
+      ],
+    );
   };
 
   const status = handleStatus({ handle, isChecking, isAvailable, error });
@@ -159,7 +173,7 @@ export const IdentityScreen = ({
         style={{ minHeight: 48, alignSelf: "flex-start" }}
         activeOpacity={0.75}
         accessibilityRole="button"
-        accessibilityLabel="Back to sign-in methods"
+        accessibilityLabel="Sign out and choose another sign-in"
         className="flex-row items-center gap-1 rounded-full border border-white/15 bg-black/60 px-4 py-2"
       >
         {isGoingBack ? (
@@ -167,7 +181,7 @@ export const IdentityScreen = ({
         ) : (
           <ChevronLeft size={20} color={COLORS.white} />
         )}
-        <Text className="text-sm font-medium text-white">Back</Text>
+        <Text className="text-sm font-medium text-white">Sign-in options</Text>
       </TouchableOpacity>
       </View>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>

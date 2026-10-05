@@ -103,3 +103,24 @@ test("onboarding wiring: restores on the identity step, clears after registering
   assert.doesNotMatch(screen + store, /acceptedLegalTerms/);
   assert.doesNotMatch(store, /\bfetch\(|axios|api\./);
 });
+
+// ---- C: Back asks before signing out ---------------------------------------
+
+test("Back asks first, then calls the unchanged sign-out", () => {
+  const screen = read("components/onboarding/IdentityScreen.tsx");
+  const gate = read("components/onboarding/GateScreen.tsx");
+  assert.match(screen, /Alert\.alert\(\s*"Use a different sign-in\?"/);
+  assert.match(screen, /text: "Stay", style: "cancel"/);
+  assert.match(screen, /text: "Sign out", style: "destructive", onPress: \(\) => void signOut\(\)/);
+  assert.match(screen, /await onBack\(\);/);
+  assert.match(screen, /Sign-in options/);
+  assert.match(screen, /accessibilityLabel="Sign out and choose another sign-in"/);
+  assert.doesNotMatch(screen, /Back to sign-in methods/);
+  // The alert names a button that really exists on the first screen.
+  assert.match(gate, /Sign in with an existing passkey/);
+  assert.match(screen, /Sign in with an existing passkey/);
+});
+
+test("signing out is still the app's own logout", () => {
+  assert.match(read("app/onboarding.tsx"), /onBack=\{logout\}/);
+});
