@@ -29,10 +29,14 @@ export const AddExpenseModal = ({ isOpen, onClose, groupId }: {
     const signature = JSON.stringify([groupId, description.trim(), amount, breakdown]);
     if (key.current?.signature !== signature) key.current = { signature, id: Crypto.randomUUID() };
     try {
-      await addExpense(groupId, description.trim(), Number(amount), key.current.id, custom ? breakdown : undefined);
+      // Always say who shares it: the people already in the group (`members` never lists
+      // someone who has not accepted an invitation), for equal and custom shares alike.
+      await addExpense(groupId, description.trim(), Number(amount), key.current.id, custom ? breakdown : undefined, members.map((m) => m.id));
       setDescription(""); setAmount(""); setShares({}); key.current = null; onClose();
     } catch (error: any) {
-      useAlertStore.getState().error("Expense not added", error?.response?.data?.message ?? "Try again: a lost response will not create a duplicate.");
+      useAlertStore.getState().error("Expense not added", error?.response?.data?.message ?? (error?.response?.status === 409
+        ? "Wait for invitations to be accepted, or add the expense only for people who are already in the group."
+        : "Try again: a lost response will not create a duplicate."));
     } finally { setBusy(false); }
   };
   return <Modal visible={isOpen} transparent animationType="slide" onRequestClose={close}>
