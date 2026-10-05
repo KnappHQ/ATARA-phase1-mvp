@@ -147,3 +147,32 @@ test("the email line matches what the backend does", () => {
   assert.match(user, /\.\.\.\(includePrivate && \{ email: true \}\)/);
   assert.match(controller, /getUserByHandle\(handle\.toLowerCase\(\), false, req\.user\.id\)/);
 });
+
+// ---- F: pull to refresh -----------------------------------------------------
+
+test("Home refreshes balance, activity and groups together, reads only", () => {
+  const home = read("app/(tabs)/index.tsx");
+  assert.match(home, /refreshControl=\{\s*<RefreshControl/);
+  assert.match(home, /Promise\.allSettled\(\[\s*useWalletStore\.getState\(\)\.refreshBalances\(\),\s*fetchHistory\(\),\s*fetchGroups\(\),\s*\]\)/);
+  assert.match(home, /finally \{\s*setIsRefreshing\(false\)/);
+});
+
+test("Group details refreshes in place without the loading skeleton", () => {
+  const screen = read("app/group-details.tsx");
+  const store = read("stores/useGroupStore.ts");
+  assert.match(screen, /refreshControl=\{\s*<RefreshControl/);
+  assert.match(screen, /fetchGroupDetail\(id, \{ silent: true \}\)/);
+  assert.match(screen, /finally \{\s*setIsRefreshing\(false\)/);
+  assert.match(store, /options\?\.silent \? \{ detailError: null \} : \{ isLoadingDetail: true, detailError: null \}/);
+});
+
+test("Activity pull also reloads group invitations", () => {
+  const activity = read("app/(tabs)/activity.tsx");
+  const tab = read("components/activity/GroupsListTab.tsx");
+  const invitations = read("components/activity/GroupInvitations.tsx");
+  assert.match(activity, /setRefreshKey\(\(key\) => key \+ 1\)/);
+  assert.match(activity, /refreshKey=\{refreshKey\}/);
+  assert.match(activity, /finally \{\s*setIsRefreshing\(false\)/);
+  assert.match(tab, /<GroupInvitations refreshKey=\{refreshKey\} \/>/);
+  assert.match(invitations, /\}, \[load, refreshKey\]\)/);
+});

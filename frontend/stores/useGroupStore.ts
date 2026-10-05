@@ -156,7 +156,8 @@ interface GroupState {
     memberHandles: string[],
     description?: string,
   ) => Promise<void>;
-  fetchGroupDetail: (id: string) => Promise<void>;
+  /** `silent` refreshes in place (pull to refresh): no skeleton, the current detail stays. */
+  fetchGroupDetail: (id: string, options?: { silent?: boolean }) => Promise<void>;
   addExpense: (
     groupId: string,
     description: string,
@@ -202,9 +203,9 @@ export const useGroupStore = create<GroupState>((set, get) => ({
     await get().fetchGroups();
   },
 
-  fetchGroupDetail: async (id) => {
+  fetchGroupDetail: async (id, options) => {
     const revision = accountRevision();
-    set({ isLoadingDetail: true, detailError: null });
+    set(options?.silent ? { detailError: null } : { isLoadingDetail: true, detailError: null });
     try {
       const data = await GroupService.getGroupDetails(id);
       if (revision !== accountRevision()) return;
