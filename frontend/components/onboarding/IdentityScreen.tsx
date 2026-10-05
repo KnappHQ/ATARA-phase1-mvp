@@ -21,6 +21,16 @@ import {
 import { CrownIcon } from "./CrownIcon";
 import { COLORS } from "@/utils/constants";
 import { useState, useEffect, useRef } from "react";
+import {
+  HANDLE_FIXED_TEXT,
+  HANDLE_MAX,
+  HANDLE_MIN,
+  HANDLE_RULES_TEXT,
+  HANDLE_STRIPPED_TEXT,
+  handleStatus,
+  sanitizeHandle,
+  strippedCharacters,
+} from "@/utils/handleRules";
 import { TermsOfServiceScreen } from "@/components/profile/TermsOfServiceScreen";
 import { PrivacyPolicyScreen } from "@/components/profile/PrivacyPolicyScreen";
 
@@ -53,7 +63,7 @@ export const IdentityScreen = ({
   onSubmit,
   onBack,
 }: IdentityScreenProps) => {
-  const isValid = handle.length >= 3;
+  const isValid = handle.length >= HANDLE_MIN;
   const [isChecking, setIsChecking] = useState(false);
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
@@ -63,15 +73,30 @@ export const IdentityScreen = ({
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [isGoingBack, setIsGoingBack] = useState(false);
   const [accountName, setAccountName] = useState("");
+  const [showStripped, setShowStripped] = useState(false);
+  const strippedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const busyRef = useRef(false);
+
+  useEffect(() => () => {
+    if (strippedTimer.current) clearTimeout(strippedTimer.current);
+  }, []);
+
+  const onHandleChange = (text: string) => {
+    if (strippedCharacters(text)) {
+      setShowStripped(true);
+      if (strippedTimer.current) clearTimeout(strippedTimer.current);
+      strippedTimer.current = setTimeout(() => setShowStripped(false), 2000);
+    }
+    setHandle(sanitizeHandle(text));
+  };
 
   useEffect(() => {
     let cancelled = false;
     setIsAvailable(null);
     setError(null);
-    setIsChecking(handle.length >= 3);
+    setIsChecking(handle.length >= HANDLE_MIN);
     const timer = setTimeout(async () => {
-      if (handle.length < 3) return;
+      if (handle.length < HANDLE_MIN) return;
       try {
         const available = await onCheckHandle(handle);
         if (!cancelled) setIsAvailable(available);
@@ -115,6 +140,8 @@ export const IdentityScreen = ({
       setIsGoingBack(false);
     }
   };
+
+  const status = handleStatus({ handle, isChecking, isAvailable, error });
 
   const canSubmit =
     isValid && isAvailable === true && acceptedLegalTerms && !isRegistering && !isGoingBack && !isChecking;
@@ -167,13 +194,11 @@ export const IdentityScreen = ({
             <Text className="text-white/50 text-lg">@</Text>
             <TextInput
               value={handle}
-              onChangeText={(text) =>
-                setHandle(text.toLowerCase().replace(/[^a-z0-9_]/g, ""))
-              }
+              onChangeText={onHandleChange}
               placeholder="handle"
               placeholderTextColor={COLORS.placeholder}
               className="flex-1 py-4 px-2 text-lg text-white"
-              maxLength={20}
+              maxLength={HANDLE_MAX}
               autoFocus
               autoCapitalize="none"
               autoCorrect={false}
@@ -191,19 +216,39 @@ export const IdentityScreen = ({
           </View>
         </View>
 
-        {isAvailable === false && isValid && (
-          <Text className="text-red-400 text-xs mt-2 px-1">
-            This handle is already taken
+        <View className="flex-row justify-between mt-2 px-1">
+          <Text className="flex-1 text-white/50 text-[11px] leading-4">
+            {HANDLE_RULES_TEXT}
+          </Text>
+          <Text className="ml-3 text-white/50 text-[11px] leading-4">
+            {handle.length}/{HANDLE_MAX}
+          </Text>
+        </View>
+
+        {showStripped && (
+          <Text className="text-white/70 text-xs mt-1 px-1">
+            {HANDLE_STRIPPED_TEXT}
           </Text>
         )}
 
-        {error && (
-          <Text className="text-red-400 text-xs mt-2 px-1">{error}</Text>
+        {status && (
+          <Text
+            accessibilityLiveRegion="polite"
+            className={`text-xs mt-1 px-1 ${
+              status.kind === "taken" || status.kind === "error"
+                ? "text-red-400"
+                : status.kind === "available"
+                  ? "text-white"
+                  : "text-white/60"
+            }`}
+          >
+            {status.message}
+          </Text>
         )}
 
         <Text className="text-white/40 text-[11px] leading-4 mt-2 px-1">
           Anyone signed in to ATARA can find your @handle and see the address
-          you receive payments at.
+          you receive payments at. {HANDLE_FIXED_TEXT}
         </Text>
 
         <Text className="text-white/60 text-xs mt-5 mb-2">
