@@ -13,8 +13,7 @@ import { useTransactionHistoryStore } from "@/stores/useTransactionHistoryStore"
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useGroupStore } from "@/stores/useGroupStore";
 import { useWalletStore } from "@/stores/useWalletStore";
-import { COLORS } from "@/utils/constants";
-import { ACTIVITY_LIMIT } from "@/utils/constants";
+import { ACTIVITY_LIMIT, COLORS } from "@/utils/constants";
 
 const VAULTS_ENABLED = process.env.EXPO_PUBLIC_ENABLE_VAULTS === "true";
 

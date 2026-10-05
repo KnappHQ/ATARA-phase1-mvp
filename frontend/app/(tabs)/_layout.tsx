@@ -43,6 +43,14 @@ export default function TabsLayout() {
               }}
             />
             <Tabs.Screen
+              name="groups"
+              options={{
+                // Vault is postponed: with it on, the bar stays as it was.
+                href: VAULTS_ENABLED ? null : "/groups",
+                title: "Groups",
+              }}
+            />
+            <Tabs.Screen
               name="vaults"
               options={{
                 href: VAULTS_ENABLED ? "/vaults" : null,

@@ -212,3 +212,39 @@ test("labels read Receive, Send and Balance", () => {
     assert.doesNotMatch(source, /Liquidity/);
   }
 });
+
+// ---- I: center Pay button and Groups tab ------------------------------------
+
+test("the bar is Home, Activity, Pay, Groups, Profile, and unchanged when Vault is on", () => {
+  const { tabBarItems } = load("utils/tabBarConfig.ts");
+  assert.deepEqual(tabBarItems(false), ["home", "activity", "pay", "groups", "profile"]);
+  assert.deepEqual(tabBarItems(true), ["home", "activity", "vaults", "profile"]);
+  // Home stays far left and Profile far right.
+  for (const flag of [false, true]) {
+    const items = tabBarItems(flag);
+    assert.equal(items[0], "home");
+    assert.equal(items[items.length - 1], "profile");
+  }
+});
+
+test("Pay is a button that only opens the existing Send screen", () => {
+  const nav = read("components/BottomNav.tsx");
+  assert.match(nav, /Haptics\.impactAsync\(Haptics\.ImpactFeedbackStyle\.Medium\);\s*router\.push\("\/send"\)/);
+  assert.match(nav, /accessibilityLabel="Pay"/);
+  // It is not a route: no tab file or screen is named pay.
+  assert.equal(fs.existsSync(path.join(__dirname, "..", "app", "(tabs)", "pay.tsx")), false);
+  assert.doesNotMatch(nav, /route: "pay"/);
+});
+
+test("the Groups tab is registered, hidden when Vault is on, and refreshes groups and invitations", () => {
+  const layout = read("app/(tabs)/_layout.tsx");
+  const groups = read("app/(tabs)/groups.tsx");
+  assert.match(layout, /name="groups"[\s\S]*href: VAULTS_ENABLED \? null : "\/groups"/);
+  assert.match(groups, /router\.push\("\/group-create"\)/);
+  assert.match(groups, /<GroupsListTab/);
+  assert.match(groups, /refreshKey=\{refreshKey\}/);
+  assert.match(groups, /refreshControl=\{\s*<RefreshControl/);
+  assert.match(groups, /finally \{\s*setIsRefreshing\(false\)/);
+  // Activity keeps its own Groups sub-tab for now.
+  assert.match(read("app/(tabs)/activity.tsx"), /activityTab === "groups"/);
+});
