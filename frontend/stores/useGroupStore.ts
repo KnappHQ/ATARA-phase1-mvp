@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { accountRevision, onAccountReset } from "@/utils/accountScope";
+import { useAlertStore } from "@/stores/useAlertStore";
 import * as Sentry from "@sentry/react-native";
 import {
   GroupService,
@@ -212,10 +213,13 @@ export const useGroupStore = create<GroupState>((set, get) => ({
       set({ groupDetail: mapDetailResponse(data) });
     } catch (err: any) {
       if (revision !== accountRevision()) return;
-      set({
-        detailError:
-          err.response?.data?.message || "Failed to load group details",
-      });
+      const message = err.response?.data?.message || "Failed to load group details";
+      if (options?.silent && get().groupDetail) {
+        // A pull to refresh that fails must not wipe what is already on screen.
+        useAlertStore.getState().error("Could not refresh this group", message);
+      } else {
+        set({ detailError: message });
+      }
     } finally {
       if (revision === accountRevision()) set({ isLoadingDetail: false });
     }

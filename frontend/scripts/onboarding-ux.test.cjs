@@ -248,3 +248,39 @@ test("the Groups tab is registered, hidden when Vault is on, and refreshes group
   // Activity keeps its own Groups sub-tab for now.
   assert.match(read("app/(tabs)/activity.tsx"), /activityTab === "groups"/);
 });
+
+// ---- Review fixes on #76 ------------------------------------------------------
+
+test("a failed pull to refresh keeps the group's expenses on screen", () => {
+  const store = read("stores/useGroupStore.ts");
+  assert.match(store, /if \(options\?\.silent && get\(\)\.groupDetail\) \{[\s\S]*?useAlertStore\.getState\(\)\.error\("Could not refresh this group", message\);\s*\} else \{\s*set\(\{ detailError: message \}\);/);
+  // The full-screen error is still what a first load shows.
+  assert.match(store, /set\(\{ detailError: message \}\)/);
+});
+
+test("the Balance skeleton only shows while nothing has ever been read, never for a known zero", () => {
+  const section = read("components/homeScreen/BalanceRevealSection.tsx");
+  assert.match(section, /const isInitialLoad = balanceSource === null;/);
+  assert.doesNotMatch(section, /totalUSDValue === 0/);
+  assert.match(section, /isInitialLoad && isLoadingBalances \? \(\s*<BalanceSkeleton \/>/);
+});
+
+test("the onboarding form never keeps another account's values", () => {
+  const screen = read("app/onboarding.tsx");
+  // Signed out: the form is emptied and the restore marker reset.
+  assert.match(screen, /if \(userId\) return;\s*restoredFor\.current = null;\s*finished\.current = false;\s*setHandle\(""\);\s*setAccountName\(""\);/);
+  // A different person gets their own draft or nothing, never `current || saved`.
+  assert.match(screen, /setHandle\(sanitizeHandle\(savedHandle\)\);\s*setAccountName\(savedName\);/);
+  assert.doesNotMatch(screen, /current \|\| /);
+});
+
+test("the whole center Pay control is one button with a large hit target", () => {
+  const nav = read("components/BottomNav.tsx");
+  const control = /<TouchableOpacity\s+onPress=\{handlePay\}[\s\S]*?<\/TouchableOpacity>/.exec(nav)[0];
+  assert.match(control, /minWidth: 72, minHeight: 44/);
+  assert.match(control, /<Send size=\{22\}/);
+  assert.match(control, />\s*Pay\s*<\/Text>/);
+  // The slot in the bar itself is only room: no second, label-only element.
+  assert.equal((nav.match(/>\s*Pay\s*<\/Text>/g) || []).length, 1);
+  assert.match(nav, /Haptics\.impactAsync\(Haptics\.ImpactFeedbackStyle\.Medium\);\s*router\.push\("\/send"\)/);
+});

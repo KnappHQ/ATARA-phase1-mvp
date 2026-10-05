@@ -75,12 +75,8 @@ export const BottomNav = ({ state, navigation }: BottomTabBarProps) => {
             <View className="flex-row items-center py-3">
               {items.map((id) => {
                 if (id === "pay") {
-                  // Room for the raised button; its label sits at the bottom.
-                  return (
-                    <View key="pay" className="flex-1 items-center justify-end" style={{ minHeight: 48 }}>
-                      <Text className="text-xs font-medium text-white">Pay</Text>
-                    </View>
-                  );
+                  // Room for the raised Pay control, which is drawn above the bar.
+                  return <View key="pay" className="flex-1" style={{ minHeight: 48 }} />;
                 }
                 const tab = TABS[id];
                 const isActive = currentRoute === tab.route;
@@ -131,23 +127,31 @@ export const BottomNav = ({ state, navigation }: BottomTabBarProps) => {
             pointerEvents="box-none"
             style={{ position: "absolute", left: 0, right: 0, top: -20, alignItems: "center" }}
           >
+            {/* One control: the circle and its label both press Pay. */}
             <TouchableOpacity
               onPress={handlePay}
               activeOpacity={0.85}
               accessibilityRole="button"
               accessibilityLabel="Pay"
-              className="w-14 h-14 rounded-full items-center justify-center"
-              style={[
-                { backgroundColor: COLORS.white },
-                Platform.OS === "ios" && {
-                  shadowColor: "#000",
-                  shadowOpacity: 0.4,
-                  shadowRadius: 8,
-                  shadowOffset: { width: 0, height: 4 },
-                },
-              ]}
+              style={{ minWidth: 72, minHeight: 44, alignItems: "center" }}
             >
-              <Send size={22} color={COLORS.black} strokeWidth={2.2} />
+              <View
+                className="w-14 h-14 rounded-full items-center justify-center"
+                style={[
+                  { backgroundColor: COLORS.white },
+                  Platform.OS === "ios" && {
+                    shadowColor: "#000",
+                    shadowOpacity: 0.4,
+                    shadowRadius: 8,
+                    shadowOffset: { width: 0, height: 4 },
+                  },
+                ]}
+              >
+                <Send size={22} color={COLORS.black} strokeWidth={2.2} />
+              </View>
+              <Text className="text-xs font-medium text-white" style={{ marginTop: 10 }}>
+                Pay
+              </Text>
             </TouchableOpacity>
           </View>
         )}

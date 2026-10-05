@@ -63,7 +63,8 @@ export const BalanceRevealSection = ({
     }
   }, [refreshBalances, user]);
 
-  const isInitialLoad = totalUSDValue === 0;
+  // The skeleton is for a balance that was never read. A known $0.00 stays on screen while it refreshes.
+  const isInitialLoad = balanceSource === null;
 
   const updateRevealState = (revealed: boolean) => {
     setIsBalanceRevealed(revealed);

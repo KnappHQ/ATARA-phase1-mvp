@@ -61,16 +61,26 @@ export default function Onboarding() {
     [takenNames],
   );
 
-  // Bring back what was typed before the app was closed (never the terms box).
+  // Signed out: forget the form, so the next person never sees these values.
+  useEffect(() => {
+    if (userId) return;
+    restoredFor.current = null;
+    finished.current = false;
+    setHandle("");
+    setAccountName("");
+  }, [userId]);
+
+  // Bring back what this person typed before the app was closed (never the terms
+  // box). Another account's values are replaced, not kept.
   useEffect(() => {
     if (onboardingStep !== "identity" || !draftsLoaded || !userId) return;
     if (restoredFor.current === userId) return;
     restoredFor.current = userId;
+    finished.current = false;
     const draft = useOnboardingDraftStore.getState().read(userId);
-    if (!draft) return;
-    const { handle: savedHandle, accountName: savedName } = draft;
-    setHandle((current) => current || sanitizeHandle(savedHandle));
-    setAccountName((current) => current || savedName);
+    const { handle: savedHandle, accountName: savedName } = draft ?? { handle: "", accountName: "" };
+    setHandle(sanitizeHandle(savedHandle));
+    setAccountName(savedName);
   }, [onboardingStep, draftsLoaded, userId]);
 
   // Keep the draft up to date while the person types.
