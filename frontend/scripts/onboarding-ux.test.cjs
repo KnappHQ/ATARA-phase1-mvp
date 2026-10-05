@@ -124,3 +124,26 @@ test("Back asks first, then calls the unchanged sign-out", () => {
 test("signing out is still the app's own logout", () => {
   assert.match(read("app/onboarding.tsx"), /onBack=\{logout\}/);
 });
+
+// ---- D, E: step labels and why the email -----------------------------------
+
+test("each onboarding screen says which step it is, and the Gate hides it when switching accounts", () => {
+  const gate = read("components/onboarding/GateScreen.tsx");
+  const identity = read("components/onboarding/IdentityScreen.tsx");
+  assert.match(gate, /\{!intent && \(\s*<Text[^>]*>\s*Step 1 of 2 · Sign in/);
+  assert.match(identity, /Step 2 of 2 · Your @handle/);
+  assert.match(identity, /Get Started/);
+});
+
+test("the email line matches what the backend does", () => {
+  const gate = read("components/onboarding/GateScreen.tsx").replace(/\s+/g, " ");
+  assert.match(
+    gate,
+    /With Google or Apple, ATARA keeps the email address they share, only to recognise your account\. Other people never see it\./,
+  );
+  // Other people's profiles never include the email unless asked, and the profile route doesn't.
+  const user = fs.readFileSync(path.join(__dirname, "..", "..", "backend", "services", "user.service.ts"), "utf8");
+  const controller = fs.readFileSync(path.join(__dirname, "..", "..", "backend", "controllers", "user.controller.ts"), "utf8");
+  assert.match(user, /\.\.\.\(includePrivate && \{ email: true \}\)/);
+  assert.match(controller, /getUserByHandle\(handle\.toLowerCase\(\), false, req\.user\.id\)/);
+});

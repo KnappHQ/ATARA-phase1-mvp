@@ -198,6 +198,9 @@ export const IdentityScreen = ({
         <Text className="mt-4 text-[30px] font-bold tracking-[12px] text-white">
           ATARA
         </Text>
+        <Text className="mt-4 text-xs font-medium text-white/50">
+          Step 2 of 2 · Your @handle
+        </Text>
       </MotiView>
 
       <MotiView

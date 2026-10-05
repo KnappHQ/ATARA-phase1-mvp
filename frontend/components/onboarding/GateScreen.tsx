@@ -146,6 +146,13 @@ export const GateScreen = ({
           </View>
         ) : null}
 
+        {/* Switching or adding an account from Manage accounts is not onboarding. */}
+        {!intent && (
+          <Text className="text-white/50 text-xs font-medium mb-3 px-1">
+            Step 1 of 2 · Sign in
+          </Text>
+        )}
+
         <View className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 mb-4">
           <View className="flex-row items-center gap-2 mb-3">
             <ShieldCheck size={16} color={COLORS.accent} />
@@ -252,6 +259,11 @@ export const GateScreen = ({
             <Text className="text-sm text-white">Apple</Text>
           </TouchableOpacity>
         </View>
+
+        <Text className="text-white/35 text-[11px] leading-4 text-center mt-3 px-2">
+          With Google or Apple, ATARA keeps the email address they share, only
+          to recognise your account. Other people never see it.
+        </Text>
 
         <Text className="text-white/35 text-[11px] leading-4 text-center mt-4 px-2">
           ATARA never asks for your seed phrase. A passkey and an external
