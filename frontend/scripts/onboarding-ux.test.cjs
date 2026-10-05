@@ -176,3 +176,39 @@ test("Activity pull also reloads group invitations", () => {
   assert.match(tab, /<GroupInvitations refreshKey=\{refreshKey\} \/>/);
   assert.match(invitations, /\}, \[load, refreshKey\]\)/);
 });
+
+// ---- G: first-run empty states with one action ------------------------------
+
+test("Home's empty state offers one action: share the @handle", () => {
+  const list = read("components/homeScreen/ActivityList.tsx");
+  const home = read("app/(tabs)/index.tsx");
+  assert.match(list, /Nothing here yet/);
+  assert.match(list, /Share your @handle so friends can pay you\./);
+  assert.match(list, /Share my @handle/);
+  assert.match(list, /onPress=\{onReceive\}/);
+  assert.match(home, /onReceive=\{\(\) => setShareModalOpen\(true\)\}\s*\/>/);
+});
+
+test("Transactions' empty state opens Send, Contacts' has text only", () => {
+  const transactions = read("components/activity/TransactionsTab.tsx");
+  const contacts = read("components/activity/ContactsTab.tsx");
+  assert.match(transactions, /Your payments will show up here\./);
+  assert.match(transactions, /router\.push\("\/send"\)/);
+  assert.match(transactions, />Send money</);
+  assert.match(contacts, /People you pay or get paid by will show up here\./);
+  assert.doesNotMatch(contacts, /TouchableOpacity|Pressable/);
+});
+
+// ---- H: plain labels --------------------------------------------------------
+
+test("labels read Receive, Send and Balance", () => {
+  const header = read("components/Header.tsx");
+  assert.match(header, /Receive\s*<\/Text>/);
+  assert.match(header, /Send\s*<\/Text>/);
+  assert.doesNotMatch(header, /RCV|SEND/);
+  for (const file of ["components/homeScreen/BalanceRevealSection.tsx", "components/homeScreen/BalanceSkeleton.tsx"]) {
+    const source = read(file);
+    assert.match(source, />\s*Balance\s*</);
+    assert.doesNotMatch(source, /Liquidity/);
+  }
+});
