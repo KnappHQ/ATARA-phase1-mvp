@@ -97,6 +97,7 @@ export default function HomeTab() {
               <ActivityList
                 transactions={recentActivity}
                 isLoading={isLoading}
+                onReceive={() => setShareModalOpen(true)}
               />
             </View>
           </BalanceRevealSection>

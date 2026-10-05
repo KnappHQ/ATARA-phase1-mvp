@@ -32,9 +32,8 @@ export function ContactsTab({
   if (contactThreads.length === 0) {
     return (
       <View className="py-16 items-center">
-        <Text className="text-white/40 text-center">No contacts yet</Text>
-        <Text className="text-white/30 text-sm text-center mt-2">
-          Your transaction contacts will appear here
+        <Text className="text-white/40 text-center px-6">
+          People you pay or get paid by will show up here.
         </Text>
       </View>
     );
