@@ -68,8 +68,9 @@ export default function Onboarding() {
     restoredFor.current = userId;
     const draft = useOnboardingDraftStore.getState().read(userId);
     if (!draft) return;
-    setHandle((current) => current || sanitizeHandle(draft.handle));
-    setAccountName((current) => current || draft.accountName);
+    const { handle: savedHandle, accountName: savedName } = draft;
+    setHandle((current) => current || sanitizeHandle(savedHandle));
+    setAccountName((current) => current || savedName);
   }, [onboardingStep, draftsLoaded, userId]);
 
   // Keep the draft up to date while the person types.

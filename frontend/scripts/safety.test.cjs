@@ -220,7 +220,7 @@ test("people who use ATARA only: an external address has no report or block", ()
 
 test("people invited to a group answer before anything is shared: accept, decline, or decline and block", () => {
   const list = read("components/activity/GroupsListTab.tsx");
-  assert.match(list, /<GroupInvitations \/>/);
+  assert.match(list, /<GroupInvitations refreshKey=\{refreshKey\} \/>/);
   const invitations = read("components/activity/GroupInvitations.tsx");
   for (const label of ["Accept", "Decline", "Decline and block"]) assert.ok(invitations.includes(label), label);
   assert.match(invitations, /SafetyService\.block\(invitation\.invitedBy\.handle\)/);
