@@ -6,6 +6,10 @@ const router = Router();
 
 router.use(authentication);
 
+router.get("/invitations", groupController.getInvitations);
+router.post("/:groupId/invitation/accept", groupController.acceptInvitation);
+router.delete("/:groupId/invitation", groupController.declineInvitation);
+
 router.get("/contacts/:address/balances", groupController.contactBalances);
 router.patch("/e/:expenseId/decision", groupController.decideSplit);
 router.post("/:groupId/settle/:memberId/quote", groupController.createSettlementIntent);

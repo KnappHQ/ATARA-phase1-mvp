@@ -129,7 +129,7 @@ export const TransactionReceipt = ({
             </View>
           </Pressable>
           <View className="flex-row items-center justify-between">
-            <Text className="text-sm font-medium text-muted">Gas Paid</Text>
+            <Text className="text-sm font-medium text-muted">Network fee</Text>
             <View className="flex-row items-center gap-2">
               <View className="flex-row items-center gap-1 px-2 py-0.5 rounded-full bg-emarald/10 border border-emarald/20">
                 <Zap size={12} color={COLORS.emarald} />

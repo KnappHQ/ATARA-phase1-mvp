@@ -19,6 +19,8 @@ import * as Sentry from "@sentry/react-native";
 import { NicknameEditModal } from "@/components/transaction/NicknameEditModal";
 import { HistoryService } from "@/services/history.service";
 import { useTransactionHistoryStore } from "@/stores/useTransactionHistoryStore";
+import { SafetySheet } from "@/components/safety/SafetySheet";
+import type { SafetyContext } from "@/utils/safetyFlow";
 
 const truncateAddress = (address: string) => {
   if (!address || address.length < 12) return address;
@@ -32,6 +34,7 @@ export default function TransactionDetail() {
   const [note, setNote] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isNicknameModalOpen, setIsNicknameModalOpen] = useState(false);
+  const [safety, setSafety] = useState<{ handle: string; context: SafetyContext } | null>(null);
   const { getDisplayName, hasNickname, setNickname, removeNickname } =
     useAddressBookStore();
 
@@ -377,6 +380,16 @@ export default function TransactionDetail() {
           </MotiView>
 
           <View className="px-6">
+            {transaction.isInApp && transaction.type === "receive" && !!transaction.note && !!transaction.handle && (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Report this message"
+                onPress={() => setSafety({ handle: transaction.handle, context: { kind: "payment_note", id: transaction.id } })}
+                className="mb-3 self-start"
+              >
+                <Text className="text-sm text-white/60">Report or block @{transaction.handle}</Text>
+              </Pressable>
+            )}
             {transaction.isInApp && (
               <Text
                 className="text-xs text-white/40 leading-5 mb-4"
@@ -448,6 +461,13 @@ export default function TransactionDetail() {
           onRemove={removeNickname}
         />
       )}
+      <SafetySheet
+        visible={!!safety}
+        handle={safety?.handle ?? ""}
+        context={safety?.context ?? { kind: "contact" }}
+        onClose={() => setSafety(null)}
+        onBlocked={() => router.back()}
+      />
     </View>
   );
 }

@@ -49,7 +49,7 @@ export const AddExpenseModal = ({ isOpen, onClose, groupId }: {
           </View>
           {members.map((member, i) => <View key={member.id} className="flex-row items-center justify-between py-3 border-b border-white/10">
             <Text className="text-white flex-1">@{member.handle}</Text>
-            {custom ? <TextInput accessibilityLabel={`Part de ${member.handle}`} value={shares[member.id] ?? ""} onChangeText={v => setShares(s => ({ ...s, [member.id]: v.replace(",", ".") }))} placeholder="0.00" placeholderTextColor="#666" editable={!busy} keyboardType="decimal-pad" className="text-white p-2 bg-white/5 rounded-xl w-24 text-right" /> : <Text className="text-white/70">{breakdown[i].amount} {unit}</Text>}
+            {custom ? <TextInput accessibilityLabel={`Share for @${member.handle}`} value={shares[member.id] ?? ""} onChangeText={v => setShares(s => ({ ...s, [member.id]: v.replace(",", ".") }))} placeholder="0.00" placeholderTextColor="#666" editable={!busy} keyboardType="decimal-pad" className="text-white p-2 bg-white/5 rounded-xl w-24 text-right" /> : <Text className="text-white/70">{breakdown[i].amount} {unit}</Text>}
           </View>)}
           <Text className="text-white/60 text-sm leading-5 my-4">Each participant gets a share to accept or dispute. Equal shares allocate the remaining cents exactly.</Text>
           {members.length < 2 && <Text className="text-amber-300 text-sm mb-3">Add another person to this group before proposing an expense.</Text>}

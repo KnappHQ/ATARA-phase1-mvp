@@ -28,6 +28,7 @@ import { COLORS } from "@/utils/constants";
 import { buildAddressContact } from "@/utils/format";
 import { useAlertStore } from "@/stores/useAlertStore";
 import * as Sentry from "@sentry/react-native";
+import { inviteMessage } from "@/utils/site";
 
 interface ContactsListProps {
   searchQuery: string;
@@ -160,8 +161,7 @@ export const ContactsList = ({
     try {
       await Share.share({
         title: "Join me on ATARA",
-        message:
-          "Join me on ATARA to send and receive money instantly: https://atara.money",
+        message: inviteMessage(),
       });
     } catch (error: any) {
       Sentry.captureException(error);

@@ -151,3 +151,17 @@ test("no user-facing fee text uses sponsorship words", () => {
   ];
   for (const text of texts) assert.doesNotMatch(text, /gas|paymaster|sponsor/i);
 });
+
+test("a balance that was never read is unknown, and says nothing about funds", () => {
+  assert.equal(fee.assetBaseUnits({ balance: "", decimals: 6 }), null);
+  assert.equal(fee.assetBaseUnits({ balance: "  ", decimals: 6 }), null);
+  assert.equal(fee.assetBaseUnits({ balance: "0", decimals: 6 }), 0n, "a real zero stays zero");
+  const unknown = { tokenSymbol: "USDC", amountUnits: usdc("5"), maxFee: 30_000n };
+  assert.deepEqual(fee.assessSend({ ...unknown, tokenBalance: null, feeTokenBalance: null }), { fundsMessage: null, maxSend: null });
+  assert.deepEqual(
+    fee.assessSend({ tokenSymbol: "ETH", amountUnits: 1n, maxFee: 30_000n, tokenBalance: 10n ** 18n, feeTokenBalance: null }),
+    { fundsMessage: null, maxSend: null },
+    "no 'You need a little USDC' while the USDC balance is unread",
+  );
+  assert.match(fee.assessSend({ tokenSymbol: "ETH", amountUnits: 1n, maxFee: 30_000n, tokenBalance: 10n ** 18n, feeTokenBalance: 0n }).fundsMessage, /little USDC/);
+});

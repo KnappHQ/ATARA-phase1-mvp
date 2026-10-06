@@ -149,7 +149,9 @@ export const classifyFeeFailure = (message: string): FeeErrorCode | null => {
 export const assetBaseUnits = (asset: { balance?: string; balanceWei?: string; decimals: number } | undefined | null): bigint | null => {
   if (!asset) return null;
   if (asset.balanceWei !== undefined && /^\d+$/.test(asset.balanceWei)) return BigInt(asset.balanceWei);
-  return parseUnits(asset.balance ?? "", asset.decimals);
+  // A balance that was never read is unknown, not zero.
+  if (!asset.balance?.trim()) return null;
+  return parseUnits(asset.balance, asset.decimals);
 };
 
 export interface SendAssessment {
@@ -173,11 +175,16 @@ export const assessSend = (input: {
   const { amountUnits, tokenSymbol, tokenBalance, feeTokenBalance, maxFee } = input;
   if (!isUsableFee(maxFee) || amountUnits === null) return { fundsMessage: null, maxSend: null };
   const sendingFeeToken = tokenSymbol === FEE_TOKEN_SYMBOL;
+  // An unread balance is not an empty one: say nothing about funds until it is read.
+  // The screens already hold the payment back while a balance is unavailable.
+  if (tokenBalance === null || (!sendingFeeToken && feeTokenBalance === null)) {
+    return { fundsMessage: null, maxSend: null };
+  }
   const funds = checkFunds({
     amount: amountUnits,
     sendingFeeToken,
-    tokenBalance: tokenBalance ?? 0n,
-    feeTokenBalance: sendingFeeToken ? (tokenBalance ?? 0n) : (feeTokenBalance ?? 0n),
+    tokenBalance,
+    feeTokenBalance: sendingFeeToken ? tokenBalance : (feeTokenBalance as bigint),
     maxFee,
   });
   if (funds.ok) return { fundsMessage: null, maxSend: null };

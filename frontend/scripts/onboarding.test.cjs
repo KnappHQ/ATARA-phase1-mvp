@@ -380,13 +380,16 @@ test('unstable external wallet login is absent from the beta gate and runtime is
   assert.match(provider, /if \(!externalWalletEnabled\) return;/);
 });
 
-test('funding screen distinguishes testnet reception from MoonPay simulation', () => {
+test('funding screen is the receive path and shows the card section only under the flag', () => {
   const source = fs.readFileSync(path.join(__dirname, '../app/add-crypto.tsx'), 'utf8');
+  const card = fs.readFileSync(path.join(__dirname, '../components/addMoney/CardPurchaseSection.tsx'), 'utf8');
   assert.match(source, /Base Sepolia/);
   assert.match(source, /Clipboard\.setStringAsync\(walletAddress\)/);
-  assert.match(source, /Never send real money or crypto here/);
-  // The beta only ever opens the sandbox: the check lives with the flow, and the screen uses it.
-  assert.match(source, /await runCheckout\(/);
+  assert.match(source, /Test USDC has no value\. Never send real money here/);
+  assert.match(source, /import \{ CARD_PURCHASE_ENABLED \} from "@\/utils\/featureFlags"/);
+  assert.match(source, /CARD_PURCHASE_ENABLED \? \(\s*<CardPurchaseSection \/>/);
+  // The beta only ever opens the sandbox: the check lives with the flow, and the card section uses it.
+  assert.match(card, /await runCheckout\(/);
   assert.match(fs.readFileSync(path.join(__dirname, '../utils/onrampFlow.ts'), 'utf8'), /session\.mode !== undefined && session\.mode !== "sandbox"/);
 });
 

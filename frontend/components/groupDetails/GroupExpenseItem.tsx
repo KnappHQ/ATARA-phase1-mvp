@@ -12,12 +12,15 @@ interface GroupExpenseItemProps {
   expense: GroupExpenseDetail;
   index: number;
   memberCount: number;
+  /** Report the person who added this expense (shown only for other people's). */
+  onReport?: (handle: string, expenseId: string) => void;
 }
 
 export const GroupExpenseItem = ({
   expense,
   index,
   memberCount,
+  onReport,
 }: GroupExpenseItemProps) => {
   const me = useAuthStore(s => s.user?.id);
   const [busy, setBusy] = useState(false);
@@ -93,12 +96,23 @@ export const GroupExpenseItem = ({
           {expense.splits.length} parts
         </Text>
       </View>
+      {onReport && expense.paidById !== me && expense.paidByHandle ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Report or block @${expense.paidByHandle}`}
+          hitSlop={8}
+          onPress={() => onReport(expense.paidByHandle, expense.id)}
+          className="mt-2 self-start"
+        >
+          <Text className="text-xs text-white/40">Report or block @{expense.paidByHandle}</Text>
+        </Pressable>
+      ) : null}
       <View className="mt-3 gap-2">
         {expense.splits.map(split => <View key={split.id}>
           <Text className="text-white/60 text-xs">{split.userId === me ? "Your share" : `@${split.user?.handle ?? "member"}`} : {Number(split.amount).toFixed(2)} {expense.assetSymbol} · {split.settled ? "settled" : split.decision === "ACCEPTED" ? "accepted" : split.decision === "DISPUTED" ? "disputed" : "pending approval"}</Text>
           {split.userId === me && !split.settled ? <View className="flex-row gap-4 mt-2">
-            {split.decision !== "ACCEPTED" && <Pressable disabled={busy} onPress={() => decide("ACCEPTED")}><Text style={{ color: COLORS.accent }}>Accepter ma part</Text></Pressable>}
-            {split.decision !== "DISPUTED" && <Pressable disabled={busy} onPress={() => decide("DISPUTED")}><Text className="text-white/60">Contester</Text></Pressable>}
+            {split.decision !== "ACCEPTED" && <Pressable disabled={busy} onPress={() => decide("ACCEPTED")}><Text style={{ color: COLORS.accent }}>Accept my share</Text></Pressable>}
+            {split.decision !== "DISPUTED" && <Pressable disabled={busy} onPress={() => decide("DISPUTED")}><Text className="text-white/60">Dispute</Text></Pressable>}
           </View> : null}
         </View>)}
       </View>
