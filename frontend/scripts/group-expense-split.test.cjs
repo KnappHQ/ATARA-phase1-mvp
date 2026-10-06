@@ -32,7 +32,8 @@ test("the expense modal always sends the active members, for equal and custom sh
   // `members` comes from groupDetail.members, which the store keeps free of invited people.
   assert.match(modal, /const members = \[\.\.\.\(groupDetail\?\.members \?\? \[\]\)\]/);
   assert.match(read("stores/useGroupStore.ts"), /members: d\.members\.filter\(\(m\) => m\.status !== "INVITED"\)/);
-  assert.match(modal, /custom \? breakdown : undefined, members\.map\(\(m\) => m\.id\)\)/);
+  assert.match(modal, /customSplits: custom \? breakdown : undefined, splitWithUserIds: members\.map\(\(m\) => m\.id\)/);
+  assert.match(modal, /attempt\.customSplits, attempt\.splitWithUserIds\)/);
 });
 
 test("a 409 without a server message still tells the person what to do", () => {
@@ -44,4 +45,22 @@ test("a 409 without a server message still tells the person what to do", () => {
 test("the server's guard for old app builds stays", () => {
   const server = read("../backend/services/group.service.ts");
   assert.match(server, /have not accepted their invitation yet\. Wait for them, or choose who shares this expense\./);
+});
+
+test("a lost response is retried with the same key and the same people, even if someone accepted meanwhile", () => {
+  const modal = read("components/groupDetails/AddExpenseModal.tsx");
+  // Resent as it was only when the server may have received it (no answer, or 5xx);
+  // a 4xx means nothing was created, so the next try starts fresh.
+  assert.match(modal, /unconfirmed\.current\?\.inputs === inputs/);
+  assert.match(modal, /!status \|\| status >= 500 \? attempt : null/);
+  // The key depends on what the person typed, never on the member list.
+  assert.doesNotMatch(modal, /JSON\.stringify\(\[groupId, description\.trim\(\), amount, breakdown\]\)/);
+});
+
+test("the server replays a retried expense and never doubles it or shares it with a later joiner", () => {
+  const server = read("../backend/services/group.service.ts");
+  assert.match(server, /groupId_paidById_clientRequestId/);
+  assert.match(server, /return existing;/);
+  // Shares come from the explicit list, so someone accepted after the first try is not added.
+  assert.match(server, /const ids = splitWithUserIds\?\.length\s*\? splitWithUserIds/);
 });
