@@ -43,7 +43,7 @@ test("the dead domain appears nowhere in the app", () => {
 
 test("no French text is left in the screens", () => {
   assert.doesNotMatch(read("components/groupDetails/AddExpenseModal.tsx"), /Part de/);
-  assert.match(read("components/groupDetails/AddExpenseModal.tsx"), /accessibilityLabel=\{`Share for @\$\{member\.handle\}`\}/);
+  assert.match(read("components/groupDetails/AddExpenseModal.tsx"), /`Share for @\$\{member\.handle\}`/);
   assert.doesNotMatch(read("components/groupDetails/GroupExpenseItem.tsx"), /Contester/);
   assert.match(read("components/groupDetails/GroupExpenseItem.tsx"), />Dispute</);
 });

@@ -10,6 +10,8 @@ export interface GroupSummaryResponse {
   memberCount: number;
   userNetBalance: number;
   assetSymbol: string;
+  /** When this person archived the group, or null. */
+  archivedAt?: string | null;
 }
 
 export interface SearchUserResult {
@@ -79,6 +81,18 @@ export const GroupService = {
   getMyGroups: async (): Promise<GroupSummaryResponse[]> => {
     const response = await api.get("/groups");
     return response.data.groups;
+  },
+
+  /** Hides the group from my list only; restoring brings it back. */
+  archiveGroup: async (groupId: string) => {
+    await api.post(`/groups/${groupId}/archive`);
+  },
+  unarchiveGroup: async (groupId: string) => {
+    await api.delete(`/groups/${groupId}/archive`);
+  },
+  /** Creator only, and only when nothing is owed: removes the group for everyone. */
+  deleteGroup: async (groupId: string) => {
+    await api.delete(`/groups/${groupId}`);
   },
 
   createGroup: async (
