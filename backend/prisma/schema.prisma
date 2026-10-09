@@ -121,6 +121,10 @@ model Group {
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  // Soft delete: the creator removes a settled group for everyone, but expenses,
+  // shares and the payments that settled them stay in the database.
+  deletedAt   DateTime?
+  deletedById String?
 
   creator  User           @relation("CreatedGroups", fields: [createdById], references: [id])
   members  GroupMember[]
@@ -137,6 +141,8 @@ model GroupMember {
   // Members that existed before consent was added are ACTIVE.
   status      MemberStatus @default(ACTIVE)
   invitedById String?
+  // Archiving hides the group from this member's list only; nobody else is told.
+  archivedAt  DateTime?
 
   group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id])

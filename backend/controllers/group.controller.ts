@@ -134,6 +134,20 @@ export const groupController = {
     },
   ),
 
+  archiveGroup: catchAsync(
+    async (req: Request, res: Response, next: NextFunction) => {
+      await groupService.archiveGroup(req.params.groupId, req.user.id);
+      res.status(200).json({ success: true, message: "Group archived" });
+    },
+  ),
+
+  unarchiveGroup: catchAsync(
+    async (req: Request, res: Response, next: NextFunction) => {
+      await groupService.unarchiveGroup(req.params.groupId, req.user.id);
+      res.status(200).json({ success: true, message: "Group restored" });
+    },
+  ),
+
   addMembers: catchAsync(
     async (req: Request, res: Response, next: NextFunction) => {
       const userId = req.user.id;
