@@ -58,6 +58,8 @@ function checkRelease(env, profile) {
     failures.push("Distributed builds require EXPO_PUBLIC_DEMO_MODE=false.");
   if (["beta", "preview"].includes(profile) && env.EXPO_PUBLIC_ENABLE_VAULTS !== "false")
     failures.push("Beta builds must keep EXPO_PUBLIC_ENABLE_VAULTS=false until the Vault release is explicitly approved.");
+  if (["beta", "preview"].includes(profile) && env.EXPO_PUBLIC_ENABLE_CARD_PURCHASE === "true")
+    failures.push("Beta builds must keep EXPO_PUBLIC_ENABLE_CARD_PURCHASE off: card purchase is not ready.");
   const passkeyRpId = env.EXPO_PUBLIC_PASSKEY_RP_ID?.trim();
   if (["beta", "preview"].includes(profile) && !passkeyRpId)
     failures.push("Beta builds require EXPO_PUBLIC_PASSKEY_RP_ID because passkey is a primary sign-in path.");
