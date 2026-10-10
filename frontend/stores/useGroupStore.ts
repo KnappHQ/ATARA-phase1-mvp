@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { accountRevision, onAccountReset } from "@/utils/accountScope";
+import { useAlertStore } from "@/stores/useAlertStore";
 import * as Sentry from "@sentry/react-native";
 import {
   GroupService,
@@ -156,7 +157,8 @@ interface GroupState {
     memberHandles: string[],
     description?: string,
   ) => Promise<void>;
-  fetchGroupDetail: (id: string) => Promise<void>;
+  /** `silent` refreshes in place (pull to refresh): no skeleton, the current detail stays. */
+  fetchGroupDetail: (id: string, options?: { silent?: boolean }) => Promise<void>;
   addExpense: (
     groupId: string,
     description: string,
@@ -203,19 +205,22 @@ export const useGroupStore = create<GroupState>((set, get) => ({
     await get().fetchGroups();
   },
 
-  fetchGroupDetail: async (id) => {
+  fetchGroupDetail: async (id, options) => {
     const revision = accountRevision();
-    set({ isLoadingDetail: true, detailError: null });
+    set(options?.silent ? { detailError: null } : { isLoadingDetail: true, detailError: null });
     try {
       const data = await GroupService.getGroupDetails(id);
       if (revision !== accountRevision()) return;
       set({ groupDetail: mapDetailResponse(data) });
     } catch (err: any) {
       if (revision !== accountRevision()) return;
-      set({
-        detailError:
-          err.response?.data?.message || "Failed to load group details",
-      });
+      const message = err.response?.data?.message || "Failed to load group details";
+      if (options?.silent && get().groupDetail) {
+        // A pull to refresh that fails must not wipe what is already on screen.
+        useAlertStore.getState().error("Could not refresh this group", message);
+      } else {
+        set({ detailError: message });
+      }
     } finally {
       if (revision === accountRevision()) set({ isLoadingDetail: false });
     }

@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, Pressable, Platform, Alert, TextInput, Modal, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, Pressable, Platform, Alert, TextInput, Modal, ActivityIndicator, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { Plus } from "lucide-react-native";
@@ -7,7 +7,7 @@ import { retryPendingSettlements } from "@/services/settlementRecovery.service";
 import { COLORS } from "@/utils/constants";
 import { useGroupStore } from "@/stores/useGroupStore";
 import type { GroupMemberBalance } from "@/stores/useGroupStore";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { GroupDetailsHeader } from "@/components/groupDetails/GroupDetailsHeader";
 import { MemberBalanceList } from "@/components/groupDetails/MemberBalanceList";
 import { GroupPeople } from "@/components/groupDetails/GroupPeople";
@@ -51,9 +51,32 @@ export default function GroupDetailsScreen() {
     return () => clearDetail();
   }, [clearDetail, fetchGroupDetail, id]);
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const handleRefresh = useCallback(async () => {
+    if (!id) return;
+    setIsRefreshing(true);
+    try {
+      await fetchGroupDetail(id, { silent: true });
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [fetchGroupDetail, id]);
+
   return (
     <SafeAreaView className="flex-1 bg-black">
-      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        className="flex-1"
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            tintColor={COLORS.platinum}
+            colors={[COLORS.platinum]}
+            progressBackgroundColor="#111111"
+          />
+        }
+      >
         <GroupDetailsHeader
           name={name ?? ""}
           members={groupDetail?.members ?? []}

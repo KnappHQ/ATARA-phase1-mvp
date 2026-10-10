@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   Platform,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MotiView } from "moti";
@@ -21,12 +22,24 @@ import {
 import { CrownIcon } from "./CrownIcon";
 import { COLORS } from "@/utils/constants";
 import { useState, useEffect, useRef } from "react";
+import {
+  HANDLE_FIXED_TEXT,
+  HANDLE_MAX,
+  HANDLE_MIN,
+  HANDLE_RULES_TEXT,
+  HANDLE_STRIPPED_TEXT,
+  handleStatus,
+  sanitizeHandle,
+  strippedCharacters,
+} from "@/utils/handleRules";
 import { TermsOfServiceScreen } from "@/components/profile/TermsOfServiceScreen";
 import { PrivacyPolicyScreen } from "@/components/profile/PrivacyPolicyScreen";
 
 interface IdentityScreenProps {
   handle: string;
   setHandle: (h: string) => void;
+  accountName: string;
+  setAccountName: (name: string) => void;
   onCheckHandle: (handle: string) => Promise<boolean>;
   onSubmit: (params: { handle: string; displayName?: string }) => Promise<void>;
   onBack: () => Promise<void>;
@@ -49,11 +62,13 @@ const formatRegistrationError = (error: any): string => {
 export const IdentityScreen = ({
   handle,
   setHandle,
+  accountName,
+  setAccountName,
   onCheckHandle,
   onSubmit,
   onBack,
 }: IdentityScreenProps) => {
-  const isValid = handle.length >= 3;
+  const isValid = handle.length >= HANDLE_MIN;
   const [isChecking, setIsChecking] = useState(false);
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
   const [isRegistering, setIsRegistering] = useState(false);
@@ -62,16 +77,30 @@ export const IdentityScreen = ({
   const [termsOpen, setTermsOpen] = useState(false);
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [isGoingBack, setIsGoingBack] = useState(false);
-  const [accountName, setAccountName] = useState("");
+  const [showStripped, setShowStripped] = useState(false);
+  const strippedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const busyRef = useRef(false);
+
+  useEffect(() => () => {
+    if (strippedTimer.current) clearTimeout(strippedTimer.current);
+  }, []);
+
+  const onHandleChange = (text: string) => {
+    if (strippedCharacters(text)) {
+      setShowStripped(true);
+      if (strippedTimer.current) clearTimeout(strippedTimer.current);
+      strippedTimer.current = setTimeout(() => setShowStripped(false), 2000);
+    }
+    setHandle(sanitizeHandle(text));
+  };
 
   useEffect(() => {
     let cancelled = false;
     setIsAvailable(null);
     setError(null);
-    setIsChecking(handle.length >= 3);
+    setIsChecking(handle.length >= HANDLE_MIN);
     const timer = setTimeout(async () => {
-      if (handle.length < 3) return;
+      if (handle.length < HANDLE_MIN) return;
       try {
         const available = await onCheckHandle(handle);
         if (!cancelled) setIsAvailable(available);
@@ -102,7 +131,7 @@ export const IdentityScreen = ({
     }
   };
 
-  const handleBack = async () => {
+  const signOut = async () => {
     if (isGoingBack) return;
     Keyboard.dismiss();
     setIsGoingBack(true);
@@ -115,6 +144,21 @@ export const IdentityScreen = ({
       setIsGoingBack(false);
     }
   };
+
+  // Going back drops the session, so say so before doing it.
+  const handleBack = () => {
+    if (isGoingBack) return;
+    Alert.alert(
+      "Use a different sign-in?",
+      "You'll be signed out and go back to the first screen. Your @handle and name stay saved on this iPhone. If you just created a passkey, choose \"Sign in with an existing passkey\" to pick up where you left off.",
+      [
+        { text: "Stay", style: "cancel" },
+        { text: "Sign out", style: "destructive", onPress: () => void signOut() },
+      ],
+    );
+  };
+
+  const status = handleStatus({ handle, isChecking, isAvailable, error });
 
   const canSubmit =
     isValid && isAvailable === true && acceptedLegalTerms && !isRegistering && !isGoingBack && !isChecking;
@@ -129,7 +173,7 @@ export const IdentityScreen = ({
         style={{ minHeight: 48, alignSelf: "flex-start" }}
         activeOpacity={0.75}
         accessibilityRole="button"
-        accessibilityLabel="Back to sign-in methods"
+        accessibilityLabel="Sign out and choose another sign-in"
         className="flex-row items-center gap-1 rounded-full border border-white/15 bg-black/60 px-4 py-2"
       >
         {isGoingBack ? (
@@ -137,7 +181,7 @@ export const IdentityScreen = ({
         ) : (
           <ChevronLeft size={20} color={COLORS.white} />
         )}
-        <Text className="text-sm font-medium text-white">Back</Text>
+        <Text className="text-sm font-medium text-white">Sign-in options</Text>
       </TouchableOpacity>
       </View>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -154,6 +198,9 @@ export const IdentityScreen = ({
         <Text className="mt-4 text-[30px] font-bold tracking-[12px] text-white">
           ATARA
         </Text>
+        <Text className="mt-4 text-xs font-medium text-white/50">
+          Step 2 of 2 · Your @handle
+        </Text>
       </MotiView>
 
       <MotiView
@@ -167,13 +214,11 @@ export const IdentityScreen = ({
             <Text className="text-white/50 text-lg">@</Text>
             <TextInput
               value={handle}
-              onChangeText={(text) =>
-                setHandle(text.toLowerCase().replace(/[^a-z0-9_]/g, ""))
-              }
+              onChangeText={onHandleChange}
               placeholder="handle"
               placeholderTextColor={COLORS.placeholder}
               className="flex-1 py-4 px-2 text-lg text-white"
-              maxLength={20}
+              maxLength={HANDLE_MAX}
               autoFocus
               autoCapitalize="none"
               autoCorrect={false}
@@ -191,19 +236,39 @@ export const IdentityScreen = ({
           </View>
         </View>
 
-        {isAvailable === false && isValid && (
-          <Text className="text-red-400 text-xs mt-2 px-1">
-            This handle is already taken
+        <View className="flex-row justify-between mt-2 px-1">
+          <Text className="flex-1 text-white/50 text-[11px] leading-4">
+            {HANDLE_RULES_TEXT}
+          </Text>
+          <Text className="ml-3 text-white/50 text-[11px] leading-4">
+            {handle.length}/{HANDLE_MAX}
+          </Text>
+        </View>
+
+        {showStripped && (
+          <Text className="text-white/70 text-xs mt-1 px-1">
+            {HANDLE_STRIPPED_TEXT}
           </Text>
         )}
 
-        {error && (
-          <Text className="text-red-400 text-xs mt-2 px-1">{error}</Text>
+        {status && (
+          <Text
+            accessibilityLiveRegion="polite"
+            className={`text-xs mt-1 px-1 ${
+              status.kind === "taken" || status.kind === "error"
+                ? "text-red-400"
+                : status.kind === "available"
+                  ? "text-white"
+                  : "text-white/60"
+            }`}
+          >
+            {status.message}
+          </Text>
         )}
 
         <Text className="text-white/40 text-[11px] leading-4 mt-2 px-1">
           Anyone signed in to ATARA can find your @handle and see the address
-          you receive payments at.
+          you receive payments at. {HANDLE_FIXED_TEXT}
         </Text>
 
         <Text className="text-white/60 text-xs mt-5 mb-2">
