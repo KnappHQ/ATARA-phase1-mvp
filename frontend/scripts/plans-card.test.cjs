@@ -188,7 +188,7 @@ test("API success adds the backend's planned benefits, without prices, fee rates
   const plus = view.plans.find((p) => p.id === "PLUS");
   assert.equal(plus.planned, true);
   assert.ok(plus.highlights.includes("2× ATARA Miles on card spending"));
-  assert.ok(plus.highlights.some((line) => /monthly allowance of sends with network fees covered \(60\)/.test(line)));
+  assert.ok(!plus.highlights.some((line) => /network fees? covered|allowance of sends/i.test(line)), "users pay network fees: nothing promises they are covered");
   assert.ok(plus.highlights.includes("Lower card currency-conversion fee"));
   assert.equal(view.plans.find((p) => p.id === "MAX").highlights[0], "3× ATARA Miles on card spending");
   const dump = text(view);
