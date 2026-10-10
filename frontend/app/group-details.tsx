@@ -18,6 +18,15 @@ import { SettleBottomSheet } from "@/components/groupDetails/SettleBottomSheet";
 import { GroupExpenseList } from "@/components/groupDetails/GroupExpenseList";
 import { AddExpenseModal } from "@/components/groupDetails/AddExpenseModal";
 import { GroupService } from "@/services/group.service";
+import {
+  ARCHIVE_BODY,
+  ARCHIVE_TITLE,
+  DELETE_BODY,
+  DELETE_TITLE,
+  SETTLE_FIRST,
+  SETTLE_FIRST_BODY,
+  deleteGuard,
+} from "@/utils/groupLifecycle";
 import { GroupDetailsSkeleton } from "@/components/groupDetails/GroupDetailsSkeleton";
 
 export default function GroupDetailsScreen() {
@@ -45,6 +54,62 @@ export default function GroupDetailsScreen() {
 
   const myId = useAuthStore((state) => state.user?.id);
   const [safety, setSafety] = useState<{ handle: string; context: SafetyContext } | null>(null);
+
+  const [leaving, setLeaving] = useState(false);
+
+  const archive = () =>
+    Alert.alert(ARCHIVE_TITLE, ARCHIVE_BODY, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Archive",
+        onPress: async () => {
+          if (!id || leaving) return;
+          setLeaving(true);
+          try {
+            await useGroupStore.getState().archiveGroup(id);
+            router.back();
+          } catch (error: any) {
+            Alert.alert("Couldn't archive the group", error?.response?.data?.message ?? "Check your connection and try again.");
+          } finally {
+            setLeaving(false);
+          }
+        },
+      },
+    ]);
+
+  const remove = () => {
+    const guard = deleteGuard({
+      isCreator: groupDetail?.createdById === myId,
+      memberBalances: groupDetail?.memberBalances ?? [],
+    });
+    if (!guard.allowed) {
+      Alert.alert(SETTLE_FIRST, SETTLE_FIRST_BODY);
+      return;
+    }
+    Alert.alert(DELETE_TITLE, DELETE_BODY, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete group",
+        style: "destructive",
+        onPress: async () => {
+          if (!id || leaving) return;
+          setLeaving(true);
+          try {
+            await useGroupStore.getState().deleteGroup(id);
+            router.back();
+          } catch (error: any) {
+            // The server has the last word: it also knows about shares and payments this phone can't see.
+            Alert.alert(
+              error?.response?.status === 409 ? SETTLE_FIRST : "Couldn't delete the group",
+              error?.response?.data?.message ?? "Check your connection and try again.",
+            );
+          } finally {
+            setLeaving(false);
+          }
+        },
+      },
+    ]);
+  };
 
   useEffect(() => {
     if (id) fetchGroupDetail(id);
@@ -108,6 +173,18 @@ export default function GroupDetailsScreen() {
               </Text>
             </Pressable>
           </View>
+        ) : groupDetail && groupDetail.expenses.length === 0 && groupDetail.members.length > 1 ? (
+          <View className="mx-6 mb-6 items-center rounded-2xl border border-white/10 p-6">
+            <Text className="text-white/70 text-center">No expenses yet.</Text>
+            <Pressable
+              onPress={() => setShowAddExpense(true)}
+              accessibilityRole="button"
+              className="mt-4 min-h-11 px-5 items-center justify-center rounded-full"
+              style={{ backgroundColor: COLORS.accent }}
+            >
+              <Text className="text-black font-semibold">Add first expense</Text>
+            </Pressable>
+          </View>
         ) : groupDetail ? (
           <GroupExpenseList
             expenses={groupDetail.expenses}
@@ -115,6 +192,32 @@ export default function GroupDetailsScreen() {
             onReport={(handle, expenseId) => setSafety({ handle, context: { kind: "expense", id: expenseId } })}
           />
         ) : null}
+
+        {groupDetail && (
+          <View className="mx-6 mt-2 mb-28 rounded-2xl border border-white/10 p-4">
+            <Text className="text-white text-sm font-semibold mb-1">Group options</Text>
+            <Pressable
+              onPress={archive}
+              disabled={leaving}
+              accessibilityRole="button"
+              className="min-h-12 justify-center"
+            >
+              <Text className="text-white">Archive group</Text>
+              <Text className="text-white/45 text-xs mt-0.5">Hide it from your list. You keep the history.</Text>
+            </Pressable>
+            {groupDetail.createdById === myId && (
+              <Pressable
+                onPress={remove}
+                disabled={leaving}
+                accessibilityRole="button"
+                className="min-h-12 justify-center border-t border-white/10 mt-2 pt-2"
+              >
+                <Text style={{ color: "#F87171" }}>Delete group</Text>
+                <Text className="text-white/45 text-xs mt-0.5">Only when nobody owes anything. Removes it for everyone.</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
       </ScrollView>
 
       <SafetySheet
