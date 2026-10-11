@@ -111,11 +111,16 @@ export const GroupService = {
     return response.data.added;
   },
 
+  /**
+   * `splitWithUserIds` names who shares the expense. The app always sends the people
+   * who are already in the group, so someone who has not accepted an invitation yet
+   * never blocks an expense.
+   */
   addExpense: async (groupId: string, description: string, amount: number, clientRequestId: string,
-    customSplits?: { userId: string; amount: string }[]) => {
+    customSplits?: { userId: string; amount: string }[], splitWithUserIds?: string[]) => {
     const response = await api.post(`/groups/${groupId}/expenses`, {
       description,
-      amount, clientRequestId, customSplits,
+      amount, clientRequestId, customSplits, splitWithUserIds,
     });
     return response.data.expense;
   },

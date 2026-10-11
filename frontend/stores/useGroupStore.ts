@@ -161,6 +161,7 @@ interface GroupState {
     groupId: string,
     description: string,
     amount: number, clientRequestId: string, customSplits?: { userId: string; amount: string }[],
+    splitWithUserIds?: string[],
   ) => Promise<void>;
   clearDetail: () => void;
   clearError: () => void;
@@ -220,9 +221,9 @@ export const useGroupStore = create<GroupState>((set, get) => ({
     }
   },
 
-  addExpense: async (groupId, description, amount, clientRequestId, customSplits) => {
+  addExpense: async (groupId, description, amount, clientRequestId, customSplits, splitWithUserIds) => {
     const revision = accountRevision();
-    await GroupService.addExpense(groupId, description, amount, clientRequestId, customSplits);
+    await GroupService.addExpense(groupId, description, amount, clientRequestId, customSplits, splitWithUserIds);
     if (revision !== accountRevision()) return;
     await get().fetchGroupDetail(groupId);
   },
