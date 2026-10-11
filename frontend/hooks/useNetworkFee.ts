@@ -13,7 +13,7 @@ export const useNetworkFee = (input: {
   recipientAddress: string | null | undefined;
   tokenSymbol: string | null | undefined;
   tokenAddress?: string;
-}): { quote: FeeQuote; refresh: () => void } => {
+}): { quote: FeeQuote; refresh: () => void; accept: (fee: bigint) => void } => {
   const { service, recipientAddress, tokenSymbol, tokenAddress } = input;
   const [quote, setQuote] = useState<FeeQuote>({ status: "idle" });
   const ready = !!service && !!recipientAddress && !!tokenSymbol;
@@ -41,5 +41,11 @@ export const useNetworkFee = (input: {
     if (ready) void latest.current?.run();
   }, [ready]);
 
-  return { quote, refresh };
+  // The exact fee read from a prepared payment: shown as is, any estimate still on its way is dropped.
+  const accept = useCallback((fee: bigint) => {
+    if (latest.current) latest.current.cancel({ status: "ready", maxFee: fee });
+    else setQuote({ status: "ready", maxFee: fee });
+  }, []);
+
+  return { quote, refresh, accept };
 };

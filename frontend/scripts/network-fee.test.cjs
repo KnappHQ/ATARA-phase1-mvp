@@ -11,10 +11,10 @@ const prepared = (maxAmount, extra = {}) => ({ type: "user-operation-v070", feeP
 const usdc = (text) => fee.parseUnits(text, 6);
 
 test("a fee is shown in plain words and is never zero", () => {
-  assert.equal(fee.formatNetworkFee(21_000n), "about $0.03", "rounded up: never below the real maximum");
-  assert.equal(fee.formatNetworkFee(20_000n), "about $0.02");
+  assert.equal(fee.formatNetworkFee(21_000n), "~$0.03", "rounded up: never below the real maximum");
+  assert.equal(fee.formatNetworkFee(20_000n), "~$0.02");
   assert.equal(fee.formatNetworkFee(3_000n), "less than $0.01");
-  assert.equal(fee.formatNetworkFee(10_000n), "about $0.01");
+  assert.equal(fee.formatNetworkFee(10_000n), "~$0.01");
   for (const missing of [0n, -1n, null, undefined]) assert.equal(fee.formatNetworkFee(missing), "Unavailable");
   assert.doesNotMatch(fee.formatNetworkFee(0n), /\$0/);
 });
@@ -44,18 +44,18 @@ test("a USDC send must cover the amount and the fee; another token needs a littl
   assert.deepEqual(fee.checkFunds({ ...base, amount: usdc("24.97") }), { ok: true });
   const short = fee.checkFunds({ ...base, amount: usdc("25") });
   assert.equal(short.ok, false);
-  assert.equal(short.message, "Not enough USDC to cover this amount and the network fee (about $0.03).");
+  assert.equal(short.message, "Not enough USDC to cover this amount and the network fee (~$0.03).");
   assert.equal(short.maxSend, 24_970_000n, "the Send max amount");
   assert.deepEqual(fee.checkFunds({ ...base, sendingFeeToken: false, tokenBalance: usdc("500"), amount: usdc("500") }), { ok: true });
   const noUsdc = fee.checkFunds({ ...base, sendingFeeToken: false, feeTokenBalance: 0n, amount: 1n });
   assert.equal(noUsdc.ok, false);
-  assert.equal(noUsdc.message, "You need a little USDC (about $0.03) to pay the network fee.");
+  assert.equal(noUsdc.message, "You need a little USDC (~$0.03) to pay the network fee.");
   assert.equal(noUsdc.maxSend, undefined);
 });
 
 test("the review says what leaves the account, with the fee", () => {
   assert.equal(fee.formatLeavesAccount({ amount: "25.00", tokenSymbol: "USDC", maxFee: 30_000n }), "25.00 USDC + fee (max 25.03 USDC)");
-  assert.equal(fee.formatLeavesAccount({ amount: "25", tokenSymbol: "USDT", maxFee: 20_000n }), "25 USDT + network fee about $0.02 in USDC");
+  assert.equal(fee.formatLeavesAccount({ amount: "25", tokenSymbol: "USDT", maxFee: 20_000n }), "25 USDT + network fee ~$0.02 in USDC");
   assert.equal(fee.formatLeavesAccount({ amount: "25", tokenSymbol: "USDC", maxFee: null }), "25 USDC + network fee", "no number without a real fee");
 });
 
@@ -164,4 +164,68 @@ test("a balance that was never read is unknown, and says nothing about funds", (
     "no 'You need a little USDC' while the USDC balance is unread",
   );
   assert.match(fee.assessSend({ tokenSymbol: "ETH", amountUnits: 1n, maxFee: 30_000n, tokenBalance: 10n ** 18n, feeTokenBalance: 0n }).fundsMessage, /little USDC/);
+});
+
+// ---- ATARA-011: no sponsorship, an unknown fee never blocks ------------------------
+
+const codeOf = (run) => { try { run(); } catch (error) { assert.equal(error.notSent, true); return error.code; } return null; };
+
+test("with no estimate shown, the exact fee comes back for confirmation and nothing is signed", () => {
+  const guard = { shownMaxFee: null, amount: 1_000_000n, sendingFeeToken: true, tokenBalance: 5_000_000n, feeTokenBalance: 5_000_000n };
+  let error;
+  try { fee.checkPreparedFee(prepared(20_000n), USDC, guard); } catch (e) { error = e; }
+  assert.equal(error.code, "FEE_CONFIRM");
+  assert.equal(error.fee, 20_000n);
+  assert.equal(error.notSent, true);
+  assert.equal(error.message, "Network fee: ~$0.02 (paid in USDC). Please check it and confirm.");
+  // Once that fee was shown, the same payment goes through the normal guard.
+  assert.equal(fee.checkPreparedFee(prepared(20_000n), USDC, { ...guard, shownMaxFee: 20_000n }), 20_000n);
+});
+
+test("no real fee on the prepared payment is still refused, never a $0 fee", () => {
+  const guard = { shownMaxFee: null, amount: 1n, sendingFeeToken: true, tokenBalance: 5n, feeTokenBalance: 5n };
+  assert.equal(codeOf(() => fee.checkPreparedFee(prepared(0n), USDC, guard)), "FEE_UNAVAILABLE");
+  assert.equal(codeOf(() => fee.checkPreparedFee(prepared(20_000n, { sponsored: true }), USDC, guard)), "FEE_UNAVAILABLE");
+});
+
+test("the fee line reads ~$X.XX (paid in USDC)", () => {
+  assert.equal(fee.formatFeeLine(20_000n), "~$0.02 (paid in USDC)");
+  assert.equal(fee.formatFeeLine(5_000n), "less than $0.01 (paid in USDC)");
+});
+
+const fsx = require("node:fs");
+const pathx = require("node:path");
+const src = (file) => fsx.readFileSync(pathx.join(__dirname, "..", file), "utf8");
+
+test("Send and merchant payment go ahead without an estimate and confirm the exact fee", () => {
+  for (const file of ["components/send/AmountStep.tsx", "app/pay-merchant.tsx"]) {
+    const screen = src(file);
+    assert.match(screen, /feeQuote\.status === "unavailable"/, file);
+    assert.match(screen, /result\.errorCode === "FEE_CONFIRM" && result\.confirmFee !== undefined/, file);
+    assert.match(screen, /acceptFee\(result\.confirmFee\)/, file);
+    assert.match(screen, /shownMaxFee: maxFee,/, file);
+    assert.doesNotMatch(screen, /maxFee !== null && amount\w* !== null/, file);
+    assert.match(screen, /Not estimated yet/, file);
+    assert.match(screen, /Estimating fee…/, file);
+  }
+  assert.match(src("hooks/useNetworkFee.ts"), /accept: \(fee: bigint\) => void/);
+  assert.match(src("services/transaction.service.ts"), /confirmFee: error\.fee as bigint/);
+});
+
+test("no sponsorship wording or sponsored-gas path is left in the app", () => {
+  const files = [];
+  const walk = (dir) => {
+    for (const entry of fsx.readdirSync(pathx.join(__dirname, "..", dir), { withFileTypes: true })) {
+      const rel = pathx.join(dir, entry.name);
+      if (entry.isDirectory()) walk(rel);
+      else if (/\.(ts|tsx)$/.test(entry.name)) files.push(rel);
+    }
+  };
+  ["app", "components", "services", "hooks", "utils"].forEach(walk);
+  assert.ok(files.length > 50);
+  for (const file of files) {
+    const text = src(file);
+    assert.doesNotMatch(text, /Sponsorship subject to availability|Gas sponsorship is unavailable|limit has been reached|paid by ATARA/i, file);
+    assert.doesNotMatch(text, /getGaslessCapabilities|WithGas\(|canRetryWithGas/, file);
+  }
 });

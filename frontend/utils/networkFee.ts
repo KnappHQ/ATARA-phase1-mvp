@@ -3,7 +3,8 @@
  * never floating point: USDC has 6 decimals and a JS number drifts on them.
  *
  * A missing, zero or malformed fee is never turned into a number. It stays
- * "unavailable", and a payment waits for a real one.
+ * "unavailable". The person can still go ahead: the exact fee is then read from
+ * the prepared payment and shown for one more confirmation before anything is signed.
  */
 
 export const FEE_TOKEN_SYMBOL = "USDC";
@@ -15,19 +16,26 @@ export const FEE_TOLERANCE_PERCENT = 25n;
 const USDC_UNIT = 10n ** BigInt(FEE_TOKEN_DECIMALS);
 const CENT = USDC_UNIT / 100n;
 
-export type FeeErrorCode = "FEE_UNAVAILABLE" | "FEE_CHANGED" | "FEE_INSUFFICIENT" | "FEE_SERVICE";
+export type FeeErrorCode = "FEE_UNAVAILABLE" | "FEE_CHANGED" | "FEE_INSUFFICIENT" | "FEE_SERVICE" | "FEE_CONFIRM";
 
 export const FEE_MESSAGES: Record<FeeErrorCode, string> = {
   FEE_UNAVAILABLE: "The network fee could not be calculated. No money was sent.",
   FEE_CHANGED: "The network fee changed. Please check and confirm again.",
   FEE_INSUFFICIENT: "You need a little USDC to pay the network fee. No money was sent.",
   FEE_SERVICE: "Payments are temporarily unavailable. No money was sent.",
+  FEE_CONFIRM: "Here is the exact network fee. Please check it and confirm.",
 };
 
-export type FeeError = Error & { code: FeeErrorCode; notSent: true };
+/** `fee` is set on FEE_CONFIRM: the exact fee read from the prepared payment, for the person to confirm. */
+export type FeeError = Error & { code: FeeErrorCode; notSent: true; fee?: bigint };
 
-export const createFeeError = (code: FeeErrorCode, message?: string): FeeError =>
-  Object.assign(new Error(message ?? FEE_MESSAGES[code]), { name: "NetworkFeeError", code, notSent: true as const });
+export const createFeeError = (code: FeeErrorCode, message?: string, fee?: bigint): FeeError =>
+  Object.assign(new Error(message ?? FEE_MESSAGES[code]), {
+    name: "NetworkFeeError",
+    code,
+    notSent: true as const,
+    ...(fee !== undefined ? { fee } : {}),
+  });
 
 export const isFeeError = (error: unknown): error is FeeError =>
   !!error && typeof error === "object" && typeof (error as { code?: unknown }).code === "string" &&
@@ -56,13 +64,16 @@ export const parseUnits = (text: string, decimals: number): bigint | null => {
   return BigInt(whole || "0") * 10n ** BigInt(decimals) + BigInt(fraction.padEnd(decimals, "0") || "0");
 };
 
-/** What the person reads: "about $0.02", "less than $0.01", or "Unavailable". Never "$0". */
+/** What the person reads: "~$0.02", "less than $0.01", or "Unavailable". Never "$0". */
 export const formatNetworkFee = (maxFee: bigint | null | undefined): string => {
   if (!isUsableFee(maxFee)) return "Unavailable";
   if (maxFee < CENT) return "less than $0.01";
   const cents = (maxFee + CENT - 1n) / CENT; // round up: a shown fee is never below the real maximum
-  return `about $${formatUnits(cents * CENT, FEE_TOKEN_DECIMALS)}`;
+  return `~$${formatUnits(cents * CENT, FEE_TOKEN_DECIMALS)}`;
 };
+
+/** The fee line on the send screens: "~$0.02 (paid in USDC)". */
+export const formatFeeLine = (maxFee: bigint): string => `${formatNetworkFee(maxFee)} (paid in USDC)`;
 
 /** An amount of USDC with its unit, e.g. "24.97 USDC". */
 export const formatUsdc = (units: bigint): string => `${formatUnits(units, FEE_TOKEN_DECIMALS)} ${FEE_TOKEN_SYMBOL}`;
@@ -201,8 +212,11 @@ export const usableFee = (prepared: any, feeTokenAddress: string): bigint | null
 
 /** What the person saw and could afford when they confirmed, in whole base units. */
 export interface FeeGuard {
-  /** The largest network fee the review showed, in USDC base units. */
-  shownMaxFee: bigint;
+  /**
+   * The largest network fee the review showed, in USDC base units. Null when no
+   * estimate could be shown: the exact fee is then read and shown before signing.
+   */
+  shownMaxFee: bigint | null;
   /** The amount being sent, in the sent token's base units. */
   amount: bigint;
   sendingFeeToken: boolean;
@@ -212,13 +226,19 @@ export interface FeeGuard {
 
 /**
  * Runs on the real prepared payment, before it is recorded or signed. Throws when
- * there is no real fee, when no fee was shown (no guard), when it rose past what the person was shown, or when it no
- * longer fits the balance. Nothing has been sent at that point.
+ * there is no real fee, when no fee was shown, when it rose past what the person was shown,
+ * or when it no longer fits the balance. Nothing has been sent at that point.
+ *
+ * When no estimate could be shown (`shownMaxFee` null), the exact fee is handed back
+ * (FEE_CONFIRM) so the screen shows it and asks once more: nothing is signed for a fee
+ * the person has not seen.
  */
 export const checkPreparedFee = (prepared: any, feeTokenAddress: string, guard?: FeeGuard): bigint => {
   const actual = usableFee(prepared, feeTokenAddress);
-  // No fee was shown to the person (no guard): there is nothing they agreed to, so nothing is signed.
   if (actual === null || !guard) throw createFeeError("FEE_UNAVAILABLE");
+  if (guard.shownMaxFee === null) {
+    throw createFeeError("FEE_CONFIRM", `Network fee: ${formatFeeLine(actual)}. Please check it and confirm.`, actual);
+  }
   if (feeChangedTooMuch(guard.shownMaxFee, actual)) throw createFeeError("FEE_CHANGED");
   const funds = checkFunds({
     amount: guard.amount,

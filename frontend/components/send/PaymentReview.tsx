@@ -4,7 +4,7 @@ import { AlertCircle } from "lucide-react-native";
 import { COLORS, NETWORK_NAME } from "@/utils/constants";
 import { groupAddress } from "@/utils/paymentReview";
 import type { FeeQuote } from "@/utils/feeEstimator";
-import { formatLeavesAccount, formatNetworkFee } from "@/utils/networkFee";
+import { formatFeeLine, formatLeavesAccount } from "@/utils/networkFee";
 
 interface PaymentReviewProps {
   visible: boolean;
@@ -16,7 +16,7 @@ interface PaymentReviewProps {
   approxUsd?: string | null;
   note?: string;
   busy: boolean;
-  /** The network fee the person pays, in USDC. A payment is never confirmed without a real one. */
+  /** The network fee the person pays, in USDC. Nothing is signed before the exact fee was shown. */
   fee: FeeQuote;
   /** Set when the balance cannot cover the amount and the fee: confirming is blocked. */
   fundsMessage?: string | null;
@@ -42,7 +42,8 @@ const Line = ({ label, value, strong }: { label: string; value: string; strong?:
  * It shows the whole address, what the recipient receives, the network fee
  * and what leaves the account, and what is shared with the recipient. The fee
  * is paid in USDC from the same account and shown before anything is signed.
- * Without a real fee the payment cannot be confirmed: there is no default.
+ * When it could not be estimated, confirming reads the exact fee first and this
+ * screen comes back with it: there is never a default or a $0 fee.
  */
 export const PaymentReview = ({
   visible,
@@ -61,8 +62,10 @@ export const PaymentReview = ({
   onConfirm,
 }: PaymentReviewProps) => {
   const maxFee = fee.status === "ready" ? fee.maxFee : null;
-  const feeText = fee.status === "loading" ? "Estimating…" : formatNetworkFee(maxFee);
-  const canConfirm = fee.status === "ready" && !fundsMessage && !busy;
+  const feeText =
+    fee.status === "ready" ? formatFeeLine(fee.maxFee) : fee.status === "unavailable" ? "Not estimated yet" : "Estimating fee…";
+  const feeUnknown = fee.status === "unavailable";
+  const canConfirm = (fee.status === "ready" || feeUnknown) && !fundsMessage && !busy;
   return (
   <Modal
     visible={visible}
@@ -118,7 +121,7 @@ export const PaymentReview = ({
               <Text className="text-sm leading-5 text-white/80">
                 {fundsMessage ??
                   notice ??
-                  "The network fee could not be calculated, so this payment is on hold. Nothing was sent."}
+                  "The network fee isn't estimated yet. Try again, or continue: ATARA reads the exact fee and shows it to you before anything is sent."}
               </Text>
               {fee.status === "unavailable" && (
                 <Pressable
@@ -156,7 +159,7 @@ export const PaymentReview = ({
               className="flex-1 items-center justify-center rounded-2xl bg-white py-3"
               style={{ opacity: canConfirm ? 1 : 0.4 }}
             >
-              <Text className="text-sm font-semibold text-black">Confirm and pay</Text>
+              <Text className="text-sm font-semibold text-black">{feeUnknown ? "See exact fee" : "Confirm and pay"}</Text>
             </Pressable>
           </View>
         </View>

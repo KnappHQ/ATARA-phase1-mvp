@@ -28,7 +28,7 @@ import {
   FEE_TOKEN_SYMBOL,
   assessSend,
   assetBaseUnits,
-  formatNetworkFee,
+  formatFeeLine,
   formatUnits,
   formatUsdc,
   maxSendable,
@@ -159,7 +159,7 @@ export const AmountStep = ({
   const balanceValidation = validateBalance(amountValue, currentBalance);
 
   // The network fee is paid in USDC, so what can be sent depends on it.
-  const { quote: feeQuote, refresh: refreshFee } = useNetworkFee({
+  const { quote: feeQuote, refresh: refreshFee, accept: acceptFee } = useNetworkFee({
     service: smartAccountService,
     recipientAddress: recipient.smartAccountAddress,
     tokenSymbol: selectedToken?.symbol,
@@ -230,9 +230,12 @@ export const AmountStep = ({
 
   const isValidAmount = amountValue > 0 && balanceValidation.isValid;
   const feeReady = feeQuote.status === "ready";
+  // Without an estimate the payment can still go ahead: the exact fee is read from
+  // the prepared payment and shown for one more confirmation before anything is signed.
+  const feeKnownOrSkippable = feeReady || feeQuote.status === "unavailable";
   const canSend =
     isValidAmount &&
-    feeReady &&
+    feeKnownOrSkippable &&
     !fundsMessage &&
     !isTransactionInProgress &&
     !statusUnknown &&
@@ -277,8 +280,9 @@ export const AmountStep = ({
     // What the person was shown and could afford; checked again against the real
     // fee before anything is signed.
     feeGuard:
-      maxFee !== null && amountUnits !== null
+      amountUnits !== null
         ? {
+            // Null when no estimate was shown: the exact fee comes back for confirmation.
             shownMaxFee: maxFee,
             amount: amountUnits,
             sendingFeeToken,
@@ -348,6 +352,14 @@ export const AmountStep = ({
       } else {
         if (movedOn) return;
         if (result.isPendingVerification) setStatusUnknown(true);
+        if (result.errorCode === "FEE_CONFIRM" && result.confirmFee !== undefined) {
+          // Nothing was sent. Show the exact fee and ask once more.
+          clearError();
+          acceptFee(result.confirmFee);
+          setReviewNotice(result.error ?? null);
+          setIsAddressReviewOpen(true);
+          return;
+        }
         if (
           result.errorCode === "FEE_CHANGED" ||
           result.errorCode === "FEE_INSUFFICIENT" ||
@@ -675,11 +687,11 @@ export const AmountStep = ({
         <View className="px-2.5 py-1 rounded-full bg-emarald/10 border border-emarald/20">
           <Text className="text-xs font-medium text-emarald">
             {feeQuote.status === "loading"
-              ? "Estimating…"
+              ? "Estimating fee…"
               : feeQuote.status === "ready"
-                ? formatNetworkFee(feeQuote.maxFee)
+                ? formatFeeLine(feeQuote.maxFee)
                 : feeQuote.status === "unavailable"
-                  ? "Unavailable"
+                  ? "Not estimated yet"
                   : "—"}
           </Text>
         </View>
@@ -747,10 +759,8 @@ export const AmountStep = ({
                     : fundsMessage
                       ? "Not enough USDC for the fee"
                       : feeQuote.status === "loading"
-                        ? "Calculating network fee..."
-                        : feeQuote.status === "unavailable"
-                          ? "Network fee unavailable"
-                          : "Slide right to send"
+                        ? "Estimating fee…"
+                        : "Slide right to send"
           }
         />
       </MotiView>

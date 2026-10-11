@@ -31,34 +31,43 @@ const confirm = (tree) => pressables(tree).at(-1);
 
 test("a real fee is shown before confirming, and the payment can be confirmed", () => {
   const tree = show({ fee: { status: "ready", maxFee: 20_000n } });
-  assert.ok(lines(tree).includes("Network fee: about $0.02"));
+  assert.ok(lines(tree).includes("Network fee: ~$0.02 (paid in USDC)"));
   assert.ok(lines(tree).includes("Leaves your account: 25.00 USDC + fee (max 25.02 USDC)"));
   assert.match(textOf(tree), /Paid in USDC from your balance/);
   assert.equal(confirm(tree).props.disabled, false);
 });
 
-test("an unavailable fee blocks confirming, offers Try again and never shows 0", () => {
+test("an unavailable fee never blocks: Try again, or continue to see the exact fee, and never 0", () => {
   const calls = [];
   const tree = show({ fee: { status: "unavailable" }, onRetryFee: () => calls.push("retry") });
-  assert.ok(lines(tree).includes("Network fee: Unavailable"));
-  assert.equal(confirm(tree).props.disabled, true);
+  assert.ok(lines(tree).includes("Network fee: Not estimated yet"));
+  assert.equal(confirm(tree).props.disabled, false, "the person can go ahead");
+  assert.equal(textOf(confirm(tree)), "See exact fee");
+  assert.match(textOf(tree), /reads the exact fee and shows it to you before anything is sent/);
   const retry = pressables(tree).find((n) => textOf(n) === "Try again");
   retry.props.onPress();
   assert.deepEqual(calls, ["retry"]);
   assert.doesNotMatch(lines(tree).join("\n"), /fee: (\$?0|0\b)/i);
 });
 
-test("while the fee is being estimated the payment waits", () => {
+test("while the fee is being estimated the payment waits a moment", () => {
   const tree = show({ fee: { status: "loading" } });
-  assert.ok(lines(tree).includes("Network fee: Estimating…"));
+  assert.ok(lines(tree).includes("Network fee: Estimating fee…"));
   assert.equal(confirm(tree).props.disabled, true);
 });
 
 test("not enough USDC for the amount and the fee blocks confirming and says so", () => {
-  const message = "Not enough USDC to cover this amount and the network fee (about $0.02).";
+  const message = "Not enough USDC to cover this amount and the network fee (~$0.02).";
   const tree = show({ fee: { status: "ready", maxFee: 20_000n }, fundsMessage: message });
-  assert.match(textOf(tree), /Not enough USDC to cover this amount and the network fee \(about \$0\.02\)\./);
+  assert.match(textOf(tree), /Not enough USDC to cover this amount and the network fee \(~\$0\.02\)\./);
   assert.equal(confirm(tree).props.disabled, true);
+});
+
+test("the exact fee read at confirmation is shown with the reason, then confirmed normally", () => {
+  const tree = show({ fee: { status: "ready", maxFee: 20_000n }, notice: "Network fee: ~$0.02 (paid in USDC). Please check it and confirm." });
+  assert.match(textOf(tree), /Network fee: ~\$0\.02 \(paid in USDC\)\. Please check it and confirm\./);
+  assert.equal(textOf(confirm(tree)), "Confirm and pay");
+  assert.equal(confirm(tree).props.disabled, false);
 });
 
 test("a changed fee reopens the review with the reason", () => {
@@ -68,7 +77,7 @@ test("a changed fee reopens the review with the reason", () => {
 
 test("another token shows the fee in USDC", () => {
   const tree = show({ tokenSymbol: "USDT", amount: "5", fee: { status: "ready", maxFee: 20_000n } });
-  assert.ok(lines(tree).includes("Leaves your account: 5 USDT + network fee about $0.02 in USDC"));
+  assert.ok(lines(tree).includes("Leaves your account: 5 USDT + network fee ~$0.02 in USDC"));
 });
 
 test("the review never mentions gas, a paymaster or sponsorship", () => {

@@ -21,7 +21,7 @@ import { useWalletStore } from "@/stores/useWalletStore";
 import { UNAVAILABLE, balancesKnown } from "@/utils/balanceDisplay";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { useNetworkFee } from "@/hooks/useNetworkFee";
-import { FEE_TOKEN_SYMBOL, assessSend, assetBaseUnits, formatNetworkFee } from "@/utils/networkFee";
+import { FEE_TOKEN_SYMBOL, assessSend, assetBaseUnits, formatFeeLine } from "@/utils/networkFee";
 import {
   baseUnitsToDecimal,
   decimalToBaseUnits,
@@ -123,7 +123,7 @@ export default function PayMerchantScreen() {
     balanceInBaseUnits !== null &&
     amountInBaseUnits <= balanceInBaseUnits;
   // The network fee is paid in USDC on top of the amount.
-  const { quote: feeQuote, refresh: refreshFee } = useNetworkFee({
+  const { quote: feeQuote, refresh: refreshFee, accept: acceptFee } = useNetworkFee({
     service: DEMO_MODE ? null : service,
     recipientAddress: isValidAddress ? rawAddress : null,
     tokenSymbol: selectedToken?.symbol,
@@ -140,7 +140,9 @@ export default function PayMerchantScreen() {
     feeTokenBalance: feeTokenBalanceUnits,
     maxFee,
   });
-  const feeReady = DEMO_MODE || (feeQuote.status === "ready" && !fundsMessage);
+  // Without an estimate the payment can still go ahead: the exact fee is read from the
+  // prepared payment and shown for one more confirmation before anything is signed.
+  const feeReady = DEMO_MODE || ((feeQuote.status === "ready" || feeQuote.status === "unavailable") && !fundsMessage);
   const canPay =
     !!selectedToken &&
     (DEMO_MODE || !!transactionService) &&
@@ -188,8 +190,9 @@ export default function PayMerchantScreen() {
             : selectedToken.usdValue,
         note: note.trim() || undefined,
         feeGuard:
-          maxFee !== null && amountInBaseUnits !== null
+          amountInBaseUnits !== null
             ? {
+                // Null when no estimate was shown: the exact fee comes back for confirmation.
                 shownMaxFee: maxFee,
                 amount: amountInBaseUnits,
                 sendingFeeToken,
@@ -199,6 +202,13 @@ export default function PayMerchantScreen() {
             : undefined,
       });
       if (!result.success) {
+        if (result.errorCode === "FEE_CONFIRM" && result.confirmFee !== undefined) {
+          // Nothing was sent. Show the exact fee and ask once more.
+          acceptFee(result.confirmFee);
+          setReviewNotice(result.error ?? null);
+          setIsReviewOpen(true);
+          return;
+        }
         if (result.errorCode === "FEE_CHANGED" || result.errorCode === "FEE_INSUFFICIENT" || result.errorCode === "FEE_UNAVAILABLE") {
           // Nothing was sent. Get the new fee and ask again, with the reason.
           setReviewNotice(result.error ?? null);
@@ -352,11 +362,11 @@ export default function PayMerchantScreen() {
             <Text className="text-white/40 text-xs mt-2">
               Network fee:{" "}
               {feeQuote.status === "loading"
-                ? "Estimating…"
+                ? "Estimating fee…"
                 : feeQuote.status === "ready"
-                  ? `${formatNetworkFee(feeQuote.maxFee)}, paid in USDC`
+                  ? formatFeeLine(feeQuote.maxFee)
                   : feeQuote.status === "unavailable"
-                    ? "Unavailable"
+                    ? "Not estimated yet"
                     : "—"}
             </Text>
           ) : null}

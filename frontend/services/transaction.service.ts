@@ -40,6 +40,8 @@ interface TransactionResponse {
   error?: string;
   /** Set for a network-fee problem (unavailable, changed, not enough USDC, service down). Nothing was sent. */
   errorCode?: string;
+  /** With FEE_CONFIRM: the exact fee to show before asking again. Nothing was sent. */
+  confirmFee?: bigint;
   /** Submitted, but neither confirmed nor refused. Never send it again blindly. */
   isPendingVerification?: boolean;
 }
@@ -197,6 +199,7 @@ export class TransactionService {
         success: false,
         error: failureMessage,
         errorCode,
+        ...(typeof error?.fee === "bigint" ? { confirmFee: error.fee as bigint } : {}),
         isPendingVerification: !!error?.isPendingVerification,
       };
     }
