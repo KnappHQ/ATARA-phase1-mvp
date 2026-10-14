@@ -89,7 +89,7 @@ test("OnrampService and MoonPay URLs are only reachable from the card purchase c
 
 test("the card purchase component keeps its checkout hooks and is the only place that calls createSession", () => {
   const card = read("components/addMoney/CardPurchaseSection.tsx");
-  assert.match(card, /AppState\.addEventListener/);
+  assert.match(card, /<MoonPayCheckout url=\{checkoutUrl\}/);
   assert.match(card, /scheduleBalanceRefresh/);
   assert.match(card, /OnrampService\.createSession/);
 });
