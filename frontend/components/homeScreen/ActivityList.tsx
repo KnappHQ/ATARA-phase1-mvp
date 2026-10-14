@@ -13,11 +13,14 @@ import { useRouter } from "expo-router";
 interface ActivityListProps {
   transactions: DisplayTransaction[];
   isLoading: boolean;
+  /** Opens the Receive sheet: the one next step for a new account. */
+  onReceive?: () => void;
 }
 
 export const ActivityList = ({
   transactions,
   isLoading,
+  onReceive,
 }: ActivityListProps) => {
   const router = useRouter();
   const handleTransactionPress = (transaction: DisplayTransaction) => {
@@ -51,7 +54,20 @@ export const ActivityList = ({
         <TransactionsSkeleton />
       ) : transactions.length === 0 ? (
         <View className="py-8 items-center">
-          <Text className="text-sm text-white/30">No transactions yet</Text>
+          <Text className="text-sm text-white/60">Nothing here yet</Text>
+          <Text className="text-sm text-white/30 text-center mt-1">
+            Share your @handle so friends can pay you.
+          </Text>
+          {onReceive ? (
+            <TouchableOpacity
+              onPress={onReceive}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              className="mt-4 min-h-11 px-5 items-center justify-center rounded-full border border-white/20"
+            >
+              <Text className="text-sm font-medium text-white">Share my @handle</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
       ) : (
         <View>

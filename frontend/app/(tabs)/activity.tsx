@@ -92,11 +92,16 @@ export default function Activity() {
   };
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    await Promise.all([fetchHistory(), fetchGroups(), refreshOperations()]);
-    setIsRefreshing(false);
+    setRefreshKey((key) => key + 1); // group invitations reload too
+    try {
+      await Promise.all([fetchHistory(), fetchGroups(), refreshOperations()]);
+    } finally {
+      setIsRefreshing(false);
+    }
   }, [fetchHistory, fetchGroups, refreshOperations]);
 
   const handleTabChange = (tab: ActivityTab) => {
@@ -164,6 +169,7 @@ export default function Activity() {
             isLoading={groupsLoading}
             error={groupsError}
             onRetry={fetchGroups}
+            refreshKey={refreshKey}
           />
         )}
 

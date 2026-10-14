@@ -7,7 +7,7 @@ export const BalanceSkeleton = () => (
       className="text-xs uppercase text-platinum-muted mb-4 text-center"
       style={{ letterSpacing: 2.5 }}
     >
-      Total Liquidity
+      Balance
     </Text>
 
     <MotiView
