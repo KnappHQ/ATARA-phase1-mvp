@@ -60,7 +60,11 @@ test("looking someone up never returns the key that controls their account", asy
 test("recent contacts never carry the owner address", async () => {
   let args;
   await withStubs(
-    [[prisma.transaction, "findMany", async (received) => { args = received; return []; }]],
+    [
+      [prisma.transaction, "findMany", async (received) => { args = received; return []; }],
+      // Recent contacts leave out blocked people; this unit test needs no database.
+      [prisma.userBlock, "findMany", async () => []],
+    ],
     () => userService.getRecentContacts("u1"),
   );
   assert.equal("publicAddress" in args.select.sender.select, false);
