@@ -12,6 +12,7 @@ import {
 import { ErrorHandler } from "../utils/errorHandler";
 import { logError, logInfo } from "../utils/logger";
 import { inspectMoonPayConfig, problemCode } from "../utils/moonpayConfig";
+import { canonicalizeIp, ipFamily, isPublicIp, type IpFamily } from "../utils/clientIp";
 
 /**
  * Only what MoonPay needs to deliver the purchase: the address to send it to.
@@ -22,6 +23,12 @@ import { inspectMoonPayConfig, problemCode } from "../utils/moonpayConfig";
 export type MoonPaySessionInput = {
   walletAddress: string;
   baseCurrencyAmount?: string | number | null;
+  /**
+   * The customer's public IP addresses observed by the backend on THIS request,
+   * at most one per family (IPv4, IPv6). Each is hashed into `allowedIpAddress`
+   * so the URL only loads on that connection. Never a value sent by the app.
+   */
+  clientIps?: string[];
 };
 
 const isPositiveAmount = (value: string | number | null | undefined) => {
@@ -32,6 +39,33 @@ const isPositiveAmount = (value: string | number | null | undefined) => {
 
 export const signMoonPayQuery = (query: string, secretKey: string): string =>
   crypto.createHmac("sha256", secretKey).update(query).digest("base64");
+
+/** HMAC-SHA256 of the canonical IP with the secret key, base64: MoonPay's IP-matching hash. */
+export const hashMoonPayIp = (canonicalIp: string, secretKey: string): string =>
+  crypto.createHmac("sha256", secretKey).update(canonicalIp).digest("base64");
+
+/**
+ * The `allowedIpAddress` value: one hash per IP family actually observed, at most
+ * two, comma-separated. Refuses anything else rather than sending a value MoonPay
+ * would reject (more than two hashes, or two of the same family, fail validation).
+ */
+export const buildAllowedIpAddress = (
+  clientIps: string[],
+  secretKey: string,
+): { value: string; families: IpFamily[] } => {
+  const seen = new Map<IpFamily, string>();
+  for (const raw of clientIps) {
+    const ip = canonicalizeIp(raw);
+    if (!ip || !isPublicIp(ip)) throw new ErrorHandler("Your connection could not be verified", 503, "MP-IP-UNAVAILABLE");
+    const family = ipFamily(ip);
+    const already = seen.get(family);
+    if (already && already !== ip) throw new ErrorHandler("Your connection could not be verified", 503, "MP-IP-AMBIGUOUS");
+    seen.set(family, ip);
+  }
+  if (seen.size === 0) throw new ErrorHandler("Your connection could not be verified", 503, "MP-IP-UNAVAILABLE");
+  const families = [...seen.keys()].sort();
+  return { value: families.map((family) => hashMoonPayIp(seen.get(family) as string, secretKey)).join(","), families };
+};
 
 /**
  * Builds a signed MoonPay URL. The complete query string is signed before the
@@ -80,6 +114,16 @@ export const buildMoonPayWidgetUrl = (input: MoonPaySessionInput): string => {
   }
   if (ONRAMP_REDIRECT_URL) params.push(["redirectURL", ONRAMP_REDIRECT_URL]);
 
+  // IP matching: added BEFORE signing, so the hash is part of the signed query.
+  // Omitted only when the caller observed no IP (tests, diagnostics): a session
+  // for a customer always carries it (see createMoonPaySession).
+  let ipFamilies: IpFamily[] = [];
+  if (input.clientIps && input.clientIps.length > 0) {
+    const allowed = buildAllowedIpAddress(input.clientIps, MOONPAY_SECRET_KEY);
+    params.push(["allowedIpAddress", allowed.value]);
+    ipFamilies = allowed.families;
+  }
+
   // URLSearchParams applies URL encoding to each value. MoonPay signs the
   // leading '?' and the encoded query, then expects a URL-encoded base64 sig.
   url.search = new URLSearchParams(params).toString();
@@ -98,6 +142,9 @@ export const buildMoonPayWidgetUrl = (input: MoonPaySessionInput): string => {
     apiKeyLength: report.apiKey.length,
     secretKeyLength: report.secretKey.length,
     queryParams: params.map(([name]) => name),
+    // How many IP hashes and of which family; never the address or the hash.
+    ipHashes: ipFamilies.length,
+    ipFamilies,
     warnings: report.warnings,
   });
   return signed;
@@ -124,7 +171,20 @@ export const verifyMoonPayUrl = (signedUrl: string, secretKey: string): boolean 
   return given.length === expected.length && crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected));
 };
 
-export const createMoonPaySession = (input: MoonPaySessionInput) => ({
+/**
+ * A session for a customer: always bound to the IP observed on this request.
+ * MoonPay allows omitting `allowedIpAddress` only for a session where iCloud
+ * Private Relay was detected in a Safari-based view; the app opens the widget in
+ * a WebView (WKWebView), which Private Relay does not route, so it is never omitted.
+ */
+export const createMoonPaySession = (input: MoonPaySessionInput) => {
+  if (!input.clientIps || input.clientIps.length === 0) {
+    throw new ErrorHandler("Your connection could not be verified", 503, "MP-IP-UNAVAILABLE");
+  }
+  return createSession(input);
+};
+
+const createSession = (input: MoonPaySessionInput) => ({
   provider: "moonpay",
   network: NETWORK === "base-mainnet" ? "base-mainnet" : "sandbox",
   mode: NETWORK === "base-mainnet" ? "live" : "sandbox",

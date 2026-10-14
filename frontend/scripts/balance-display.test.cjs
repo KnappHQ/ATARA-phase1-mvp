@@ -142,3 +142,33 @@ test("the Send screen's balance line says Balance unavailable until a balance is
   assert.match(screen, /const currentBalance = parseAmount\(selectedToken\.balance\);/);
   assert.match(screen, /validateBalance\(amountValue, currentBalance\)/);
 });
+
+// ------------------------------------------------------ prices without invention
+
+test("no ETH price: the home screen says what the total leaves out", () => {
+  const note = display.describeValuation({ complete: false, unpricedSymbols: ["ETH"], staleSymbols: [], estimatedSymbols: [], oldestPriceAsOf: null });
+  assert.match(note, /leaves out ETH/);
+  assert.match(note, /unavailable/);
+});
+
+test("a kept price shows its date, an estimate says it is not live, a live total says nothing", () => {
+  const stale = display.describeValuation({ complete: true, unpricedSymbols: [], staleSymbols: ["ETH"], estimatedSymbols: [], oldestPriceAsOf: "2026-10-06T10:00:00.000Z" });
+  assert.match(stale, /ETH priced from an earlier reading \(/);
+  const est = display.describeValuation({ complete: true, unpricedSymbols: [], staleSymbols: [], estimatedSymbols: ["USDC"], oldestPriceAsOf: null });
+  assert.match(est, /USDC counted at \$1, not a live price/);
+  assert.equal(display.describeValuation({ complete: true, unpricedSymbols: [], staleSymbols: [], estimatedSymbols: [], oldestPriceAsOf: null }), null);
+  assert.equal(display.describeValuation(null), null, "an older server sends no valuation");
+});
+
+test("the wallet store turns an unavailable price into an unknown value, not $0.00 and not a number", () => {
+  const store = source("stores/useWalletStore.ts");
+  assert.match(store, /priceStatus === "unavailable" \? "" : `\$\$\{portfolioToken\.usdValue\.toFixed\(2\)\}`/);
+  assert.match(store, /const changeKnown = portfolio\.valuation\?\.change24hKnown !== false;/);
+  assert.match(source("components/homeScreen/BalanceRevealSection.tsx"), /describeValuation\(valuation\)/);
+});
+
+test("the backend no longer contains an invented price", () => {
+  const service = source("../backend/services/wallet.service.ts");
+  assert.doesNotMatch(service, /3000/);
+  assert.doesNotMatch(service, /\? 3000 : 1/);
+});

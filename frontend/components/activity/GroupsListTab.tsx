@@ -14,6 +14,8 @@ interface GroupsListTabProps {
   isLoading: boolean;
   error: string | null;
   onRetry: () => void;
+  /** Changes when the screen is pulled down to refresh, so invitations reload too. */
+  refreshKey?: number;
 }
 
 function GroupsListBody({
@@ -117,11 +119,11 @@ function GroupsListBody({
 }
 
 /** The invitations to answer come first, then the groups the person is in, then the ones they archived. */
-export function GroupsListTab({ groups, ...props }: GroupsListTabProps) {
+export function GroupsListTab({ groups, refreshKey, ...props }: GroupsListTabProps) {
   const { active, archived } = splitGroups(groups);
   return (
     <View>
-      <GroupInvitations />
+      <GroupInvitations refreshKey={refreshKey} />
       <GroupsListBody {...props} groups={active} />
       <ArchivedGroups groups={archived} />
     </View>

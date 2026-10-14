@@ -17,7 +17,7 @@ import { AssetBalanceCarousel } from "./AssetBalanceCarousel";
 import { useWalletStore } from "@/stores/useWalletStore";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { splitUsd } from "@/utils/walletBalance";
-import { UNAVAILABLE, balancesKnown, formatAssetBalance, usdValuesKnown } from "@/utils/balanceDisplay";
+import { UNAVAILABLE, balancesKnown, describeValuation, formatAssetBalance, usdValuesKnown } from "@/utils/balanceDisplay";
 
 interface BalanceRevealSectionProps {
   children?: ReactNode;
@@ -40,7 +40,9 @@ export const BalanceRevealSection = ({
     assets,
     balanceSource,
     balanceError,
+    valuation,
   } = useWalletStore();
+  const valuationNote = balanceSource === "service" ? describeValuation(valuation) : null;
   const usd = splitUsd(totalUSDValue);
   const primaryStable = assets.find((asset) => asset.symbol === "USDC");
   // Nothing has ever been read and the last attempt failed: the zeros in the
@@ -63,7 +65,8 @@ export const BalanceRevealSection = ({
     }
   }, [refreshBalances, user]);
 
-  const isInitialLoad = totalUSDValue === 0;
+  // The skeleton is for a balance that was never read. A known $0.00 stays on screen while it refreshes.
+  const isInitialLoad = balanceSource === null;
 
   const updateRevealState = (revealed: boolean) => {
     setIsBalanceRevealed(revealed);
@@ -168,7 +171,7 @@ export const BalanceRevealSection = ({
                 className="text-xs uppercase text-platinum-muted mb-4 text-center"
                 style={{ letterSpacing: 2.5 }}
               >
-                Total Liquidity
+                Balance
               </Text>
             </MotiView>
 
@@ -225,6 +228,12 @@ export const BalanceRevealSection = ({
               <Text className="text-5xl font-bold text-white mb-3 text-center">
                 ${usd.whole}
                 <Text className="text-3xl text-white/40">.{usd.cents}</Text>
+              </Text>
+            )}
+
+            {!stealthMode && valuationNote && (
+              <Text accessibilityRole="text" className="text-xs text-white/45 text-center mt-2 px-6 leading-5">
+                {valuationNote}
               </Text>
             )}
 

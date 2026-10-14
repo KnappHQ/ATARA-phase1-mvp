@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import * as Sentry from "@sentry/react-native";
 import { CHAIN_ID, DEFAULT_ASSETS, NETWORK_NAME } from "@/utils/constants";
-import { WalletService } from "@/services/wallet.service";
+import { WalletService, type PortfolioValuation, type PriceStatus } from "@/services/wallet.service";
 import { readOnChainBalances } from "@/utils/chainBalance";
 import { mergeOnChainBalances } from "@/utils/walletBalance";
 
@@ -20,7 +20,11 @@ export interface Token {
   balance: string;
   balanceWei?: string;
   usdValue: string;
-  usdPrice: number; // current unit price in USD
+  usdPrice: number; // current unit price in USD; 0 when there is no price
+  /** Where `usdPrice` comes from. Absent: not read yet, or an older server (treated as live). */
+  priceStatus?: PriceStatus;
+  /** When the real quote behind `usdPrice` was read. */
+  priceAsOf?: string | null;
   decimals: number;
   logoUrl?: string;
 }
@@ -37,6 +41,8 @@ export interface WalletState {
   totalUSDValue: number;
   change24h: number;
   percentChange24h: number;
+  /** What the server says about the USD figures; null until the portfolio service answered. */
+  valuation: PortfolioValuation | null;
 
   setWalletAddress: (smartAccountAddress: string) => void;
   reset: () => void;
@@ -54,6 +60,7 @@ export const useWalletStore = create<WalletState>((set, get) => {
     totalUSDValue: 0,
     change24h: 0,
     percentChange24h: 0,
+    valuation: null as PortfolioValuation | null,
     lastUpdated: undefined,
     isLoadingBalances: false,
     balanceError: null,
@@ -69,6 +76,7 @@ export const useWalletStore = create<WalletState>((set, get) => {
   totalUSDValue: 0,
   change24h: 0,
   percentChange24h: 0,
+  valuation: null,
 
   setWalletAddress: (smartAccountAddress: string) => {
     if (get().smartAccountAddress?.toLowerCase() === smartAccountAddress.toLowerCase()) return;
@@ -126,10 +134,13 @@ export const useWalletStore = create<WalletState>((set, get) => {
       const portfolio = await WalletService.getPortfolio();
       if (request !== balanceRequest) return;
 
+      // A change the server could not compute is not "0%": show none.
+      const changeKnown = portfolio.valuation?.change24hKnown !== false;
       set({
         totalUSDValue: portfolio.totalUSD,
-        change24h: portfolio.change24h,
-        percentChange24h: portfolio.percentChange24h,
+        change24h: changeKnown ? portfolio.change24h : 0,
+        percentChange24h: changeKnown ? portfolio.percentChange24h : 0,
+        valuation: portfolio.valuation ?? null,
       });
 
       const updatedAssets = get().assets.map((asset) => {
@@ -141,8 +152,12 @@ export const useWalletStore = create<WalletState>((set, get) => {
           return {
             ...asset,
             balance: portfolioToken.balance,
-            usdValue: `$${portfolioToken.usdValue.toFixed(2)}`,
-            usdPrice: portfolioToken.usdPrice ?? asset.usdPrice ?? 0,
+            // No price: the amount is real, its USD value is unknown ("" shows
+            // as Unavailable), never a made-up number or $0.00.
+            usdValue: portfolioToken.priceStatus === "unavailable" ? "" : `$${portfolioToken.usdValue.toFixed(2)}`,
+            usdPrice: portfolioToken.priceStatus === "unavailable" ? 0 : portfolioToken.usdPrice ?? asset.usdPrice ?? 0,
+            priceStatus: portfolioToken.priceStatus,
+            priceAsOf: portfolioToken.priceAsOf ?? null,
           };
         }
 
@@ -160,8 +175,10 @@ export const useWalletStore = create<WalletState>((set, get) => {
           symbol: portfolioToken.symbol,
           name: portfolioToken.name ?? portfolioToken.symbol,
           balance: String(portfolioToken.balance ?? "0"),
-          usdValue: `$${Number(portfolioToken.usdValue ?? 0).toFixed(2)}`,
-          usdPrice: Number(portfolioToken.usdPrice ?? 0),
+          usdValue: portfolioToken.priceStatus === "unavailable" ? "" : `$${Number(portfolioToken.usdValue ?? 0).toFixed(2)}`,
+          usdPrice: portfolioToken.priceStatus === "unavailable" ? 0 : Number(portfolioToken.usdPrice ?? 0),
+          priceStatus: portfolioToken.priceStatus,
+          priceAsOf: portfolioToken.priceAsOf ?? null,
           decimals: Number(portfolioToken.decimals ?? 18),
           contractAddress: portfolioToken.contractAddress,
           logoUrl: portfolioToken.logoUrl,

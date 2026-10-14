@@ -32,3 +32,36 @@ export const formatAssetUsd = (usdValue: string | null | undefined, known: boole
   if (!Number.isFinite(amount)) return UNAVAILABLE;
   return amount.toLocaleString("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
+
+interface ValuationLike {
+  complete: boolean;
+  unpricedSymbols: string[];
+  staleSymbols: string[];
+  estimatedSymbols: string[];
+  oldestPriceAsOf: string | null;
+}
+
+const list = (symbols: string[]) => symbols.join(", ");
+
+/**
+ * One plain sentence about how far the USD total can be trusted, or null when
+ * every held amount has a live price. The amounts themselves are always real;
+ * this is only about their dollar value.
+ */
+export const describeValuation = (valuation: ValuationLike | null | undefined): string | null => {
+  if (!valuation) return null;
+  const parts: string[] = [];
+  if (!valuation.complete) {
+    parts.push(`The total leaves out ${list(valuation.unpricedSymbols)}: its price is unavailable right now.`);
+  }
+  if (valuation.staleSymbols.length) {
+    const when = valuation.oldestPriceAsOf
+      ? new Date(valuation.oldestPriceAsOf).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+      : null;
+    parts.push(`${list(valuation.staleSymbols)} priced from an earlier reading${when ? ` (${when})` : ""}.`);
+  }
+  if (valuation.estimatedSymbols.length) {
+    parts.push(`${list(valuation.estimatedSymbols)} counted at $1, not a live price.`);
+  }
+  return parts.length ? parts.join(" ") : null;
+};
