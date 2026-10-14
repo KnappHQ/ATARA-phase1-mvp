@@ -5,6 +5,8 @@ import { Group } from "@/stores/useGroupStore";
 import { GroupItem } from "./GroupItem";
 import { useRouter } from "expo-router";
 import { GroupInvitations } from "./GroupInvitations";
+import { ArchivedGroups } from "./ArchivedGroups";
+import { splitGroups } from "@/utils/groupLifecycle";
 
 interface GroupsListTabProps {
   groups: Group[];
@@ -116,12 +118,14 @@ function GroupsListBody({
   );
 }
 
-/** The invitations to answer come first, then the groups the person is in. */
-export function GroupsListTab({ refreshKey, ...props }: GroupsListTabProps) {
+/** The invitations to answer come first, then the groups the person is in, then the ones they archived. */
+export function GroupsListTab({ groups, refreshKey, ...props }: GroupsListTabProps) {
+  const { active, archived } = splitGroups(groups);
   return (
     <View>
       <GroupInvitations refreshKey={refreshKey} />
-      <GroupsListBody {...props} />
+      <GroupsListBody {...props} groups={active} />
+      <ArchivedGroups groups={archived} />
     </View>
   );
 }

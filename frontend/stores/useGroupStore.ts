@@ -36,6 +36,8 @@ export interface Group {
   memberCount: number;
   userNetBalance: number;
   assetSymbol: string;
+  /** When this person archived it, or null. */
+  archivedAt: string | null;
 }
 
 export interface GroupExpenseDetail {
@@ -88,6 +90,7 @@ function mapSummaryToGroup(s: GroupSummaryResponse): Group {
     memberCount: s.memberCount,
     userNetBalance: s.userNetBalance,
     assetSymbol: s.assetSymbol,
+    archivedAt: s.archivedAt ?? null,
   };
 }
 
@@ -157,6 +160,9 @@ interface GroupState {
     memberHandles: string[],
     description?: string,
   ) => Promise<void>;
+  archiveGroup: (id: string) => Promise<void>;
+  unarchiveGroup: (id: string) => Promise<void>;
+  deleteGroup: (id: string) => Promise<void>;
   /** `silent` refreshes in place (pull to refresh): no skeleton, the current detail stays. */
   fetchGroupDetail: (id: string, options?: { silent?: boolean }) => Promise<void>;
   addExpense: (
@@ -196,6 +202,28 @@ export const useGroupStore = create<GroupState>((set, get) => ({
     } finally {
       if (revision === accountRevision()) set({ isLoading: false });
     }
+  },
+
+  archiveGroup: async (id) => {
+    const revision = accountRevision();
+    await GroupService.archiveGroup(id);
+    if (revision !== accountRevision()) return;
+    const archivedAt = new Date().toISOString();
+    set((state) => ({ groups: state.groups.map((g) => (g.id === id ? { ...g, archivedAt } : g)) }));
+  },
+
+  unarchiveGroup: async (id) => {
+    const revision = accountRevision();
+    await GroupService.unarchiveGroup(id);
+    if (revision !== accountRevision()) return;
+    set((state) => ({ groups: state.groups.map((g) => (g.id === id ? { ...g, archivedAt: null } : g)) }));
+  },
+
+  deleteGroup: async (id) => {
+    const revision = accountRevision();
+    await GroupService.deleteGroup(id);
+    if (revision !== accountRevision()) return;
+    set((state) => ({ groups: state.groups.filter((g) => g.id !== id), groupDetail: null }));
   },
 
   createGroup: async (name, memberHandles, description) => {

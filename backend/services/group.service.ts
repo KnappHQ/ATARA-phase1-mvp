@@ -26,6 +26,8 @@ interface GroupSummary {
   createdById: string;
   createdAt: Date;
   updatedAt: Date;
+  /** When this person archived the group, or null. Archiving is personal. */
+  archivedAt: Date | null;
   memberCount: number;
   userNetBalance: number;
   assetSymbol: string;
@@ -39,11 +41,14 @@ class GroupService {
   ) {
     const member = await db.groupMember.findUnique({
       where: { groupId_userId: { groupId, userId } },
+      include: { group: { select: { deletedAt: true } } },
     });
     // Someone who has only been invited is not a member yet: they see none of the
     // group until they accept (see getInvitations).
     if (!member || member.status !== "ACTIVE")
       throw new ErrorHandler("You are not a member of this group", 403);
+    // A deleted group no longer exists for anybody.
+    if (member.group.deletedAt) throw new ErrorHandler("Group not found", 404);
   }
 
   private async assertCreator(
@@ -53,9 +58,9 @@ class GroupService {
   ) {
     const group = await db.group.findUnique({
       where: { id: groupId },
-      select: { createdById: true },
+      select: { createdById: true, deletedAt: true },
     });
-    if (!group) throw new ErrorHandler("Group not found", 404);
+    if (!group || group.deletedAt) throw new ErrorHandler("Group not found", 404);
     if (group.createdById !== userId)
       throw new ErrorHandler(
         "Only the group creator can perform this action",
@@ -159,7 +164,7 @@ class GroupService {
 
   public async getMyGroups(userId: string): Promise<GroupSummary[]> {
     const memberships = await prisma.groupMember.findMany({
-      where: { userId, status: "ACTIVE" },
+      where: { userId, status: "ACTIVE", group: { deletedAt: null } },
       include: {
         group: {
           include: {
@@ -176,7 +181,7 @@ class GroupService {
       },
     });
 
-    return memberships.map(({ group }) => {
+    return memberships.map(({ group, archivedAt }) => {
       let owedToMe = 0;
       let owedByMe = 0;
 
@@ -197,6 +202,7 @@ class GroupService {
         createdById: group.createdById,
         createdAt: group.createdAt,
         updatedAt: group.updatedAt,
+        archivedAt,
         memberCount: group._count.members,
         assetSymbol: group.assetSymbol,
         userNetBalance: parseFloat((owedToMe - owedByMe).toFixed(8)),
@@ -320,17 +326,53 @@ class GroupService {
     });
   }
 
+  /** Hides the group from this member's list only. Nothing is lost and nobody else sees a change. */
+  public async archiveGroup(groupId: string, userId: string) {
+    await this.assertMember(groupId, userId);
+    await prisma.groupMember.update({
+      where: { groupId_userId: { groupId, userId } },
+      data: { archivedAt: new Date() },
+    });
+  }
+
+  public async unarchiveGroup(groupId: string, userId: string) {
+    await this.assertMember(groupId, userId);
+    await prisma.groupMember.update({
+      where: { groupId_userId: { groupId, userId } },
+      data: { archivedAt: null },
+    });
+  }
+
+  /**
+   * Removes a finished group for everybody. Only the creator can, and only when nothing is
+   * owed and no payment is under way. It is a soft delete: expenses, shares and the
+   * payments that settled them stay, and nobody's Activity changes.
+   */
   public async deleteGroup(groupId: string, requestingUserId: string) {
     return prisma.$transaction(
       async (db) => {
         await this.assertCreator(groupId, requestingUserId, db);
 
-        if (await db.groupExpense.count({ where: { groupId } }))
-          throw new ErrorHandler(
-            "A group with expense history cannot be deleted",
-            409,
-          );
-        await db.group.delete({ where: { id: groupId } });
+        const unsettled = await db.groupExpenseSplit.count({
+          where: {
+            settled: false,
+            amount: { gt: 0 },
+            expense: { groupId },
+          },
+        });
+        if (unsettled > 0)
+          throw new ErrorHandler("Settle balances first: someone still owes money in this group", 409);
+
+        const paying = await db.settlementIntent.count({
+          where: { groupId, settledAt: null, expiresAt: { gt: new Date() } },
+        });
+        if (paying > 0)
+          throw new ErrorHandler("A payment is still in progress in this group. Try again in a few minutes", 409);
+
+        await db.group.update({
+          where: { id: groupId },
+          data: { deletedAt: new Date(), deletedById: requestingUserId },
+        });
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
@@ -374,7 +416,7 @@ class GroupService {
   public async getInvitations(userId: string) {
     const blocked = await safetyService.blockedBothWays(userId);
     const rows = await prisma.groupMember.findMany({
-      where: { userId, status: "INVITED" },
+      where: { userId, status: "INVITED", group: { deletedAt: null } },
       orderBy: { joinedAt: "desc" },
       select: {
         groupId: true,
@@ -407,9 +449,9 @@ class GroupService {
   public async acceptInvitation(groupId: string, userId: string) {
     const invitation = await prisma.groupMember.findUnique({
       where: { groupId_userId: { groupId, userId } },
-      select: { status: true, invitedById: true },
+      select: { status: true, invitedById: true, group: { select: { deletedAt: true } } },
     });
-    if (!invitation || invitation.status !== "INVITED")
+    if (!invitation || invitation.status !== "INVITED" || invitation.group.deletedAt)
       throw new ErrorHandler("This invitation is no longer available", 404);
     if (invitation.invitedById && (await safetyService.isBlockedEitherWay(userId, invitation.invitedById)))
       throw new ErrorHandler("This invitation is no longer available", 404);
@@ -946,6 +988,7 @@ class GroupService {
       where: {
         settled: false,
         decision: "ACCEPTED",
+        expense: { group: { deletedAt: null } },
         OR: [
           { userId, expense: { paidById: contact.id } },
           { userId: contact.id, expense: { paidById: userId } },
