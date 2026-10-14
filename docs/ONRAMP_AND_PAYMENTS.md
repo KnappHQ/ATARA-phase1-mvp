@@ -71,16 +71,20 @@ Référence : documentation MoonPay « IP matching » et « URL signing ».
 4. La réponse n’est renvoyée qu’à la personne authentifiée et n’est pas
    journalisée. Ne pas coller ces réponses dans un ticket public.
 
-### Devise et réseau (blocage tant que non confirmé)
+### Devise et réseau
 
-`MOONPAY_CURRENCY_CODE` vaut `usdc_base` par défaut. Il faut confirmer que, en
-**sandbox**, ce code livre de l’USDC sur **Base Sepolia** (chainId 84532,
-USDC `0x036CbD53842c5426634e7929541eC2318f3dCF7e`) et non sur Ethereum Sepolia
-ni Base mainnet (8453). Commande, avec la seule clé publique :
-`MOONPAY_API_KEY=pk_test_… node backend/scripts/moonpay-currency-check.cjs`.
-Si le résultat ne montre pas Base Sepolia, ou s’il est ambigu, demander la
-valeur exacte à MoonPay avant tout test. L’adresse de réception est toujours le
-smart account de la personne authentifiée, vérifiée côté serveur.
+Le support MoonPay a confirmé (deux fois) que `usdc_base` **n’est pas disponible
+en sandbox**. Configuration, sans changement de code :
+
+- **Sandbox** : `MOONPAY_CURRENCY_CODE=eth` sur le backend (ETH sur **Ethereum
+  Sepolia**). Ce n’est pas Base Sepolia : un éventuel envoi de test arrive sur
+  Ethereum Sepolia, à l’adresse du smart account, et n’apparaît donc pas dans le
+  solde de l’app (qui lit Base Sepolia). L’app le dit sans nommer de jeton.
+- **Production (plus tard)** : `usdc_base` reste la valeur par défaut du code.
+
+L’adresse de réception est toujours le smart account de la personne
+authentifiée, vérifiée côté serveur. Le parcours reste masqué dans les builds
+store-beta : `EXPO_PUBLIC_ENABLE_CARD_PURCHASE` est refusé par le preflight.
 
 ### Vue intégrée dans l’app
 
@@ -104,7 +108,7 @@ smart account de la personne authentifiée, vérifiée côté serveur.
 
 Prérequis : build contenant cette PR, backend avec clés **sandbox**,
 `EXPO_PUBLIC_ENABLE_CARD_PURCHASE` activé uniquement sur le build de test,
-vérification Render et devise ci-dessus faites. Aucun achat réel, aucun mainnet.
+vérification Render ci-dessus faite, `MOONPAY_CURRENCY_CODE=eth` sur le backend sandbox. Aucun achat réel, aucun mainnet.
 
 1. Wi-Fi, sans VPN : Add crypto → « Try MoonPay (sandbox) ». Attendu : la vue
    s’ouvre dans l’app, pas d’écran « Unverified Connection ».

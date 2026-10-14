@@ -164,3 +164,17 @@ test("the controller reads the IP from the request, not from the body", () => {
   assert.match(routes, /router\.post\("\/onramp-session", authentication, onrampController\.createSession\)/);
   assert.match(routes, /router\.get\("\/onramp-ip-check", authentication, onrampController\.ipCheck\)/);
 });
+
+test("sandbox runs on eth by configuration only; the code default stays usdc_base for production", () => {
+  const sandbox = freshService({ MOONPAY_API_KEY: API, MOONPAY_SECRET_KEY: SECRET, MOONPAY_CURRENCY_CODE: "eth" });
+  const { result: session } = quiet(() => sandbox.createMoonPaySession({ walletAddress: WALLET, clientIps: [IPV4] }));
+  assert.equal(session.mode, "sandbox");
+  assert.equal(session.currencyCode, "eth");
+  const url = new URL(session.url);
+  assert.equal(url.hostname, "buy-sandbox.moonpay.com");
+  assert.equal(url.searchParams.get("currencyCode"), "eth");
+  assert.equal(url.searchParams.get("allowedIpAddress"), hmac(IPV4));
+  assert.equal(sandbox.verifyMoonPayUrl(session.url, SECRET), true);
+  const defaults = freshService();
+  assert.equal(quiet(() => defaults.createMoonPaySession({ walletAddress: WALLET, clientIps: [IPV4] })).result.currencyCode, "usdc_base");
+});

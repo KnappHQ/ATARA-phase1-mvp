@@ -129,10 +129,10 @@ export function CardPurchaseSection() {
             </View>
             <View className="flex-1 ml-4">
               <Text className="text-white text-lg font-semibold">
-                Test buying USDC
+                Test the MoonPay checkout
               </Text>
               <Text className="text-white/50 text-sm mt-1">
-                Test flow · no real USDC received
+                Sandbox · no real purchase
               </Text>
             </View>
           </View>
@@ -160,8 +160,8 @@ export function CardPurchaseSection() {
           <View className="flex-row items-center mt-5 rounded-2xl bg-white/5 p-4">
             <ShieldCheck size={18} color="#4ade80" />
             <Text className="flex-1 ml-3 text-xs leading-5 text-white/60">
-              MoonPay’s sandbox simulates a purchase. No real payment
-              and no deposit on Base Sepolia.
+              MoonPay’s sandbox simulates a purchase. No real payment,
+              and nothing is added to your Base Sepolia balance.
             </Text>
           </View>
 
