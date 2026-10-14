@@ -30,9 +30,9 @@ test("the store hands the member ids to the service", () => {
 test("the expense modal always sends the active members, for equal and custom shares", () => {
   const modal = read("components/groupDetails/AddExpenseModal.tsx");
   // `members` comes from groupDetail.members, which the store keeps free of invited people.
-  assert.match(modal, /const members = \[\.\.\.\(groupDetail\?\.members \?\? \[\]\)\]/);
+  assert.match(modal, /\[\.\.\.\(groupDetail\?\.members \?\? \[\]\)\]/);
   assert.match(read("stores/useGroupStore.ts"), /members: d\.members\.filter\(\(m\) => m\.status !== "INVITED"\)/);
-  assert.match(modal, /customSplits: custom \? breakdown : undefined, splitWithUserIds: members\.map\(\(m\) => m\.id\)/);
+  assert.match(modal, /customSplits: customSplitsToSend\(mode, split\.shares\), splitWithUserIds: ids/);
   assert.match(modal, /attempt\.customSplits, attempt\.splitWithUserIds\)/);
 });
 

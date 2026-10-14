@@ -1,4 +1,4 @@
-import { View, Text } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import { TransactionItem } from "./TransactionItem";
 import { TransactionsSkeleton } from "../homeScreen/ActivitySkeleton";
 import { DisplayTransaction } from "@/stores/useTransactionHistoryStore";
@@ -40,10 +40,17 @@ export function TransactionsTab({
   if (transactions.length === 0) {
     return (
       <View className="py-16 items-center">
-        <Text className="text-white/40 text-center">No transactions yet</Text>
-        <Text className="text-white/30 text-sm text-center mt-2">
-          Your transaction history will appear here
+        <Text className="text-white/40 text-center">
+          Your payments will show up here.
         </Text>
+        <TouchableOpacity
+          onPress={() => router.push("/send")}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          className="mt-5 min-h-11 px-5 items-center justify-center rounded-full border border-white/20"
+        >
+          <Text className="text-sm font-medium text-white">Send money</Text>
+        </TouchableOpacity>
       </View>
     );
   }

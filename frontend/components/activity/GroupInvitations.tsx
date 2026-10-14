@@ -11,7 +11,7 @@ import { safetyFailureText } from "@/utils/safetyFlow";
  * of the group, until you accept. You can also decline, or decline and block the
  * person who added you.
  */
-export const GroupInvitations = () => {
+export const GroupInvitations = ({ refreshKey = 0 }: { refreshKey?: number }) => {
   const [invitations, setInvitations] = useState<GroupInvitation[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -24,9 +24,10 @@ export const GroupInvitations = () => {
     }
   }, []);
 
+  // Loads on mount, and again whenever the screen is pulled down to refresh.
   useEffect(() => {
     load();
-  }, [load]);
+  }, [load, refreshKey]);
 
   const act = async (invitation: GroupInvitation, action: "accept" | "decline" | "block") => {
     if (busyId) return;
