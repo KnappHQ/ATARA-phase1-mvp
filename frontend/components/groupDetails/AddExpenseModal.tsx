@@ -14,7 +14,10 @@ export const AddExpenseModal = ({ isOpen, onClose, groupId }: {
   const [custom, setCustom] = useState(false);
   const [shares, setShares] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
-  const key = useRef<{ signature: string; id: string } | null>(null);
+  // The last attempt the server may have received (no answer, or a 5xx): a retry resends it
+  // as it was, so a lost response never turns into a second expense, even if someone accepted
+  // an invitation in between and `members` changed.
+  const unconfirmed = useRef<{ inputs: string; id: string; customSplits?: { userId: string; amount: string }[]; splitWithUserIds: string[] } | null>(null);
   const members = [...(groupDetail?.members ?? [])].sort((a, b) => a.id.localeCompare(b.id));
   const total = /^\d+(\.\d{1,2})?$/.test(amount) ? Math.round(Number(amount) * 100) : 0;
   const unit = groupDetail?.assetSymbol ?? "USDC";
@@ -26,13 +29,21 @@ export const AddExpenseModal = ({ isOpen, onClose, groupId }: {
   const submit = async () => {
     if (busy || !valid) return;
     setBusy(true);
-    const signature = JSON.stringify([groupId, description.trim(), amount, breakdown]);
-    if (key.current?.signature !== signature) key.current = { signature, id: Crypto.randomUUID() };
+    const inputs = JSON.stringify([groupId, description.trim(), amount, custom, custom ? shares : null]);
+    const attempt = unconfirmed.current?.inputs === inputs
+      ? unconfirmed.current
+      : { inputs, id: Crypto.randomUUID(), customSplits: custom ? breakdown : undefined, splitWithUserIds: members.map((m) => m.id) };
     try {
-      await addExpense(groupId, description.trim(), Number(amount), key.current.id, custom ? breakdown : undefined);
-      setDescription(""); setAmount(""); setShares({}); key.current = null; onClose();
+      // Always say who shares it: the people already in the group (`members` never lists
+      // someone who has not accepted an invitation), for equal and custom shares alike.
+      await addExpense(groupId, description.trim(), Number(amount), attempt.id, attempt.customSplits, attempt.splitWithUserIds);
+      setDescription(""); setAmount(""); setShares({}); unconfirmed.current = null; onClose();
     } catch (error: any) {
-      useAlertStore.getState().error("Expense not added", error?.response?.data?.message ?? "Try again: a lost response will not create a duplicate.");
+      const status = error?.response?.status;
+      unconfirmed.current = !status || status >= 500 ? attempt : null;
+      useAlertStore.getState().error("Expense not added", error?.response?.data?.message ?? (status === 409
+        ? "Wait for invitations to be accepted, or add the expense only for people who are already in the group."
+        : "Try again: a lost response will not create a duplicate."));
     } finally { setBusy(false); }
   };
   return <Modal visible={isOpen} transparent animationType="slide" onRequestClose={close}>
@@ -49,7 +60,7 @@ export const AddExpenseModal = ({ isOpen, onClose, groupId }: {
           </View>
           {members.map((member, i) => <View key={member.id} className="flex-row items-center justify-between py-3 border-b border-white/10">
             <Text className="text-white flex-1">@{member.handle}</Text>
-            {custom ? <TextInput accessibilityLabel={`Part de ${member.handle}`} value={shares[member.id] ?? ""} onChangeText={v => setShares(s => ({ ...s, [member.id]: v.replace(",", ".") }))} placeholder="0.00" placeholderTextColor="#666" editable={!busy} keyboardType="decimal-pad" className="text-white p-2 bg-white/5 rounded-xl w-24 text-right" /> : <Text className="text-white/70">{breakdown[i].amount} {unit}</Text>}
+            {custom ? <TextInput accessibilityLabel={`Share for @${member.handle}`} value={shares[member.id] ?? ""} onChangeText={v => setShares(s => ({ ...s, [member.id]: v.replace(",", ".") }))} placeholder="0.00" placeholderTextColor="#666" editable={!busy} keyboardType="decimal-pad" className="text-white p-2 bg-white/5 rounded-xl w-24 text-right" /> : <Text className="text-white/70">{breakdown[i].amount} {unit}</Text>}
           </View>)}
           <Text className="text-white/60 text-sm leading-5 my-4">Each participant gets a share to accept or dispute. Equal shares allocate the remaining cents exactly.</Text>
           {members.length < 2 && <Text className="text-amber-300 text-sm mb-3">Add another person to this group before proposing an expense.</Text>}

@@ -4,6 +4,18 @@ import { ErrorHandler } from "../utils/errorHandler";
 import { groupService } from "../services/group.service";
 
 export const groupController = {
+  getInvitations: catchAsync(async (req, res) => {
+    const invitations = await groupService.getInvitations(req.user.id);
+    res.json({ success: true, invitations });
+  }),
+  acceptInvitation: catchAsync(async (req, res) => {
+    await groupService.acceptInvitation(req.params.groupId, req.user.id);
+    res.json({ success: true });
+  }),
+  declineInvitation: catchAsync(async (req, res) => {
+    await groupService.declineInvitation(req.params.groupId, req.user.id);
+    res.json({ success: true });
+  }),
   decideSplit: catchAsync(async (req, res) => {
     const split = await groupService.decideSplit(req.params.expenseId, req.user.id, req.body.decision);
     res.json({ success: true, split });

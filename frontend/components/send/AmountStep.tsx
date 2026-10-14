@@ -24,6 +24,7 @@ import {
 } from "@/services/transaction.service";
 import { useAlertStore } from "@/stores/useAlertStore";
 import { COLORS } from "@/utils/constants";
+import { balancesKnown, usdValuesKnown } from "@/utils/balanceDisplay";
 import {
   formatTokenAmount,
   formatCurrency,
@@ -58,7 +59,7 @@ export const AmountStep = ({
   const prefilledNote = (params.prefilledNote as string) || "";
 
   const { user } = useAuthStore();
-  const { assets, isLoadingBalances, refreshBalances, getAssetBySymbol } =
+  const { assets, isLoadingBalances, refreshBalances, getAssetBySymbol, balanceSource } =
     useWalletStore();
   const {
     isLoading: isTransactionLoading,
@@ -433,14 +434,21 @@ export const AmountStep = ({
         ) : (
           <>
             <Text className="text-base mt-2 text-muted">
-              {formatTokenAmount(
-                parseAmount(selectedToken.balance),
-                selectedToken.symbol,
-              )}{" "}
-              · Balance:{" "}
-              {formatCurrency(
-                parseAmount(selectedToken.usdValue.replace(/[$,]/g, "")),
-              )}
+              {!balancesKnown(balanceSource)
+                ? "Balance unavailable"
+                : (
+                    <>
+                      {formatTokenAmount(
+                        parseAmount(selectedToken.balance),
+                        selectedToken.symbol,
+                      )}{" "}
+                      {usdValuesKnown(balanceSource)
+                        ? `· Balance: ${formatCurrency(
+                            parseAmount(selectedToken.usdValue.replace(/[$,]/g, "")),
+                          )}`
+                        : "· USD value unavailable"}
+                    </>
+                  )}
             </Text>
             {amountValue > 0 && selectedToken.usdPrice > 0 && (
               <Text

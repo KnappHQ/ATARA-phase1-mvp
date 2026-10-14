@@ -17,6 +17,7 @@ import { AssetBalanceCarousel } from "./AssetBalanceCarousel";
 import { useWalletStore } from "@/stores/useWalletStore";
 import { useAuthStore } from "@/stores/useAuthStore";
 import { splitUsd } from "@/utils/walletBalance";
+import { UNAVAILABLE, balancesKnown, describeValuation, formatAssetBalance, usdValuesKnown } from "@/utils/balanceDisplay";
 
 interface BalanceRevealSectionProps {
   children?: ReactNode;
@@ -39,7 +40,9 @@ export const BalanceRevealSection = ({
     assets,
     balanceSource,
     balanceError,
+    valuation,
   } = useWalletStore();
+  const valuationNote = balanceSource === "service" ? describeValuation(valuation) : null;
   const usd = splitUsd(totalUSDValue);
   const primaryStable = assets.find((asset) => asset.symbol === "USDC");
   // Nothing has ever been read and the last attempt failed: the zeros in the
@@ -195,8 +198,10 @@ export const BalanceRevealSection = ({
             ) : balanceSource === "chain" && !isBalanceRevealed ? (
               <View className="items-center mb-3 px-6">
                 <Text className="text-5xl font-bold text-white text-center">
-                  {primaryStable?.balance ?? "0"}
-                  <Text className="text-2xl text-white/40"> USDC</Text>
+                  {formatAssetBalance(primaryStable?.balance, true)}
+                  {formatAssetBalance(primaryStable?.balance, true) === UNAVAILABLE ? null : (
+                    <Text className="text-2xl text-white/40"> USDC</Text>
+                  )}
                 </Text>
                 <Text className="text-xs text-white/45 text-center mt-2 leading-5">
                   Read directly from the Base network. ATARA&apos;s price service is
@@ -207,6 +212,8 @@ export const BalanceRevealSection = ({
               <View className="items-center mb-3 w-full">
                 <AssetBalanceCarousel
                   assets={assets}
+                  balancesKnown={balancesKnown(balanceSource)}
+                  usdKnown={usdValuesKnown(balanceSource)}
                   selectedIndex={selectedAssetIndex}
                   onSelect={setSelectedAssetIndex}
                 />
@@ -220,6 +227,12 @@ export const BalanceRevealSection = ({
               <Text className="text-5xl font-bold text-white mb-3 text-center">
                 ${usd.whole}
                 <Text className="text-3xl text-white/40">.{usd.cents}</Text>
+              </Text>
+            )}
+
+            {!stealthMode && valuationNote && (
+              <Text accessibilityRole="text" className="text-xs text-white/45 text-center mt-2 px-6 leading-5">
+                {valuationNote}
               </Text>
             )}
 

@@ -117,3 +117,15 @@ test("preview inherits beta build-profile env", () => {
     EXPO_PUBLIC_DEMO_MODE: "false",
   });
 });
+
+test("a beta cannot ship with card purchase on", () => {
+  assert.deepEqual(checkRelease({ ...betaEnv, EXPO_PUBLIC_ENABLE_CARD_PURCHASE: "false" }, "beta"), []);
+  const failures = checkRelease({ ...betaEnv, EXPO_PUBLIC_ENABLE_CARD_PURCHASE: "true" }, "beta");
+  assert.ok(failures.some((failure) => failure.includes("ENABLE_CARD_PURCHASE")));
+});
+
+test("the checked-in beta profile keeps card purchase off", () => {
+  const eas = JSON.parse(require("node:fs").readFileSync(require("node:path").join(__dirname, "../eas.json"), "utf8"));
+  const env = resolveProfileEnv(eas, "beta");
+  assert.notEqual(env.EXPO_PUBLIC_ENABLE_CARD_PURCHASE, "true");
+});

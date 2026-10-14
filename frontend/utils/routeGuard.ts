@@ -29,6 +29,7 @@ export const PROTECTED_ROUTES = [
   "sovereignty",
   "plans",
   "card",
+  "blocked-users",
   "vault-create",
   "vault-detail",
 ] as const;

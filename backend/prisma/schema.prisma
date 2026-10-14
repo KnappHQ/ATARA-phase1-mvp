@@ -38,6 +38,9 @@ model User {
   paidExpenses     GroupExpense[]      @relation("PaidExpenses")
   expenseSplits    GroupExpenseSplit[]
   feedbacks        Feedback[]
+  blocksMade       UserBlock[]         @relation("BlocksMade")
+  blocksReceived   UserBlock[]         @relation("BlocksReceived")
+  reportsMade      UserReport[]
   recoveryCodes    RecoveryCode[]
   milesEntries     MilesEntry[]
   cardWaitlist     CardWaitlist?
@@ -125,10 +128,15 @@ model Group {
 }
 
 model GroupMember {
-  id       String   @id @default(uuid())
-  groupId  String
-  userId   String
-  joinedAt DateTime @default(now())
+  id          String       @id @default(uuid())
+  groupId     String
+  userId      String
+  joinedAt    DateTime     @default(now())
+  // A person added by someone else is INVITED until they accept: no expense can
+  // be assigned to them, and they cannot see the group's expenses, before then.
+  // Members that existed before consent was added are ACTIVE.
+  status      MemberStatus @default(ACTIVE)
+  invitedById String?
 
   group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id])
@@ -268,6 +276,61 @@ model PaymentRequest {
   txHash           String?
 
   @@index([creatorId, createdAt])
+}
+
+enum MemberStatus {
+  ACTIVE
+  INVITED
+}
+
+enum ReportReason {
+  SPAM
+  SCAM
+  HARASSMENT
+  INAPPROPRIATE
+  IMPERSONATION
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  REVIEWED
+  ACTIONED
+}
+
+// Who blocked whom. Deleting either account removes the row.
+model UserBlock {
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("BlocksMade", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+  @@index([blockedId])
+}
+
+// A report about another user, kept for review. The reported user is kept as an
+// id and a handle snapshot with no foreign key: a report outlives the account it
+// is about. The reporter is unlinked, and the text erased, if they delete theirs.
+model UserReport {
+  id             String       @id @default(uuid())
+  reporterId     String?
+  reportedId     String
+  reportedHandle String
+  reason         ReportReason
+  details        String       @default("")
+  context        String?
+  contextId      String?
+  status         ReportStatus @default(OPEN)
+  createdAt      DateTime     @default(now())
+  reviewedAt     DateTime?
+
+  reporter User? @relation(fields: [reporterId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([reportedId])
 }
 
 model Feedback {

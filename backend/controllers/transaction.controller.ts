@@ -13,7 +13,7 @@ export const transactionController = {
         throw new ErrorHandler("Handle is required", 400);
       }
 
-      const user = await transactionService.resolveHandle(handle);
+      const user = await transactionService.resolveHandle(handle, req.user?.id);
 
       res.status(200).json({
         success: true,

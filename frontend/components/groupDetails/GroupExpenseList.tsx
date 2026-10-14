@@ -7,11 +7,13 @@ import { GroupExpenseItem } from "./GroupExpenseItem";
 interface GroupExpenseListProps {
   expenses: GroupExpenseDetail[];
   memberCount: number;
+  onReport?: (handle: string, expenseId: string) => void;
 }
 
 export const GroupExpenseList = ({
   expenses,
   memberCount,
+  onReport,
 }: GroupExpenseListProps) => {
   return (
     <View>
@@ -48,6 +50,7 @@ export const GroupExpenseList = ({
               expense={expense}
               index={index}
               memberCount={memberCount}
+              onReport={onReport}
             />
           ))}
         </View>

@@ -1,3 +1,4 @@
+import { safetyService } from "./safety.service";
 import { ethers } from "ethers";
 import axios from "axios";
 import prisma from "../config/prisma";
@@ -35,7 +36,7 @@ interface AlchemyTransfer {
 }
 
 class TransactionService {
-  public async resolveHandle(handle: string) {
+  public async resolveHandle(handle: string, requesterId?: string) {
     const user = await prisma.user.findUnique({
       where: { handle, deletedAt: null },
       select: {
@@ -48,7 +49,8 @@ class TransactionService {
       },
     });
 
-    if (!user) {
+    // A block reads exactly like an account that does not exist.
+    if (!user || (requesterId && user.id !== requesterId && (await safetyService.isBlockedEitherWay(requesterId, user.id)))) {
       throw new ErrorHandler(`User @${handle} not found`, 404);
     }
 
@@ -253,6 +255,10 @@ class TransactionService {
       this.fetchAlchemyHistory(walletAddress),
     ]);
 
+    // A note written by someone you blocked (or who blocked you) is not shown.
+    // The payment itself stays in the history: it is a record of money moved.
+    const blocked = await safetyService.blockedBothWays(userId);
+
     const dbTxHashes = new Set(
       dbTransactions.map((tx) => tx.txHash.toLowerCase()),
     );
@@ -266,7 +272,9 @@ class TransactionService {
       amount: tx.amount.toString(),
       assetSymbol: tx.assetSymbol,
       category: tx.category,
-      userNote: tx.userNote,
+      userNote: blocked.has(tx.senderId === userId ? (tx.receiverId ?? "") : tx.senderId) ? null : tx.userNote,
+      noteHidden:
+        !!tx.userNote && blocked.has(tx.senderId === userId ? (tx.receiverId ?? "") : tx.senderId),
       type: tx.senderId === userId ? ("send" as const) : ("receive" as const),
       isInApp: true,
       counterparty: {

@@ -104,7 +104,7 @@ export const MemberBalanceList = ({
                   </Text>
                   {isSettled ? <Text className="text-white/40 text-xs">No accepted shares to pay</Text> : <View>
                     {owesThem && <Text className="text-white/70 text-xs mt-1">You owe {b.owedByMe.toFixed(2)} {unit}</Text>}
-                    {owesMe && <Text style={{ color: COLORS.accent }} className="text-xs mt-1">Te doit {b.owedToMe.toFixed(2)} {unit}</Text>}
+                    {owesMe && <Text style={{ color: COLORS.accent }} className="text-xs mt-1">Owes you {b.owedToMe.toFixed(2)} {unit}</Text>}
                     {owesMe && <Pressable onPress={() => Share.share({ message: `Hi @${b.handle}, a reminder about your accepted share of ${b.owedToMe.toFixed(2)} ${unit} in our ATARA group. Open Groups to review and settle it. Thanks!` })}><Text className="text-white/50 text-xs mt-2">Share a reminder</Text></Pressable>}
                   </View>}
                 </View>

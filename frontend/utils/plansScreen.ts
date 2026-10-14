@@ -35,7 +35,11 @@ export interface PlansView {
   /** Shown above the content while loading or when live details could not be had. */
   notice: { kind: "loading" | "unavailable"; text: string; canRetry: boolean } | null;
   plans: PlanCardView[];
-  miles: { balanceLabel: string; status: string; lines: string[] };
+  /**
+   * Never a made-up number: "Coming soon" until Miles are live, then the server's
+   * balance, or "Loading…" / "Unavailable" while it is not known.
+   */
+  miles: { state: "coming-soon" | "loading" | "unavailable" | "live"; valueLabel: string; status: string; lines: string[] };
   footnote: string;
 }
 
@@ -63,12 +67,31 @@ const plannedHighlights = (plan: PlanInfo | undefined, free: PlanInfo | undefine
   return lines.length ? lines : ["Details will appear here when this plan opens."];
 };
 
+/**
+ * Miles are earned on card spending and the card has not launched, so no balance
+ * exists to show yet. Flip this when the card goes live; never infer it from a
+ * balance of 0 or from a missing answer.
+ */
+export const MILES_LIVE = false;
+
+const milesView = (
+  milesLive: boolean,
+  load: PlansLoad,
+  mine: MyEntitlements | null,
+): Pick<PlansView["miles"], "state" | "valueLabel"> => {
+  if (!milesLive) return { state: "coming-soon", valueLabel: "Coming soon" };
+  if (mine) return { state: "live", valueLabel: `Miles balance: ${mine.milesBalance.toLocaleString("en-US")}` };
+  if (load.status === "loading") return { state: "loading", valueLabel: "Loading…" };
+  return { state: "unavailable", valueLabel: "Unavailable" };
+};
+
 export const buildPlansView = (input: {
   load: PlansLoad;
   plans: PlanInfo[] | null;
   mine: MyEntitlements | null;
+  milesLive?: boolean;
 }): PlansView => {
-  const { load, plans, mine } = input;
+  const { load, plans, mine, milesLive = MILES_LIVE } = input;
   const byId = (id: PlanId) => plans?.find((plan) => plan.id === id);
   const free = byId("FREE");
   // The server decides. Without its answer, nothing else can be purchased, so Free is the plan.
@@ -97,13 +120,12 @@ export const buildPlansView = (input: {
           }
         : null;
 
-  const balance = mine?.milesBalance ?? 0;
   return {
     heading: "ATARA Plans",
     notice,
     plans: cards,
     miles: {
-      balanceLabel: `Miles balance: ${balance.toLocaleString("en-US")}`,
+      ...milesView(milesLive, load, mine),
       status: "Card rewards coming soon",
       lines: [
         "ATARA Miles are earned on card spending once the card launches.",

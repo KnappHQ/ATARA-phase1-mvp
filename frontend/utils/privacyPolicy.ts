@@ -1,4 +1,4 @@
-export const PRIVACY_POLICY_LAST_UPDATED = "28/09/2026";
+export const PRIVACY_POLICY_LAST_UPDATED = "04/10/2026";
 
 export const PRIVACY_POLICY_FOOTER_TEXT = "ATARA LTD — privacy@atara.finance";
 
@@ -35,6 +35,7 @@ export const PRIVACY_POLICY_SECTIONS: PrivacyPolicySection[] = [
       "Technical information: device type, operating system, app version, IP address received by our servers, and security or diagnostic information needed to operate the Service.",
       "Usage information: limited product events may be processed if analytics is enabled. Passive product analytics is disabled for the current beta unless separately disclosed and enabled.",
       "Communications: information you provide when you contact support or send feedback.",
+      "Safety: the users you block, and the reports you make about other users (the reason and any text you write). They are kept so we can review them, and used only for that. If you delete your account, the text of reports you made is erased and the report is unlinked from you.",
       "We do not ask you to provide a seed phrase or private key to ATARA support.",
     ],
   },

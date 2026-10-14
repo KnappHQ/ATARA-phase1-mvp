@@ -6,6 +6,7 @@ import { ALCHEMY_URL, ALCHEMY_KEY } from "../utils/constants";
 import { NETWORK } from "../utils/constants";
 import { getKnownTokens } from "../utils/tokenConfig";
 import { logError } from "../utils/logger";
+import { buildPortfolio, resolveQuote, type HoldingInput } from "../utils/portfolioPricing";
 
 const KNOWN_TOKENS = getKnownTokens(NETWORK as "base-sepolia" | "base-mainnet");
 
@@ -38,95 +39,30 @@ class WalletService {
           this.getHistoricalPrices(["ETH", "USDT", "USDC"]),
         ]);
 
-      // Build token data with balances and USD values
-      const tokens = [];
-      let totalUSD = 0;
-      let totalUSD24hAgo = 0;
-
-      // ETH
-      const ethBalanceNum = parseFloat(ethBalance);
-      const ethCurrentPrice = currentPrices.ETH || 0;
-      const ethPrice24hAgo = historicalPrices.ETH || ethCurrentPrice;
-      const ethUSDValue = ethBalanceNum * ethCurrentPrice;
-      const ethUSDValue24hAgo = ethBalanceNum * ethPrice24hAgo;
-
-      tokens.push({
-        symbol: "ETH",
-        name: "Ethereum",
-        balance: ethBalanceNum.toFixed(6),
-        usdValue: ethUSDValue,
-        usdPrice: ethCurrentPrice,
-        change24h: ethUSDValue - ethUSDValue24hAgo,
-        percentChange24h:
-          ethPrice24hAgo > 0
-            ? ((ethCurrentPrice - ethPrice24hAgo) / ethPrice24hAgo) * 100
-            : 0,
-        decimals: 18,
+      const at = Date.now();
+      const holding = (
+        symbol: string,
+        name: string,
+        amount: string,
+        displayDecimals: number,
+        decimals: number,
+        contractAddress?: string,
+      ): HoldingInput => ({
+        symbol,
+        name,
+        amount: parseFloat(amount),
+        displayDecimals,
+        decimals,
+        contractAddress,
+        quote: resolveQuote(symbol, currentPrices[symbol] ?? null, at),
+        price24hAgo: historicalPrices[symbol] ?? null,
       });
 
-      totalUSD += ethUSDValue;
-      totalUSD24hAgo += ethUSDValue24hAgo;
-
-      // USDT
-      const usdtBalance = parseFloat(tokenBalances.USDT);
-      const usdtCurrentPrice = currentPrices.USDT || 1;
-      const usdtPrice24hAgo = historicalPrices.USDT || usdtCurrentPrice;
-      const usdtUSDValue = usdtBalance * usdtCurrentPrice;
-      const usdtUSDValue24hAgo = usdtBalance * usdtPrice24hAgo;
-
-      tokens.push({
-        symbol: "USDT",
-        name: "Tether USD",
-        balance: usdtBalance.toFixed(2),
-        usdValue: usdtUSDValue,
-        usdPrice: usdtCurrentPrice,
-        change24h: usdtUSDValue - usdtUSDValue24hAgo,
-        percentChange24h:
-          usdtPrice24hAgo > 0
-            ? ((usdtCurrentPrice - usdtPrice24hAgo) / usdtPrice24hAgo) * 100
-            : 0,
-        decimals: 6,
-        contractAddress: KNOWN_TOKENS.USDT.address,
-      });
-
-      totalUSD += usdtUSDValue;
-      totalUSD24hAgo += usdtUSDValue24hAgo;
-
-      // USDC
-      const usdcBalance = parseFloat(tokenBalances.USDC);
-      const usdcCurrentPrice = currentPrices.USDC || 1;
-      const usdcPrice24hAgo = historicalPrices.USDC || usdcCurrentPrice;
-      const usdcUSDValue = usdcBalance * usdcCurrentPrice;
-      const usdcUSDValue24hAgo = usdcBalance * usdcPrice24hAgo;
-
-      tokens.push({
-        symbol: "USDC",
-        name: "USD Coin",
-        balance: usdcBalance.toFixed(2),
-        usdValue: usdcUSDValue,
-        usdPrice: usdcCurrentPrice,
-        change24h: usdcUSDValue - usdcUSDValue24hAgo,
-        percentChange24h:
-          usdcPrice24hAgo > 0
-            ? ((usdcCurrentPrice - usdcPrice24hAgo) / usdcPrice24hAgo) * 100
-            : 0,
-        decimals: 6,
-        contractAddress: KNOWN_TOKENS.USDC.address,
-      });
-
-      totalUSD += usdcUSDValue;
-      totalUSD24hAgo += usdcUSDValue24hAgo;
-
-      const change24h = totalUSD - totalUSD24hAgo;
-      const percentChange24h =
-        totalUSD24hAgo > 0 ? (change24h / totalUSD24hAgo) * 100 : 0;
-
-      return {
-        totalUSD: parseFloat(totalUSD.toFixed(2)),
-        change24h: parseFloat(change24h.toFixed(2)),
-        percentChange24h: parseFloat(percentChange24h.toFixed(2)),
-        tokens,
-      };
+      return buildPortfolio([
+        holding("ETH", "Ethereum", ethBalance, 6, 18),
+        holding("USDT", "Tether USD", tokenBalances.USDT, 2, 6, KNOWN_TOKENS.USDT.address),
+        holding("USDC", "USD Coin", tokenBalances.USDC, 2, 6, KNOWN_TOKENS.USDC.address),
+      ]);
     } catch (error: any) {
       logError("wallet.portfolio", error);
       // A fixed message on purpose. The provider's own error text can carry
@@ -206,8 +142,8 @@ class WalletService {
    */
   private async getCurrentPrices(
     symbols: string[],
-  ): Promise<Record<string, number>> {
-    const prices: Record<string, number> = {};
+  ): Promise<Record<string, number | null>> {
+    const prices: Record<string, number | null> = {};
     const pricesURL = "https://api.g.alchemy.com/prices/v1";
 
     try {
@@ -230,11 +166,11 @@ class WalletService {
           ) {
             prices[symbol] = parseFloat(response.data.data[0].prices[0].value);
           } else {
-            prices[symbol] = symbol === "ETH" ? 3000 : 1;
+            prices[symbol] = null;
           }
         } catch (error) {
           logError("wallet.price", error, { symbol });
-          prices[symbol] = symbol === "ETH" ? 3000 : 1;
+          prices[symbol] = null;
         }
       });
 
@@ -242,7 +178,7 @@ class WalletService {
       return prices;
     } catch (error) {
       logError("wallet.prices", error);
-      return { ETH: 3000, USDT: 1, USDC: 1 };
+      return Object.fromEntries(symbols.map((symbol) => [symbol, null]));
     }
   }
 
@@ -251,8 +187,8 @@ class WalletService {
    */
   private async getHistoricalPrices(
     symbols: string[],
-  ): Promise<Record<string, number>> {
-    const prices: Record<string, number> = {};
+  ): Promise<Record<string, number | null>> {
+    const prices: Record<string, number | null> = {};
     const pricesURL = "https://api.g.alchemy.com/prices/v1";
 
     const now = new Date();
@@ -280,12 +216,12 @@ class WalletService {
             // Get first price (24h ago)
             prices[symbol] = parseFloat(response.data.data[0].value);
           } else {
-            // Fallback to current price (no change)
-            prices[symbol] = symbol === "ETH" ? 3000 : 1;
+            // No old price: the 24 h change is unknown, not "no change".
+            prices[symbol] = null;
           }
         } catch (error) {
           logError("wallet.historical-price", error, { symbol });
-          prices[symbol] = symbol === "ETH" ? 3000 : 1;
+          prices[symbol] = null;
         }
       });
 
@@ -293,7 +229,7 @@ class WalletService {
       return prices;
     } catch (error) {
       logError("wallet.historical-prices", error);
-      return { ETH: 3000, USDT: 1, USDC: 1 };
+      return Object.fromEntries(symbols.map((symbol) => [symbol, null]));
     }
   }
 }

@@ -1,7 +1,8 @@
 import "react-native-get-random-values";
 import { useState } from "react";
 import { useRouter } from "expo-router";
-import { View, Text, ScrollView, Pressable } from "react-native";
+import { SUPPORT_EMAIL } from "@/utils/site";
+import { View, Text, ScrollView, Pressable, Linking } from "react-native";
 import { MotiView } from "moti";
 import {
   LogOut,
@@ -13,6 +14,8 @@ import {
   KeyRound,
   Network,
   Users,
+  UserX,
+  LifeBuoy,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { COLORS } from "@/utils/constants";
@@ -257,7 +260,33 @@ export default function ProfileTab() {
             right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
           />
 
-          <SectionHeader title="Legal" delay={360} />
+          <SectionHeader title="Safety" delay={360} />
+
+          <SettingRow
+            icon={UserX}
+            label="Blocked users"
+            subtitle="People you blocked. Report someone from their profile, a note or a group."
+            delay={375}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push("/blocked-users" as never);
+            }}
+            right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
+          />
+
+          <SettingRow
+            icon={LifeBuoy}
+            label="Report a problem"
+            subtitle={`${SUPPORT_EMAIL}. We review reports within 24 hours.`}
+            delay={385}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent("ATARA: report a problem")}`).catch(() => undefined);
+            }}
+            right={<ChevronRight size={16} color={`${COLORS.white}30`} />}
+          />
+
+          <SectionHeader title="Legal" delay={395} />
 
           <SettingRow
             icon={FileText}

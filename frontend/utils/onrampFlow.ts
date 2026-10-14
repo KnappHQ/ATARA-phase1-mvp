@@ -84,6 +84,79 @@ export const validateCheckoutUrl = (raw: unknown, expectedHost = "buy-sandbox.mo
 };
 
 // ---------------------------------------------------------------------------
+// The checkout inside the app (react-native-webview)
+
+/** How long the first page may take to load before the person is offered Retry / Close. */
+export const CHECKOUT_LOAD_TIMEOUT_MS = 20_000;
+
+/**
+ * The `redirectURL` the server signed into the URL, read (never changed), or null.
+ * When MoonPay navigates there, the checkout is over and the app closes the view.
+ */
+export const readRedirectUrl = (signedUrl: string): string | null => {
+  const query = signedUrl.split("#")[0].split("?")[1] ?? "";
+  const param = query.split("&").find((part) => part.startsWith("redirectURL="));
+  if (!param) return null;
+  try {
+    const value = decodeURIComponent(param.slice("redirectURL=".length).replace(/\+/g, " "));
+    return /^https:\/\//i.test(value) ? value : null;
+  } catch {
+    return null;
+  }
+};
+
+const originAndPath = (raw: string): string | null => {
+  const match = raw.match(/^(https:\/\/[^/?#]+)(\/[^?#]*)?/i);
+  return match ? `${match[1].toLowerCase()}${(match[2] ?? "/").replace(/\/+$/, "") || ""}` : null;
+};
+
+export type NavigationDecision = "load" | "return" | "external" | "block";
+
+/**
+ * What the in-app checkout does with a navigation:
+ *  - "return": it reaches the signed redirectURL (same origin and path), so the view closes;
+ *  - "load": any other https page, or the about:/blob:/data: frames payment pages use;
+ *  - "external": mailto:, tel:, an app link: handed to iOS, never loaded in the view;
+ *  - "block": plain http or javascript:, never loaded.
+ */
+export const decideNavigation = (url: string, redirectUrl: string | null): NavigationDecision => {
+  if (redirectUrl) {
+    const target = originAndPath(redirectUrl);
+    if (target && originAndPath(url) === target) return "return";
+  }
+  if (/^https:\/\//i.test(url) || /^(about|blob|data):/i.test(url)) return "load";
+  if (/^(http|javascript|file|ftp):/i.test(url)) return "block";
+  return /^[a-z][a-z0-9+.-]*:/i.test(url) ? "external" : "block";
+};
+
+export interface WebViewProblem {
+  kind: "load" | "http" | "timeout";
+  code?: number;
+  statusCode?: number;
+}
+
+/** iOS (NSURLError) and Android (WebViewClient) codes that mean "no usable network". */
+const OFFLINE_CODES = new Set([-1009, -1005, -1004, -1003, -1001, -1020, -2, -6, -8]);
+
+/** What to tell the person when the checkout page itself cannot be shown. Never includes the URL. */
+export const classifyWebViewError = (problem: WebViewProblem): OnrampFailure => {
+  if (problem.kind === "timeout") {
+    return { message: "MoonPay is taking too long to load. Check your connection, then try again.", code: "APP-CHECKOUT-TIMEOUT" };
+  }
+  if (problem.kind === "http") {
+    const status = problem.statusCode ?? 0;
+    return {
+      message: status >= 500 ? "MoonPay is not responding right now. Try again in a moment." : "MoonPay refused to open this checkout. Try again to get a new one.",
+      code: `APP-CHECKOUT-HTTP-${status || "UNKNOWN"}`,
+    };
+  }
+  if (problem.code !== undefined && OFFLINE_CODES.has(problem.code)) {
+    return { message: "No connection to MoonPay. Check your connection, then try again.", code: "APP-CHECKOUT-OFFLINE" };
+  }
+  return { message: "MoonPay could not be loaded. Try again.", code: "APP-CHECKOUT-LOAD" };
+};
+
+// ---------------------------------------------------------------------------
 // What to tell the person
 
 export interface OnrampFailure {
@@ -109,6 +182,9 @@ export const classifyOnrampError = (error: unknown): OnrampFailure => {
   }
   if (SERVER_CONFIG_MESSAGES.some((known) => serverMessage.startsWith(known))) {
     return { message: "MoonPay is not set up correctly on our side, so nothing was opened. This is not a problem with your account.", ...(code ? { code } : {}) };
+  }
+  if (serverMessage === "Your connection could not be verified") {
+    return { message: "MoonPay could not be prepared for the connection you are on. Turn off any VPN or proxy, then try again.", ...(code ? { code } : {}) };
   }
   if (serverMessage === "Your smart account is not ready yet. Finish wallet setup first.") return { message: serverMessage };
   if (kind === "unknown" && serverMessage) return { message: serverMessage, ...(code ? { code } : {}) };

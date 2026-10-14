@@ -18,6 +18,7 @@ import { useSmartAccountService } from "@/services/smartAccount.service";
 import { useTransactionService } from "@/services/transaction.service";
 import { PaymentReview } from "@/components/send/PaymentReview";
 import { useWalletStore } from "@/stores/useWalletStore";
+import { UNAVAILABLE, balancesKnown } from "@/utils/balanceDisplay";
 import { useAuthStore } from "@/stores/useAuthStore";
 import {
   baseUnitsToDecimal,
@@ -33,7 +34,9 @@ export default function PayMerchantScreen() {
   const { user } = useAuthStore();
   const service = useSmartAccountService();
   const transactionService = useTransactionService(service);
-  const { assets, refreshBalances } = useWalletStore();
+  const { assets, refreshBalances, balanceSource, isLoadingBalances } = useWalletStore();
+  // Until a balance has been read, the number on the token is a placeholder: never shown as 0.
+  const balanceKnown = DEMO_MODE || balancesKnown(balanceSource);
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
   // Empty by default: a note is shared with the recipient, so it is written
@@ -99,15 +102,16 @@ export default function PayMerchantScreen() {
   const isValidAddress = ADDRESS_PATTERN.test(rawAddress);
   const normalizedAmount = normalizeDecimalAmount(amount);
   const balanceText = useMemo(() => {
-    if (!selectedToken) return "0.00";
+    if (!selectedToken) return UNAVAILABLE;
     if (DEMO_MODE && selectedToken.symbol === "USDC") return "500.00";
-    return selectedToken.balance || "0.00";
-  }, [selectedToken]);
+    return balanceKnown && selectedToken.balance ? selectedToken.balance : UNAVAILABLE;
+  }, [selectedToken, balanceKnown]);
   const maxDecimals = selectedToken?.decimals ?? 6;
   const amountInBaseUnits = normalizedAmount
     ? decimalToBaseUnits(normalizedAmount, maxDecimals)
     : null;
-  const balanceInBaseUnits = decimalToBaseUnits(balanceText, maxDecimals);
+  // An unknown balance is neither enough nor too little: the payment waits for a real one.
+  const balanceInBaseUnits = balanceText === UNAVAILABLE ? null : decimalToBaseUnits(balanceText, maxDecimals);
   const isValidAmount = amountInBaseUnits !== null && amountInBaseUnits > 0n;
   const hasValidDecimals = amountInBaseUnits !== null;
   const hasBalance =
@@ -250,7 +254,7 @@ export default function PayMerchantScreen() {
                         : "rgba(255,255,255,0.5)",
                     }}
                   >
-                    {token.balance}
+                    {balanceKnown && token.balance ? token.balance : "—"}
                   </Text>
                 </Pressable>
               );
@@ -290,9 +294,18 @@ export default function PayMerchantScreen() {
             <Text className="text-white/60 text-lg">{selectedToken?.symbol ?? "—"}</Text>
           </View>
           <Text className="text-white/40 text-xs mt-2">
-            Available balance: {balanceText} {selectedToken?.symbol ?? ""}
+            {balanceText === UNAVAILABLE
+              ? isLoadingBalances
+                ? "Loading your balance…"
+                : "Balance unavailable right now."
+              : `Available balance: ${balanceText} ${selectedToken?.symbol ?? ""}`}
           </Text>
-          {isValidAmount && !hasBalance ? <Text className="text-red-300 text-xs mt-2">Amount exceeds your available balance.</Text> : null}
+          {balanceText === UNAVAILABLE && !isLoadingBalances ? (
+            <Pressable onPress={() => refreshBalances()} className="mt-1 self-start">
+              <Text style={{ color: COLORS.accent }} className="text-xs font-semibold">Try again</Text>
+            </Pressable>
+          ) : null}
+          {isValidAmount && balanceInBaseUnits !== null && !hasBalance ? <Text className="text-red-300 text-xs mt-2">Amount exceeds your available balance.</Text> : null}
           {amount.includes(".") && !hasValidDecimals ? <Text className="text-red-300 text-xs mt-2">{selectedToken?.symbol ?? "This token"} supports up to {maxDecimals} decimal places.</Text> : null}
 
           <TextInput

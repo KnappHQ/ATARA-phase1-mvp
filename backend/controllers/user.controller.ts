@@ -91,7 +91,7 @@ export const userController = {
         return res.status(200).json({ success: true, users: [] });
       }
 
-      const users = await userService.searchUsers(q);
+      const users = await userService.searchUsers(q, req.user.id);
 
       res.status(200).json({
         success: true,
@@ -118,7 +118,7 @@ export const userController = {
         throw new ErrorHandler("Handle is required", 400);
       }
 
-      const user = await userService.getUserByHandle(handle.toLowerCase());
+      const user = await userService.getUserByHandle(handle.toLowerCase(), false, req.user.id);
 
       if (includeAddress === "true") {
         res.status(200).json({
