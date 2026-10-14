@@ -61,6 +61,8 @@ export const MOONPAY_BASE_CURRENCY_CODE = env(
   "eur",
 );
 export const ONRAMP_REDIRECT_URL = env("ONRAMP_REDIRECT_URL");
+/** Where the customer's IP is read for MoonPay IP matching: "forwarded" (default) or "true-client-ip". See utils/clientIp.ts. */
+export const MOONPAY_CLIENT_IP_SOURCE = env("MOONPAY_CLIENT_IP_SOURCE", "forwarded");
 
 // Vault reads are public-chain reads. The factory address stays empty until the
 // Sepolia deployment has been reviewed and configured for the environment.
