@@ -61,6 +61,12 @@ export interface SubmissionOptions {
    * may move on while confirmation continues.
    */
   onSubmitted?: () => void;
+  /**
+   * Called with the prepared payment before anything is written or signed. It may
+   * throw to stop: nothing has been committed, so a throw here sends nothing. Used
+   * to check the real network fee against the one the person was shown.
+   */
+  onPrepared?: (prepared: any) => void | Promise<void>;
 }
 
 export const fingerprintOf = (calls: SubmissionCall[]): string =>
@@ -115,6 +121,13 @@ export const submitAndConfirm = async (options: SubmissionOptions): Promise<Subm
 
   // 2. Prepare. Nothing is committed yet, so a failure here leaves nothing behind.
   const prepared: any = await client.prepareCalls(request);
+  if (options.onPrepared) {
+    try {
+      await options.onPrepared(prepared);
+    } catch (error) {
+      throw Object.assign(error as Error, { notSent: true });
+    }
+  }
   const preparedHash = USER_OPERATIONS.has(prepared?.type) && isHash32(prepared?.details?.data?.hash) ? (prepared.details.data.hash as string) : undefined;
 
   // 3. Write the intent, THEN sign and send.
@@ -134,7 +147,7 @@ export const submitAndConfirm = async (options: SubmissionOptions): Promise<Subm
       const capabilities = capabilitiesForSending(overrides);
       ({ id } = await client.sendPreparedCalls({ ...signed, ...(capabilities ? { capabilities } : {}) }));
     } else {
-      // A shape this code does not split (e.g. an ERC-20 paymaster permit): the SDK does it whole.
+      // A shape this code does not split (e.g. a pre-operation ERC-20 permit; fees use the post-operation mode, which never takes this branch): the SDK does it whole.
       ({ id } = await client.sendCalls(request));
     }
   } catch (error) {

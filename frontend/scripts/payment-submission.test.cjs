@@ -326,3 +326,33 @@ test("a payment that fails after the screen moved on is still reported as failed
   assert.equal(told, 1);
   assert.equal(stored(storage), null);
 });
+
+test("onPrepared runs after prepare and before anything is stored or signed", async () => {
+  const order = [];
+  const { run, log, storage } = setup();
+  await run({ onPrepared: async () => void order.push(stored(storage) === null ? "nothing-stored" : "stored") });
+  assert.deepEqual(order, ["nothing-stored"]);
+  assert.deepEqual(log.slice(0, 2), ["prepare", "sign"]);
+});
+
+test("a fee check that stops the payment leaves no record and sends nothing", async () => {
+  const { run, log, storage } = setup();
+  const changed = Object.assign(new Error("The network fee changed. Please check and confirm again."), { code: "FEE_CHANGED" });
+  await assert.rejects(run({ onPrepared: () => { throw changed; } }), (error) => error.code === "FEE_CHANGED" && error.notSent === true);
+  assert.deepEqual(log, ["prepare"], "no signature and no send");
+  assert.equal(stored(storage), null, "no intent was written");
+});
+
+test("the fee capability is asked for in USDC and the split path still carries the paymaster policy", async () => {
+  const seen = {};
+  const { run } = setup({
+    prepare: (params) => { seen.prepare = params; return { type: "user-operation-v070", details: { data: { hash: OP_HASH } }, signatureRequest: {} }; },
+    send: (params) => { seen.send = params; return { id: CALL_ID }; },
+  });
+  const feeCapabilities = { paymaster: { policyId: "policy-1", erc20: { tokenAddress: USDC, postOpSettings: { autoApprove: true } } } };
+  await run({ overrides: feeCapabilities });
+  assert.equal(seen.prepare.capabilities.paymaster.erc20.tokenAddress, USDC);
+  assert.equal(seen.prepare.capabilities.paymaster.erc20.postOpSettings.autoApprove, true);
+  assert.equal(seen.prepare.capabilities.paymaster.erc20.preOpSettings, undefined, "post-operation mode: no permit, one signature");
+  assert.equal(seen.send.capabilities.paymaster.policyId, "policy-1");
+});
