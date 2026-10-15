@@ -31,6 +31,16 @@ test('receipt matching rejects spoofed token, payer, recipient, zero and ambiguo
   const proof = matchTokenTransfer([log(other), log()],token,to,from);
   assert.equal(proof.rawAmount.toString(),'1000000'); assert.equal(proof.sender,from);
 });
+test('the network fee, a second USDC transfer to the fee recipient in the same transaction, does not break payment matching', () => {
+  const feeRecipient = '0x0000000000000000000000000000000000000005';
+  const payment = log(token, from, to, 25000000);
+  const networkFee = log(token, from, feeRecipient, 20000);
+  for (const logs of [[payment, networkFee], [networkFee, payment]]) {
+    const proof = matchTokenTransfer(logs, token, to, from);
+    assert.equal(proof.rawAmount.toString(), '25000000', 'the payment is the transfer to the recipient, not the fee');
+    assert.equal(proof.sender, from);
+  }
+});
 test('a valid EOA receipt signature is accepted without an RPC request', async () => {
  const wallet=ethers.Wallet.createRandom(); const message='ATARA receipt confirmation\nRequest: test\nTransaction: 0x123';
  await verifyReceiptSigner(wallet.address,message,await wallet.signMessage(message));

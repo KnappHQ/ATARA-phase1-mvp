@@ -22,7 +22,7 @@ ATARA should make self-custody usable without pretending that every supporting s
 | Handles and contacts | ATARA API/PostgreSQL | ATARA-hosted service | Not portable yet |
 | Group expense metadata | ATARA API/PostgreSQL | ATARA-hosted service | Not portable yet |
 | Vault balances/rules | Vault contract where deployed | Base RPC plus ATARA index/read interface | On-chain state is inspectable; exit and deletion flows require contract/device evidence |
-| Sponsored gas | Alchemy paymaster policy | Alchemy | No user-paid fallback in this build: without sponsorship a payment is refused. Multi-provider routing is not implemented |
+| Network fees (paid in USDC) | Alchemy ERC-20 paymaster policy | Alchemy | Fee quote and payment both depend on Alchemy: without a quote the payment is blocked. Multi-provider routing is not implemented |
 
 The beta must say “self-custodial” or “wallet-only sign-in” when those claims are accurate. It must not describe the complete product as fully decentralized yet.
 

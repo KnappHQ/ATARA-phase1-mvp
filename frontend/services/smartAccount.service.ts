@@ -32,6 +32,16 @@ import {
   type AddressVerification,
 } from "@/utils/addressVerification";
 import { useExternalWallet } from "@/providers/ExternalWalletProvider";
+import { getTokenAddress } from "@/utils/tokenConfig";
+import {
+  FEE_MESSAGES,
+  checkPreparedFee,
+  classifyFeeFailure,
+  createFeeError,
+  isFeeError,
+  usableFee,
+  type FeeGuard,
+} from "@/utils/networkFee";
 
 // ERC-20 ABI for transfer function
 const ERC20_ABI = [
@@ -67,32 +77,21 @@ export interface SmartAccountCall {
   data: `0x${string}` | string;
 }
 
+export type { FeeGuard };
+
 export interface SendOptions {
   /** The provider has accepted the payment and it is on record: it can no longer be sent twice. */
   onSubmitted?: () => void;
+  /** Checked against the real fee before anything is signed. */
+  feeGuard?: FeeGuard;
 }
 
 export interface SendTransactionFailure extends Error {
   code?: string;
   cause?: unknown;
-  isPaymasterFailure?: boolean;
-  canRetryWithGas?: boolean;
   isPendingVerification?: boolean;
+  notSent?: boolean;
 }
-
-const PAYMASTER_ERROR_PATTERNS = [
-  /paymaster/i,
-  /gas sponsor/i,
-  /gas sponsorship/i,
-  /sponsorship/i,
-  /policy/i,
-  /limit reached/i,
-  /quota/i,
-  /insufficient funds for gas/i,
-  /simulation/i,
-  /validation reverted/i,
-  /AA23 reverted/i,
-];
 
 const normalizeErrorMessage = (error: unknown): string => {
   if (error instanceof Error) {
@@ -113,22 +112,19 @@ const normalizeErrorMessage = (error: unknown): string => {
   return "Transaction failed";
 };
 
-const isPaymasterFailure = (error: unknown): boolean => {
-  const message = normalizeErrorMessage(error);
-  return PAYMASTER_ERROR_PATTERNS.some((pattern) => pattern.test(message));
-};
-
 const createTransactionError = (
   message: string,
-  options?: { cause?: unknown; isPaymasterFailure?: boolean },
+  options?: { cause?: unknown },
 ): SendTransactionFailure => {
-  const error = new Error(message) as SendTransactionFailure;
+  const cause = options?.cause;
+  // A fee problem already carries its own plain message and code: keep it whole.
+  if (isFeeError(cause)) return cause;
+  const feeCode = classifyFeeFailure(message);
+  const error = new Error(feeCode ? FEE_MESSAGES[feeCode] : message) as SendTransactionFailure;
   error.name = "SendTransactionError";
-  error.cause = options?.cause;
-  error.isPaymasterFailure = options?.isPaymasterFailure;
-  error.code = options?.isPaymasterFailure ? "PAYMASTER_FAILURE" : undefined;
-  error.canRetryWithGas = options?.isPaymasterFailure ?? false;
-  error.isPendingVerification = !!(options?.cause as SendTransactionFailure)?.isPendingVerification;
+  error.cause = cause;
+  error.code = feeCode ?? undefined;
+  error.isPendingVerification = !!(cause as SendTransactionFailure)?.isPendingVerification;
   return error;
 };
 
@@ -150,7 +146,7 @@ const getAlchemyWalletConfig = () => {
       | undefined) ||
     ""
   ).trim();
-  const alchemyGasPolicyId = (
+  const alchemyFeePolicyId = (
     process.env.EXPO_PUBLIC_ALCHEMY_GAS_POLICY_ID ||
     (Constants.expoConfig?.extra?.EXPO_PUBLIC_ALCHEMY_GAS_POLICY_ID as
       | string
@@ -158,7 +154,7 @@ const getAlchemyWalletConfig = () => {
     ""
   ).trim();
 
-  return { alchemyApiKey, alchemyGasPolicyId };
+  return { alchemyApiKey, alchemyFeePolicyId };
 };
 
 const createOwnerSigner = async (wallet: EthereumSignerWallet) => {
@@ -206,7 +202,7 @@ export const createAlchemySmartAccountService = async ({
   wallet: EthereumSignerWallet;
   smartAccountAddress?: string | null;
 }): Promise<SmartAccountService> => {
-  const { alchemyApiKey, alchemyGasPolicyId } = getAlchemyWalletConfig();
+  const { alchemyApiKey, alchemyFeePolicyId } = getAlchemyWalletConfig();
 
   if (!alchemyApiKey) {
     throw new Error("Missing EXPO_PUBLIC_ALCHEMY_API_KEY");
@@ -243,7 +239,7 @@ export const createAlchemySmartAccountService = async ({
     );
   }
 
-  return new SmartAccountService(client, account.address, alchemyGasPolicyId);
+  return new SmartAccountService(client, account.address, alchemyFeePolicyId);
 };
 
 /**
@@ -279,16 +275,17 @@ const verifyStoredAddress = (
 export class SmartAccountService {
   private client: any;
   private smartAccountAddress: `0x${string}`;
-  private gasPolicyId?: string;
+  /** The Alchemy Gas Manager policy that lets the user pay the network fee in USDC (ERC-20 payments). */
+  private feePolicyId?: string;
 
   constructor(
     client: any,
     smartAccountAddress: `0x${string}`,
-    gasPolicyId?: string,
+    feePolicyId?: string,
   ) {
     this.client = client;
     this.smartAccountAddress = smartAccountAddress;
-    this.gasPolicyId = gasPolicyId;
+    this.feePolicyId = feePolicyId;
   }
 
   /** The wallet this service pays from. */
@@ -351,68 +348,84 @@ export class SmartAccountService {
         calls: calls.map((call) => ({ target: call.target, value: call.value, data: String(call.data) })),
         overrides,
         onSubmitted: options?.onSubmitted,
+        onPrepared: (prepared) => void checkPreparedFee(prepared, this.feeTokenAddress, options?.feeGuard),
       }),
     );
   }
 
-  private getGaslessCapabilities(): Record<string, unknown> {
-    if (!this.gasPolicyId) throw new Error("Gas sponsorship must be configured before beta payments.");
-    return { paymaster: { policyId: this.gasPolicyId } };
+  private get feeTokenAddress(): string {
+    return getTokenAddress("USDC", APP_NETWORK);
   }
 
-  async sendETHWithGas(
-    recipientAddress: string,
-    amount: string,
-  ): Promise<TransactionResult> {
-    if (!this.client) {
-      throw new Error("Smart account client not available");
-    }
-
-    try {
-      return await this.sendAndWaitForTxHash({
-        target: recipientAddress as `0x${string}`,
-        value: parseEther(amount),
-        data: "0x",
-      });
-    } catch (error: any) {
-      throw createTransactionError(error?.message || "ETH transfer failed", {
-        cause: error,
-        isPaymasterFailure:
-          isPaymasterFailure(error) || !!error?.isPaymasterFailure,
-      });
-    }
+  /**
+   * The user pays the network fee in USDC, from the same account (Alchemy's
+   * ERC-20 paymaster, post-operation mode with an exact approval). One signature,
+   * no permit and no separate approval transaction. Never a bare sponsorship
+   * policy, and never ETH.
+   */
+  private getFeeCapabilities(estimateOnly = false): Record<string, unknown> {
+    if (!this.feePolicyId) throw createFeeError("FEE_SERVICE");
+    return {
+      paymaster: {
+        policyId: this.feePolicyId,
+        ...(estimateOnly ? { onlyEstimation: true } : {}),
+        erc20: {
+          tokenAddress: this.feeTokenAddress,
+          postOpSettings: { autoApprove: true },
+        },
+      },
+    };
   }
 
-  async sendTokenWithGas(
-    recipientAddress: string,
-    amount: string,
-    tokenAddress: string,
-    decimals: number = 6,
-  ): Promise<TransactionResult> {
-    if (!this.client) {
-      throw new Error("Smart account client not available");
+  private transferCall(params: {
+    recipientAddress: string;
+    tokenSymbol: string;
+    tokenAddress?: string;
+    /** In base units of the token (wei for ETH). */
+    units: bigint;
+  }): SmartAccountCall {
+    if (params.tokenSymbol === "ETH") {
+      return { target: params.recipientAddress as `0x${string}`, value: params.units, data: "0x" };
     }
-
-    try {
-      const parsedAmount = parseUnits(amount, decimals);
-
-      const transferData = encodeFunctionData({
+    if (!params.tokenAddress) throw new Error(`Token address required for ${params.tokenSymbol} transfers`);
+    return {
+      target: params.tokenAddress as `0x${string}`,
+      value: 0n,
+      data: encodeFunctionData({
         abi: ERC20_ABI,
         functionName: "transfer",
-        args: [recipientAddress as `0x${string}`, parsedAmount],
-      });
+        args: [params.recipientAddress as `0x${string}`, params.units],
+      }),
+    };
+  }
 
-      return await this.sendAndWaitForTxHash({
-        target: tokenAddress as `0x${string}`,
-        value: 0n,
-        data: transferData,
+  /**
+   * The largest network fee, in USDC base units, a payment to this recipient in
+   * this token would cost. A quote only: it is never signed, and Alchemy is asked
+   * for an estimate so it does not count against the policy's pending total. The
+   * fee does not depend on the amount, so the probe moves one base unit.
+   * Throws FEE_UNAVAILABLE when no real fee comes back; it never invents one.
+   */
+  async estimateFee(params: {
+    recipientAddress: string;
+    tokenSymbol: string;
+    tokenAddress?: string;
+  }): Promise<bigint> {
+    try {
+      if (!this.client) throw new Error("Smart account client not available");
+      const call = this.transferCall({ ...params, units: 1n });
+      const prepared = await this.client.prepareCalls({
+        account: this.smartAccountAddress,
+        calls: [{ to: call.target, value: call.value ?? 0n, data: String(call.data) }],
+        capabilities: this.getFeeCapabilities(true),
       });
-    } catch (error: any) {
-      throw createTransactionError(error?.message || "Token transfer failed", {
-        cause: error,
-        isPaymasterFailure:
-          isPaymasterFailure(error) || !!error?.isPaymasterFailure,
-      });
+      const fee = usableFee(prepared, this.feeTokenAddress);
+      if (fee === null) throw createFeeError("FEE_UNAVAILABLE");
+      return fee;
+    } catch (error) {
+      if (isFeeError(error)) throw error;
+      Sentry.captureException(error);
+      throw createFeeError("FEE_UNAVAILABLE");
     }
   }
 
@@ -430,7 +443,7 @@ export class SmartAccountService {
         target: recipientAddress as `0x${string}`,
         value: parseEther(amount),
         data: "0x",
-      }, this.getGaslessCapabilities(), options);
+      }, this.getFeeCapabilities(), options);
 
       return result;
     } catch (error: any) {
@@ -438,8 +451,6 @@ export class SmartAccountService {
       Sentry.captureException(error);
       throw createTransactionError(error?.message || "ETH transfer failed", {
         cause: error,
-        isPaymasterFailure:
-          isPaymasterFailure(error) || !!error?.isPaymasterFailure,
       });
     }
   }
@@ -468,7 +479,7 @@ export class SmartAccountService {
         target: tokenAddress as `0x${string}`,
         value: 0n,
         data: transferData,
-      }, this.getGaslessCapabilities(), options);
+      }, this.getFeeCapabilities(), options);
 
       return result;
     } catch (error: any) {
@@ -476,8 +487,6 @@ export class SmartAccountService {
       Sentry.captureException(error);
       throw createTransactionError(error?.message || "Token transfer failed", {
         cause: error,
-        isPaymasterFailure:
-          isPaymasterFailure(error) || !!error?.isPaymasterFailure,
       });
     }
   }
@@ -507,48 +516,17 @@ export class SmartAccountService {
     }
   }
 
-  async sendTransactionWithGas(
-    params: SendTransactionParams,
-  ): Promise<TransactionResult> {
-    const { recipientAddress, amount, tokenSymbol, tokenAddress, decimals } =
-      params;
-
-    if (!recipientAddress || !amount || !tokenSymbol) {
-      throw new Error("Missing required transaction parameters");
-    }
-
-    if (parseFloat(amount) <= 0) {
-      throw new Error("Amount must be greater than 0");
-    }
-
-    if (tokenSymbol === "ETH") {
-      return this.sendETHWithGas(recipientAddress, amount);
-    }
-
-    if (!tokenAddress) {
-      throw new Error(`Token address required for ${tokenSymbol} transfers`);
-    }
-
-    return this.sendTokenWithGas(
-      recipientAddress,
-      amount,
-      tokenAddress,
-      decimals,
-    );
-  }
-
   /** Execute an ordered smart-account batch, such as approve + deposit. */
   async sendContractCalls(calls: SmartAccountCall[]): Promise<TransactionResult> {
     if (!this.client) throw new Error("Smart account client not available");
     if (calls.length === 0) throw new Error("At least one contract call is required");
 
     try {
-      return await this.sendCallsAndWait(calls, this.getGaslessCapabilities());
+      return await this.sendCallsAndWait(calls, this.getFeeCapabilities());
     } catch (error: any) {
       Sentry.captureException(error);
       throw createTransactionError(error?.message || "Contract transaction failed", {
         cause: error,
-        isPaymasterFailure: isPaymasterFailure(error) || !!error?.isPaymasterFailure,
       });
     }
   }

@@ -20,6 +20,8 @@ import { PaymentReview } from "@/components/send/PaymentReview";
 import { useWalletStore } from "@/stores/useWalletStore";
 import { UNAVAILABLE, balancesKnown } from "@/utils/balanceDisplay";
 import { useAuthStore } from "@/stores/useAuthStore";
+import { useNetworkFee } from "@/hooks/useNetworkFee";
+import { FEE_TOKEN_SYMBOL, assessSend, assetBaseUnits, formatFeeLine } from "@/utils/networkFee";
 import {
   baseUnitsToDecimal,
   decimalToBaseUnits,
@@ -47,6 +49,7 @@ export default function PayMerchantScreen() {
   const [selectedTokenSymbol, setSelectedTokenSymbol] = useState("USDC");
   const [isPaying, setIsPaying] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [reviewNotice, setReviewNotice] = useState<string | null>(null);
 
   const selectedToken =
     assets.find((asset) => asset.symbol === selectedTokenSymbol) ?? assets[0];
@@ -119,9 +122,31 @@ export default function PayMerchantScreen() {
     amountInBaseUnits !== null &&
     balanceInBaseUnits !== null &&
     amountInBaseUnits <= balanceInBaseUnits;
+  // The network fee is paid in USDC on top of the amount.
+  const { quote: feeQuote, refresh: refreshFee, accept: acceptFee } = useNetworkFee({
+    service: DEMO_MODE ? null : service,
+    recipientAddress: isValidAddress ? rawAddress : null,
+    tokenSymbol: selectedToken?.symbol,
+    tokenAddress: selectedToken?.contractAddress,
+  });
+  const maxFee = feeQuote.status === "ready" ? feeQuote.maxFee : null;
+  const sendingFeeToken = selectedToken?.symbol === FEE_TOKEN_SYMBOL;
+  const tokenBalanceUnits = assetBaseUnits(selectedToken);
+  const feeTokenBalanceUnits = assetBaseUnits(assets.find((asset) => asset.symbol === FEE_TOKEN_SYMBOL));
+  const { fundsMessage } = assessSend({
+    amountUnits: amountInBaseUnits,
+    tokenSymbol: selectedToken?.symbol ?? "",
+    tokenBalance: tokenBalanceUnits,
+    feeTokenBalance: feeTokenBalanceUnits,
+    maxFee,
+  });
+  // Without an estimate the payment can still go ahead: the exact fee is read from the
+  // prepared payment and shown for one more confirmation before anything is signed.
+  const feeReady = DEMO_MODE || ((feeQuote.status === "ready" || feeQuote.status === "unavailable") && !fundsMessage);
   const canPay =
     !!selectedToken &&
     (DEMO_MODE || !!transactionService) &&
+    feeReady &&
     isValidAddress &&
     isValidAmount &&
     hasValidDecimals &&
@@ -134,6 +159,8 @@ export default function PayMerchantScreen() {
     if (DEMO_MODE) return void pay();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setMessage(null);
+    setReviewNotice(null);
+    refreshFee();
     setIsReviewOpen(true);
   };
 
@@ -162,8 +189,33 @@ export default function PayMerchantScreen() {
             ? (Number(normalizedAmount) * selectedToken.usdPrice).toFixed(2)
             : selectedToken.usdValue,
         note: note.trim() || undefined,
+        feeGuard:
+          amountInBaseUnits !== null
+            ? {
+                // Null when no estimate was shown: the exact fee comes back for confirmation.
+                shownMaxFee: maxFee,
+                amount: amountInBaseUnits,
+                sendingFeeToken,
+                tokenBalance: tokenBalanceUnits ?? 0n,
+                feeTokenBalance: (sendingFeeToken ? tokenBalanceUnits : feeTokenBalanceUnits) ?? 0n,
+              }
+            : undefined,
       });
       if (!result.success) {
+        if (result.errorCode === "FEE_CONFIRM" && result.confirmFee !== undefined) {
+          // Nothing was sent. Show the exact fee and ask once more.
+          acceptFee(result.confirmFee);
+          setReviewNotice(result.error ?? null);
+          setIsReviewOpen(true);
+          return;
+        }
+        if (result.errorCode === "FEE_CHANGED" || result.errorCode === "FEE_INSUFFICIENT" || result.errorCode === "FEE_UNAVAILABLE") {
+          // Nothing was sent. Get the new fee and ask again, with the reason.
+          setReviewNotice(result.error ?? null);
+          refreshFee();
+          setIsReviewOpen(true);
+          return;
+        }
         if (result.isPendingVerification) {
           setStatusUnknown(true);
           setMessage("Status unknown. Do not pay again: this payment may still go through. Check Activity before trying again.");
@@ -306,6 +358,24 @@ export default function PayMerchantScreen() {
             </Pressable>
           ) : null}
           {isValidAmount && balanceInBaseUnits !== null && !hasBalance ? <Text className="text-red-300 text-xs mt-2">Amount exceeds your available balance.</Text> : null}
+          {!DEMO_MODE ? (
+            <Text className="text-white/40 text-xs mt-2">
+              Network fee:{" "}
+              {feeQuote.status === "loading"
+                ? "Estimating fee…"
+                : feeQuote.status === "ready"
+                  ? formatFeeLine(feeQuote.maxFee)
+                  : feeQuote.status === "unavailable"
+                    ? "Not estimated yet"
+                    : "—"}
+            </Text>
+          ) : null}
+          {!DEMO_MODE && feeQuote.status === "unavailable" ? (
+            <Pressable onPress={refreshFee} className="mt-1 self-start">
+              <Text className="text-xs font-semibold text-white underline">Try again</Text>
+            </Pressable>
+          ) : null}
+          {!DEMO_MODE && hasBalance && fundsMessage ? <Text className="text-red-300 text-xs mt-2">{fundsMessage}</Text> : null}
           {amount.includes(".") && !hasValidDecimals ? <Text className="text-red-300 text-xs mt-2">{selectedToken?.symbol ?? "This token"} supports up to {maxDecimals} decimal places.</Text> : null}
 
           <TextInput
@@ -354,6 +424,10 @@ export default function PayMerchantScreen() {
         }
         note={note.trim() || undefined}
         busy={isPaying}
+        fee={feeQuote}
+        fundsMessage={fundsMessage}
+        notice={reviewNotice}
+        onRetryFee={refreshFee}
         onCancel={() => setIsReviewOpen(false)}
         onConfirm={pay}
       />

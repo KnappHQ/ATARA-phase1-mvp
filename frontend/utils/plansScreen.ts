@@ -49,7 +49,7 @@ const ORDER: PlanId[] = ["FREE", "PLUS", "MAX"];
 const FREE_HIGHLIGHTS = [
   "Your wallet, sending and receiving, contacts and Activity",
   "Paying a merchant by QR code",
-  "No fee on sending money to other people",
+  "No ATARA fee on sending money to other people. A small network fee applies, shown before you confirm",
 ];
 
 const plannedHighlights = (plan: PlanInfo | undefined, free: PlanInfo | undefined): string[] => {
@@ -57,9 +57,6 @@ const plannedHighlights = (plan: PlanInfo | undefined, free: PlanInfo | undefine
   const lines: string[] = [];
   if (free.milesPerUsd > 0 && plan.milesPerUsd > free.milesPerUsd) {
     lines.push(`${Number((plan.milesPerUsd / free.milesPerUsd).toFixed(1))}× ATARA Miles on card spending`);
-  }
-  if (plan.sponsoredSendsPerMonth > free.sponsoredSendsPerMonth) {
-    lines.push(`A larger monthly allowance of sends with network fees covered (${plan.sponsoredSendsPerMonth})`);
   }
   if (plan.cardFxBps !== null && free.cardFxBps !== null && plan.cardFxBps < free.cardFxBps) {
     lines.push("Lower card currency-conversion fee");
