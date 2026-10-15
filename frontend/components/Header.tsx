@@ -65,10 +65,9 @@ export const Header = ({ onReceive }: HeaderProps) => {
             >
               <ArrowDownLeft size={14} color="#84CCFF" />
               <Text
-                className="text-[10px] font-semibold uppercase text-white"
-                style={{ letterSpacing: 1.5 }}
+                className="text-xs font-semibold text-white"
               >
-                RCV
+                Receive
               </Text>
             </TouchableOpacity>
 
@@ -80,10 +79,9 @@ export const Header = ({ onReceive }: HeaderProps) => {
             >
               <ArrowUpRight size={14} color="#F5F5F0" />
               <Text
-                className="text-[10px] font-semibold uppercase text-white"
-                style={{ letterSpacing: 1.5 }}
+                className="text-xs font-semibold text-white"
               >
-                SEND
+                Send
               </Text>
             </TouchableOpacity>
           </View>

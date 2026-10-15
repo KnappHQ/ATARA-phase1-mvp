@@ -11,6 +11,8 @@ const {
   BALANCE_REFRESH_SCHEDULE_MS, CREATE_SESSION_TIMEOUT_MS,
 } = flow;
 const read = (file) => fs.readFileSync(path.join(__dirname, "..", file), "utf8");
+/** Source without its comments, for checks that something is never used. */
+const code = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
 const SECRET = "sk_test_ZyXwVuTsRqPoNmLkJiHgFeDcBa987654";
 const API = "pk_test_AbCdEfGhIjKlMnOpQrStUvWxYz012345";
@@ -77,7 +79,10 @@ test("signing input is deterministic and the app never changes the URL: openBrow
   // The checkout source never rebuilds, normalises or appends to the checkout URL.
   const screen = read("components/addMoney/CardPurchaseSection.tsx");
   assert.doesNotMatch(screen, /encodeURI|new URL\(|URLSearchParams|\.searchParams|session\.url\s*\+/);
-  assert.match(screen, /openBrowser: \(url\) =>\s*WebBrowser\.openBrowserAsync\(url,/);
+  assert.match(screen, /settleCheckout\.current = [^\n]+\n\s*setCheckoutUrl\(url\);/);
+  const view = read("components/addMoney/MoonPayCheckout.tsx");
+  assert.match(view, /source=\{\{ uri: url \}\}/, "the WebView loads the signed URL itself");
+  assert.doesNotMatch(view, /encodeURI|new URL\(|URLSearchParams|\.searchParams|url\s*\+/);
 });
 
 // ------------------------------------------------------------------ the whole flow
@@ -217,16 +222,16 @@ test("the Add crypto screen uses the flow, frees itself, and keeps its close and
   assert.match(screen, /const isOpening = isBusy\(checkout\);/);
   assert.doesNotMatch(screen, /setIsOpening/);
   assert.match(screen, /await runCheckout\(/);
-  // The browser: full screen, with the native Close button.
-  assert.match(screen, /presentationStyle: WebBrowser\.WebBrowserPresentationStyle\.FULL_SCREEN/);
-  assert.match(screen, /dismissButtonStyle: "close"/);
+  // The checkout is the in-app view, not a Safari view.
+  assert.doesNotMatch(screen, /expo-web-browser|WebBrowser\./);
+  assert.match(screen, /<MoonPayCheckout url=\{checkoutUrl\} onExit=\{onCheckoutExit\} \/>/);
   // Safe area: the screen sits inside SafeAreaView on top and bottom, and its Back button is labelled, 44pt and has hit slop.
   assert.match(page, /import \{ SafeAreaView \} from "react-native-safe-area-context"/);
   assert.match(page, /<SafeAreaView className="flex-1 bg-black" edges=\{\["top", "bottom"\]\}>/);
   assert.match(page, /accessibilityLabel="Back"\s*hitSlop=\{8\}\s*className="w-11 h-11/);
-  // Coming back to the app ends the wait; an explicit way out exists while MoonPay is open.
-  assert.match(screen, /AppState\.addEventListener\("change"/);
-  assert.match(screen, /I’m back/);
+  // Closing the view ends the wait. No AppState listener: the Apple Pay sheet makes the app inactive mid-checkout.
+  assert.doesNotMatch(code(screen), /AppState/);
+  assert.match(screen, /settleCheckout\.current\?\.\(exit\)/);
   assert.match(screen, /scheduleBalanceRefresh\(\(\) => useWalletStore\.getState\(\)\.refreshBalances\(\)\)/);
   // The failure is shown with its reference.
   assert.match(screen, /Reference: \$\{checkout\.failure\.code\}/);
@@ -239,4 +244,78 @@ test("every new screen and the Add crypto screen sit inside the safe area and ex
     assert.match(source, /accessibilityLabel="Back"/, file);
     assert.match(source, /w-11 h-11/, `${file}: the back button is 44 points`);
   }
+});
+
+// ------------------------------------------------------- the in-app checkout view
+
+const { readRedirectUrl, decideNavigation, classifyWebViewError, CHECKOUT_LOAD_TIMEOUT_MS } = flow;
+
+test("the redirect is read from the signed URL, never changed, and only an https one counts", () => {
+  const encoded = encodeURIComponent("https://atara.finance/moonpay/done?x=1");
+  const url = signedUrl(`&redirectURL=${encoded}`);
+  assert.equal(readRedirectUrl(url), "https://atara.finance/moonpay/done?x=1");
+  assert.equal(readRedirectUrl(GOOD), null);
+  assert.equal(readRedirectUrl(signedUrl(`&redirectURL=${encodeURIComponent("atara://done")}`)), null);
+  assert.equal(readRedirectUrl(signedUrl("&redirectURL=%E0%A4%A")), null, "broken encoding");
+});
+
+test("navigation: the redirect closes the view, https loads, app links leave, http and javascript are blocked", () => {
+  const redirect = "https://atara.finance/moonpay/done";
+  assert.equal(decideNavigation("https://atara.finance/moonpay/done?transactionId=abc&transactionStatus=pending", redirect), "return");
+  assert.equal(decideNavigation("https://ATARA.finance/moonpay/done/", redirect), "return");
+  assert.equal(decideNavigation("https://atara.finance/moonpay/donex", redirect), "load");
+  assert.equal(decideNavigation("https://atara.finance.evil.example/moonpay/done", redirect), "load");
+  assert.equal(decideNavigation(GOOD, redirect), "load");
+  assert.equal(decideNavigation("https://3ds.bank.example/challenge", null), "load");
+  for (const frame of ["about:blank", "about:srcdoc", "blob:https://buy-sandbox.moonpay.com/1", "data:text/html,x"]) assert.equal(decideNavigation(frame, redirect), "load", frame);
+  for (const link of ["mailto:support@moonpay.com", "tel:+33100000000", "itms-apps://apps.apple.com/app/id1"]) assert.equal(decideNavigation(link, redirect), "external", link);
+  for (const bad of ["http://buy-sandbox.moonpay.com/", "javascript:alert(1)", "file:///etc/passwd", "not a url"]) assert.equal(decideNavigation(bad, redirect), "block", bad);
+});
+
+test("network errors, HTTP errors and the load timeout each say what happened, without the URL", () => {
+  assert.equal(CHECKOUT_LOAD_TIMEOUT_MS, 20_000);
+  assert.equal(classifyWebViewError({ kind: "load", code: -1009 }).code, "APP-CHECKOUT-OFFLINE");
+  assert.equal(classifyWebViewError({ kind: "load", code: -1001 }).code, "APP-CHECKOUT-OFFLINE");
+  assert.equal(classifyWebViewError({ kind: "load", code: -2 }).code, "APP-CHECKOUT-OFFLINE", "Android host lookup");
+  assert.equal(classifyWebViewError({ kind: "load", code: -1202 }).code, "APP-CHECKOUT-LOAD", "TLS: not called offline");
+  assert.equal(classifyWebViewError({ kind: "http", statusCode: 503 }).code, "APP-CHECKOUT-HTTP-503");
+  assert.match(classifyWebViewError({ kind: "http", statusCode: 503 }).message, /not responding/);
+  assert.match(classifyWebViewError({ kind: "http", statusCode: 403 }).message, /new one/);
+  assert.equal(classifyWebViewError({ kind: "timeout" }).code, "APP-CHECKOUT-TIMEOUT");
+  for (const problem of [{ kind: "load", code: -1009 }, { kind: "http", statusCode: 500 }, { kind: "timeout" }]) {
+    assert.doesNotMatch(classifyWebViewError(problem).message, /https?:|moonpay\.com|signature/i);
+  }
+});
+
+test("a server that cannot see a public IP is explained, with its reference", () => {
+  const failure = classifyOnrampError(httpError(503, { message: "Your connection could not be verified", code: "MP-IP-UNAVAILABLE" }));
+  assert.match(failure.message, /VPN or proxy/);
+  assert.equal(failure.code, "MP-IP-UNAVAILABLE");
+});
+
+test("closing the view, by any route, ends the checkout and refreshes the balance", async () => {
+  for (const exit of ["closed", "returned", "retry"]) {
+    const { phases, state } = await run({ createSession: async () => ({ url: GOOD, mode: "sandbox" }), openBrowser: async () => exit });
+    assert.deepEqual(phases, ["idle", "creating", "open", "returned"], exit);
+    assert.equal(isBusy(state), false);
+  }
+  const screen = read("components/addMoney/CardPurchaseSection.tsx");
+  assert.match(screen, /if \(phase === "returned"\) refreshAfterReturn\(\);/);
+  assert.match(screen, /if \(inFlight\.current\) return;/, "double taps are ignored while a checkout is in flight");
+  assert.match(screen, /disabled=\{isOpening \|\| checkoutUrl !== null\}/);
+  assert.match(screen, /if \(outcome\.exit === "retry"\) await openMoonPay\(\);/, "Retry asks the server for a new session");
+});
+
+test("the view keeps Apple Pay possible: no injected script, no message bridge, and a Close that is always there", () => {
+  const view = read("components/addMoney/MoonPayCheckout.tsx");
+  assert.match(view, /\benableApplePay\b/);
+  assert.doesNotMatch(code(view), /injectedJavaScript|injectJavaScript|onMessage|postMessage/);
+  assert.match(view, /onShouldStartLoadWithRequest=\{onShouldStartLoadWithRequest\}/);
+  assert.match(view, /onError=/);
+  assert.match(view, /onHttpError=/);
+  assert.match(view, /CHECKOUT_LOAD_TIMEOUT_MS/);
+  assert.match(view, /onRequestClose=\{\(\) => exit\("closed"\)\}/);
+  assert.match(view, /accessibilityLabel="Close MoonPay"/);
+  assert.match(view, /if \(exited\.current\) return;/, "the view settles only once");
+  assert.doesNotMatch(view, /console\.(log|warn|error)/, "the signed URL is never logged");
 });

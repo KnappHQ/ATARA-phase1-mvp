@@ -43,10 +43,14 @@ const PROTECTED = [
 
   ["get", "/api/v1/wallet/portfolio"],
   ["post", "/api/v1/wallet/onramp-session"],
+  ["get", "/api/v1/wallet/onramp-ip-check"],
 
   ["get", "/api/v1/groups"],
   ["post", "/api/v1/groups"],
   ["get", "/api/v1/groups/some-id"],
+  ["post", "/api/v1/groups/some-id/archive"],
+  ["delete", "/api/v1/groups/some-id/archive"],
+  ["delete", "/api/v1/groups/some-id"],
   ["post", "/api/v1/groups/some-id/expenses"],
   ["patch", "/api/v1/groups/e/some-id/decision"],
   ["get", "/api/v1/groups/contacts/0xabc/balances"],

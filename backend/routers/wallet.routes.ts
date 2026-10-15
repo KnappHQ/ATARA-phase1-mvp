@@ -7,5 +7,6 @@ const router = Router();
 
 router.get("/portfolio", authentication, walletController.getMyPortfolio);
 router.post("/onramp-session", authentication, onrampController.createSession);
+router.get("/onramp-ip-check", authentication, onrampController.ipCheck);
 
 export default router;
