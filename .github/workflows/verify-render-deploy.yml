@@ -19,7 +19,8 @@ jobs:
       github.repository == 'KnappHQ/ATARA-phase1-mvp' &&
       (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # Render builds can queue: 359d289 went live about 65 minutes after the sync.
+    timeout-minutes: 100
     steps:
       - uses: actions/checkout@v4
       - name: Wait for Render to serve the merged commit
@@ -28,4 +29,4 @@ jobs:
         run: >-
           bash .github/scripts/wait-for-render-deploy.sh
           https://api.atara.finance/api/v1/health/backend
-          "$EXPECTED_SHA" 1200 30
+          "$EXPECTED_SHA" 5400 60
